@@ -1,0 +1,57 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getPublicContributor, getPublicContributors, allPublicObservations } from '../../lib/queries';
+import { withBase } from '../../lib/privacy';
+
+export function getStaticPaths() {
+  return getPublicContributors().map((c) => ({ params: { slug: c.slug } }));
+}
+
+const { slug } = Astro.params;
+const c = getPublicContributor(slug!);
+if (!c) return Astro.redirect(withBase('/contributors/'));
+
+const observed = allPublicObservations.filter((o) => o.observer_name === c.name);
+const identified = allPublicObservations.filter((o) => o.identification?.identified_by === c.name);
+---
+
+<Base title={c.name} description={c.bio ?? `${c.name} 在中国跳蛛观察志的记录。`}>
+  <div class="container">
+    <div class="page-title">
+      <h1>{c.name}{c.nameEn ? <span style="font-size: 0.5em; color: var(--faint); margin-left: 12px; letter-spacing: 0.12em;">{c.nameEn}</span> : null}</h1>
+      <p class="lede">
+        {c.role === 'owner' ? '站长 · 站内全部记录的鉴定与编辑' : '受邀贡献者 · 材料经审核后发布'}
+        {c.bio ? <><br />{c.bio}</> : null}
+      </p>
+    </div>
+
+    {observed.length > 0 && (
+      <section class="section" style="padding-top: 20px;">
+        <div class="section-head"><h2>观察的记录</h2><span class="more">{observed.length} 条</span></div>
+        <div class="place-rows">
+          {observed.map((o) => (
+            <div class="place-row">
+              <span class="loc-name"><a href={o.url}>{o.public_id}</a> · {o.identification?.display ?? '未鉴定'}</span>
+              <span class="loc-meta">{o.observed_at} · {o.location.state_province}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    )}
+
+    {identified.length > 0 && (
+      <section class="section">
+        <div class="section-head"><h2>参与鉴定的记录</h2><span class="more">{identified.length} 条</span></div>
+        <p class="section-lede">每条记录的照片版权归摄影者所有；鉴定的学术责任由鉴定人承担。</p>
+        <div class="place-rows" style="padding-bottom: 60px;">
+          {identified.filter((o) => o.observer_name !== c.name).map((o) => (
+            <div class="place-row">
+              <span class="loc-name"><a href={o.url}>{o.public_id}</a> · {o.identification?.display}</span>
+              <span class="loc-meta">{o.observed_at} · 摄影 {o.observer_name}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    )}
+  </div>
+</Base>

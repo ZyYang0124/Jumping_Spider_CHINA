@@ -1,0 +1,27 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getPublicTrips } from '../../lib/queries';
+import { withBase } from '../../lib/privacy';
+---
+
+<Base title="野外调查" description="每一次野外调查都是一册field journal——路线、生境、故事与当时的记录。">
+  <div class="container">
+    <div class="page-title">
+      <h1>野外调查</h1>
+      <p class="lede">调查页是野外日记，不是采样点表格。地点、天气、遇见——按时间线记下来。</p>
+    </div>
+    <div class="trip-list" style="padding-bottom: 70px;">
+      {getPublicTrips().map((t) => (
+        <a class="trip-card" href={withBase(`/trips/${t.slug}/`)}>
+          <div class="cover">{t.cover && <img src={t.cover.medium} alt={`${t.title} 封面`} loading="lazy" />}</div>
+          <div class="body">
+            <h2>{t.title}</h2>
+            {t.subtitle && <div class="dates" style="font-size: 14px; color: var(--muted); margin-bottom: 6px;">{t.subtitle}</div>}
+            <div class="dates">{t.province} · {t.start_date} – {t.end_date} · {t.observations.length} 条记录</div>
+            <p>{t.summary}</p>
+          </div>
+        </a>
+      ))}
+    </div>
+  </div>
+</Base>

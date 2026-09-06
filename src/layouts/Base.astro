@@ -1,0 +1,62 @@
+---
+import '../styles/global.css';
+import { siteConfig } from '../lib/store';
+import { withBase } from '../lib/privacy';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title, description = siteConfig.subtitle } = Astro.props;
+const pageTitle = title ? `${title} · ${siteConfig.site_name}` : `${siteConfig.site_name} | ${siteConfig.site_name_en}`;
+
+const nav = [
+  { href: '/observations/', label: '观察记录' },
+  { href: '/species/', label: '物种' },
+  { href: '/trips/', label: '野外调查' },
+  { href: '/places/', label: '地点' },
+  { href: '/contributors/', label: '伙伴' },
+  { href: '/about/', label: '关于' },
+];
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href={withBase('/favicon.svg')} type="image/svg+xml" />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="inner">
+        <a class="brand" href={withBase('/')}>
+          <span class="zh">{siteConfig.site_name}</span>
+          <span class="en">{siteConfig.site_name_en}</span>
+        </a>
+        <nav class="site-nav" aria-label="主导航">
+          {nav.map((n) => <a href={withBase(n.href)}>{n.label}</a>)}
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="inner">
+        <div class="fn">{siteConfig.site_name} · {siteConfig.site_name_en}</div>
+        <p>{siteConfig.disclaimer}</p>
+        <p>{siteConfig.demo_note}</p>
+        <p>© {new Date().getFullYear()} {siteConfig.copyright_holder} · {siteConfig.footer_note}</p>
+      </div>
+    </footer>
+  </body>
+</html>

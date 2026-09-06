@@ -1,0 +1,31 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getPublicContributors } from '../../lib/queries';
+import { withBase } from '../../lib/privacy';
+
+const contributors = getPublicContributors();
+---
+
+<Base title="伙伴" description="中国跳蛛观察志的站长与受邀贡献者。">
+  <div class="container">
+    <div class="page-title">
+      <h1>伙伴</h1>
+      <p class="lede">观察属于每一个在野外蹲下身来的人。本站采用邀请制投稿——朋友的材料经站长审核、鉴定后发布。</p>
+    </div>
+    <div class="contributor-grid" style="padding-bottom: 70px;">
+      {contributors.map((c) => (
+        <a class="contributor-card" href={withBase(`/contributors/${c.slug}/`)}>
+          <h2>{c.name}</h2>
+          <div class="role">{c.role === 'owner' ? '站长 · OWNER' : '贡献者 · CONTRIBUTOR'}</div>
+          {c.bio && <p class="bio">{c.bio}</p>}
+          <div class="stats">{c.observationCount} 条相关记录{c.provinces.length > 0 && ` · ${c.provinces.join('、')}`}</div>
+          {c.coverThumbs.length > 0 && (
+            <div class="thumb-strip">
+              {c.coverThumbs.map((t) => <img src={t.thumb} alt={t.alt} loading="lazy" />)}
+            </div>
+          )}
+        </a>
+      ))}
+    </div>
+  </div>
+</Base>

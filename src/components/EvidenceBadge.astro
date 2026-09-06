@@ -1,0 +1,12 @@
+---
+import { EVIDENCE_ZH } from '../lib/labels';
+
+interface Props {
+  evidence: string;
+}
+
+const { evidence } = Astro.props;
+const label = EVIDENCE_ZH[evidence as keyof typeof EVIDENCE_ZH] ?? evidence;
+---
+
+<span class="evidence-badge" title="鉴定证据等级">{label}</span>

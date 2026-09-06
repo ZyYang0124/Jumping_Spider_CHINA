@@ -1,0 +1,55 @@
+---
+import Base from '../../layouts/Base.astro';
+import ObsCard from '../../components/ObsCard.astro';
+import { getPublicTrip, getPublicTrips } from '../../lib/queries';
+import { withBase } from '../../lib/privacy';
+import { sciNameHtml } from '../../lib/format';
+
+export function getStaticPaths() {
+  return getPublicTrips().map((t) => ({ params: { slug: t.slug } }));
+}
+
+const { slug } = Astro.params;
+const trip = getPublicTrip(slug!);
+if (!trip) return Astro.redirect(withBase('/trips/'));
+
+const observed = trip.observations.length;
+const withId = trip.observations.filter((o) => o.identification);
+const distinctNames = [...new Set(withId.map((o) => o.identification!.display))];
+const timeline = [...trip.observations].sort((a, b) => a.observed_at.localeCompare(b.observed_at));
+---
+
+<Base title={trip.title} description={trip.summary}>
+  <section class="trip-hero">
+    {trip.cover && <img src={trip.cover.large} alt={`${trip.title} 封面照片`} fetchpriority="high" />}
+    <div class="veil"></div>
+    <div class="inner">
+      <h1>{trip.title}</h1>
+      <div class="dates">{trip.province} · {trip.start_date} – {trip.end_date}</div>
+    </div>
+  </section>
+
+  <div class="container">
+    <article class="trip-story">
+      <div class="label">调 查 日 志</div>
+      {trip.story.split('\n\n').map((p) => <p>{p}</p>)}
+    </article>
+
+    <section class="section" style="padding-top: 20px;">
+      <div class="section-head">
+        <h2>本期记录</h2>
+        <span class="more">{observed} 条观察{distinctNames.length > 0 && ` · ${distinctNames.length} 个已鉴定类群`}</span>
+      </div>
+      {distinctNames.length > 0 && (
+        <p class="section-lede" set:html={distinctNames.map((n) => sciNameHtml(n, 'species')).join('、')} />
+      )}
+      <div class="card-grid" style="margin-top: 22px;">
+        {timeline.map((o) => <ObsCard obs={o} />)}
+      </div>
+    </section>
+
+    <p class="disclaimer" style="padding-bottom: 70px;">
+      说明：调查页仅汇总本站已发布的记录。页面中的地点遵循与观察记录一致的隐私规则——敏感情形只公开到地名，甚至完全保密。
+    </p>
+  </div>
+</Base>

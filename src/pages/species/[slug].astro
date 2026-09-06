@@ -1,0 +1,51 @@
+---
+import Base from '../../layouts/Base.astro';
+import ObsCard from '../../components/ObsCard.astro';
+import { getSpeciesGroup, getSpeciesGroups, speciesSlug } from '../../lib/queries';
+import { withBase } from '../../lib/privacy';
+import { siteConfig } from '../../lib/store';
+import { sciNameHtml } from '../../lib/format';
+import { RANK_ZH } from '../../lib/labels';
+
+export function getStaticPaths() {
+  return getSpeciesGroups().map((g) => ({ params: { slug: speciesSlug(g) } }));
+}
+
+const { slug } = Astro.params;
+const group = getSpeciesGroup(slug!);
+if (!group) return Astro.redirect(withBase('/species/'));
+---
+
+<Base title={group.display} description={`${group.display}：本站共 ${group.observations.length} 条已发布观察记录。`}>
+  <div class="container">
+    <header class="species-hero">
+      <h1>
+        <span set:html={sciNameHtml(group.display, group.rank)} />
+        {group.taxon_status === 'provisional' && <span class="status-tag">暂定类群</span>}
+      </h1>
+      <div class="counts">
+        {group.chinese_name && <>{group.chinese_name} · </>}
+        {RANK_ZH[group.rank] ?? group.rank}级记录 · {group.observations.length} 条观察
+        {group.provinces.length > 0 && <> · 分布于本站记录中的 {group.provinces.join('、')}</>}
+      </div>
+    </header>
+
+    {group.personal_note && (
+      <div class="personal-note">
+        <div class="label">从 野 外 笔 记 看</div>
+        <p>{group.personal_note}</p>
+      </div>
+    )}
+
+    <section class="section" style="padding-top: 10px;">
+      <div class="section-head"><h2>来自观察记录</h2></div>
+      <div class="card-grid">
+        {group.observations.map((o) => <ObsCard obs={o} />)}
+      </div>
+    </section>
+
+    <p class="disclaimer" style="padding-bottom: 70px;">
+      说明：{siteConfig.disclaimer}
+    </p>
+  </div>
+</Base>

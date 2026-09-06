@@ -1,0 +1,93 @@
+---
+import Base from '../layouts/Base.astro';
+import { withBase } from '../lib/privacy';
+---
+
+<Base title="搜索" description="统一搜索观察记录、物种与调查。">
+  <div class="container">
+    <div class="page-title">
+      <h1>搜索</h1>
+      <p class="lede">试试物种名（Siler）、地名（云南、察隅）、行为（求偶）或年份（2023）。</p>
+    </div>
+
+    <div class="search-box">
+      <input id="q" type="search" placeholder="搜索观察、物种、调查…" autocomplete="off" aria-label="搜索关键词" />
+      <span class="hint">回车清除高亮</span>
+    </div>
+
+    <div class="search-results" id="results">
+      <div class="search-empty">正在载入索引…</div>
+    </div>
+  </div>
+</Base>
+
+<script>
+  interface IndexItem {
+    type: string;
+    id: string;
+    url: string;
+    title: string;
+    meta: string;
+    text: string;
+    thumb: string | null;
+  }
+  interface SearchIndex {
+    observations: IndexItem[];
+    species: IndexItem[];
+    trips: IndexItem[];
+  }
+
+  const input = document.getElementById('q') as HTMLInputElement;
+  const resultsEl = document.getElementById('results')!;
+  const BASE = import.meta.env.BASE_URL;
+  let index: SearchIndex = { observations: [], species: [], trips: [] };
+
+  fetch(`${BASE}data/search-index.json`)
+    .then((r) => r.json())
+    .then((data: SearchIndex) => {
+      index = data;
+      render('');
+    })
+    .catch(() => {
+      resultsEl.innerHTML = '<div class="search-empty">索引载入失败，请刷新重试。</div>';
+    });
+
+  function rowOf(item: IndexItem): string {
+    const thumb = item.thumb
+      ? `<img src="${item.thumb}" alt="" loading="lazy" />`
+      : '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="" />';
+    return `<a class="result-row" href="${item.url}">${thumb}<span><span class="t">${item.title}</span><br /><span class="m">${item.meta}</span></span></a>`;
+  }
+
+  function render(q: string) {
+    const query = q.trim().toLowerCase();
+    if (!query) {
+      const latest = index.observations.slice(0, 5);
+      resultsEl.innerHTML =
+        '<div class="search-section"><h2>最新记录</h2>' + latest.map(rowOf).join('') + '</div>';
+      return;
+    }
+    const match = (item: IndexItem) =>
+      (item.title + ' ' + item.meta + ' ' + item.text).toLowerCase().includes(query);
+    const sections: [string, IndexItem[]][] = [
+      ['观察记录', index.observations.filter(match)],
+      ['物种', index.species.filter(match)],
+      ['野外调查', index.trips.filter(match)],
+    ];
+    const html = sections
+      .filter(([, items]) => items.length > 0)
+      .map(
+        ([label, items]) =>
+          `<div class="search-section"><h2>${label}（${items.length}）</h2>${items.map(rowOf).join('')}</div>`,
+      )
+      .join('');
+    resultsEl.innerHTML =
+      html || '<div class="search-empty">没有匹配的记录。换个词试试？比如「Siler」「云南」「求偶」。</div>';
+  }
+
+  let timer: ReturnType<typeof setTimeout>;
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => render(input.value), 120);
+  });
+</script>

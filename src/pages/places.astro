@@ -1,0 +1,46 @@
+---
+import Base from '../layouts/Base.astro';
+import { getProvinceGroups } from '../lib/queries';
+import { withBase } from '../lib/privacy';
+import { LOCATION_VISIBILITY_ZH } from '../lib/labels';
+import { coordLabel } from '../lib/format';
+
+const groups = getProvinceGroups();
+---
+
+<Base title="地点" description="按省份浏览观察记录。地图仅在公开数据允许时出现，敏感情形只公开到地名。">
+  <div class="container">
+    <div class="page-title">
+      <h1>地点</h1>
+      <p class="lede">按省份与地名浏览。本站 MVP 不做交互地图——公开数据允许到哪一层，页面就展示到哪一层。</p>
+    </div>
+
+    <div class="place-groups">
+      {groups.map((g) => (
+        <section class="place-group">
+          <h2>{g.province}<span class="n">{g.count} 条记录</span></h2>
+          <div class="place-rows">
+            {g.localities.map((l) => (
+              <div class="place-row">
+                <span class="loc-name">
+                  {l.observations.slice(0, 3).map((o, i) => (
+                    <>{i > 0 && ' · '}<a href={o.url}>{o.public_id}</a></>
+                  ))}
+                  {l.observations.length > 3 && ` 等 ${l.observations.length} 条`}
+                </span>
+                <span class="loc-meta">
+                  {l.name}
+                  {l.elevation != null && ` · 海拔约 ${l.elevation} m`}
+                  {' · '}{coordLabel({ visibility: l.visibilityLabel, latitude: null, coordinate_uncertainty_m: null }) ?? LOCATION_VISIBILITY_ZH[l.visibilityLabel as keyof typeof LOCATION_VISIBILITY_ZH]}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+      <p class="place-legend">
+        隐私图例：{Object.values(LOCATION_VISIBILITY_ZH).join(' / ')}。敏感坐标在数据层就被拦截，不会发送到浏览器——模糊化从不依赖前端脚本。记录仅代表本站观察，不构成任何物种的完整分布。
+      </p>
+    </div>
+  </div>
+</Base>

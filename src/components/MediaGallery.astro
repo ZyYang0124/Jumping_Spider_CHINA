@@ -1,0 +1,103 @@
+---
+// 摄影优先图库 + 轻量灯箱（键盘可导航，prefers-reduced-motion 友好）
+import type { PublicMedia } from '../lib/privacy';
+import { VIEW_TYPE_ZH, LICENSE_ZH } from '../lib/labels';
+
+interface Props {
+  media: PublicMedia[];
+}
+
+const { media } = Astro.props;
+const items = media.map((m) => ({
+  ...m,
+  vtLabel: VIEW_TYPE_ZH[m.view_type] ?? m.view_type,
+  licenseLabel: LICENSE_ZH[m.license as keyof typeof LICENSE_ZH] ?? '',
+}));
+---
+
+<div class="gallery">
+  {items.map((m, i) => (
+    <figure
+      data-index={i}
+      data-large={m.large}
+      data-caption={m.caption ?? ''}
+      data-photographer={m.photographer}
+      tabindex="0"
+      role="button"
+      aria-label={`查看大图：${m.caption ?? m.vtLabel}`}
+    >
+      <img src={m.medium} alt={m.caption ?? m.vtLabel} loading="lazy" width={m.width} height={m.height} />
+      <span class="vt">{m.vtLabel}</span>
+      <figcaption>
+        {m.caption}
+        <span class="who">© {m.photographer}{m.licenseLabel === '版权所有' ? '' : ` · ${m.licenseLabel}`}</span>
+      </figcaption>
+    </figure>
+  ))}
+</div>
+
+<div class="lightbox" role="dialog" aria-modal="true" aria-label="图片灯箱">
+  <button class="close" type="button" aria-label="关闭">×</button>
+  <button class="prev" type="button" aria-label="上一张">‹</button>
+  <img src="" alt="" />
+  <div class="cap"><span class="text"></span><span class="who"></span></div>
+  <button class="next" type="button" aria-label="下一张">›</button>
+</div>
+
+<script>
+  const galleries = document.querySelectorAll<HTMLElement>('.gallery');
+  for (const gallery of galleries) {
+    const figures = Array.from(gallery.querySelectorAll<HTMLElement>('figure'));
+    const lightbox = gallery.parentElement?.querySelector<HTMLElement>('.lightbox');
+    if (!lightbox) continue;
+    const img = lightbox.querySelector('img')!;
+    const textEl = lightbox.querySelector('.cap .text')!;
+    const whoEl = lightbox.querySelector('.cap .who')!;
+    let index = 0;
+
+    const show = (i: number) => {
+      index = (i + figures.length) % figures.length;
+      const f = figures[index];
+      img.src = f.dataset.large ?? '';
+      img.alt = f.dataset.caption ?? '';
+      textEl.textContent = f.dataset.caption ?? '';
+      whoEl.textContent = `© ${f.dataset.photographer ?? ''}`;
+    };
+    const open = (i: number) => {
+      show(i);
+      lightbox.classList.add('open');
+      document.body.style.overflow = 'hidden';
+      lightbox.querySelector('.close')?.focus();
+    };
+    const close = () => {
+      lightbox.classList.remove('open');
+      document.body.style.overflow = '';
+    };
+
+    figures.forEach((f, i) => {
+      f.addEventListener('click', () => open(i));
+      f.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          open(i);
+        }
+      });
+    });
+    lightbox.querySelector('.close')?.addEventListener('click', close);
+    lightbox.querySelector('.prev')?.addEventListener('click', () => show(index - 1));
+    lightbox.querySelector('.next')?.addEventListener('click', () => show(index + 1));
+    lightbox.addEventListener('click', (e) => {
+      if (e.target === lightbox) close();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (!lightbox.classList.contains('open')) return;
+      if (e.key === 'Escape') close();
+      else if (e.key === 'ArrowLeft') show(index - 1);
+      else if (e.key === 'ArrowRight') show(index + 1);
+    });
+  }
+</script>
+
+<style>
+  .who { display: block; color: var(--faint); font-size: 12px; margin-top: 2px; }
+</style>

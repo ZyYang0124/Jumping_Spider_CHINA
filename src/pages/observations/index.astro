@@ -1,0 +1,21 @@
+---
+import Base from '../../layouts/Base.astro';
+import ObsCard from '../../components/ObsCard.astro';
+import { allPublicObservations } from '../../lib/queries';
+import { withBase } from '../../lib/privacy';
+---
+
+<Base title="观察记录" description="全部已发布的跳蛛观察记录。">
+  <div class="container">
+    <div class="page-title">
+      <h1>观察记录</h1>
+      <p class="lede">每条记录都有永久编号（CSFN-YYYY-NNNNNN），鉴定可以改变，观察本身不会过期。</p>
+    </div>
+    <div class="card-grid" style="padding: 34px 0 70px;">
+      {allPublicObservations.map((o) => <ObsCard obs={o} />)}
+    </div>
+    {allPublicObservations.length === 0 && (
+      <div class="empty-state">还没有已发布的观察记录。</div>
+    )}
+  </div>
+</Base>

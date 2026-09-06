@@ -1,0 +1,20 @@
+---
+// 学名排版组件：属名/种名斜体，sp. / cf. / aff. 与高阶元不斜体
+import { sciNameHtml } from '../lib/format';
+
+interface Props {
+  display: string;
+  rank: string;
+  chineseName?: string | null;
+  class?: string;
+}
+
+const { display, rank, chineseName = null, class: className = '' } = Astro.props;
+---
+
+<span class:list={['sci-name', className]} set:html={sciNameHtml(display, rank)} />{chineseName ? <span class="cn">（{chineseName}）</span> : null}
+
+<style>
+  .sci-name :global(i) { font-family: var(--serif); }
+  .cn { color: var(--muted); }
+</style>

@@ -1,0 +1,29 @@
+[
+  {
+    "id": "prof-zhiyong",
+    "display_name": "杨智勇",
+    "display_name_en": "Zhiyong Yang",
+    "slug": "zhiyong-yang",
+    "role": "owner",
+    "profile_visibility": "public",
+    "bio": "蛛形纲研究者，跳蛛分类爱好者。中国跳蛛观察志站长，负责全部记录的鉴定与编辑。"
+  },
+  {
+    "id": "prof-taoli",
+    "display_name": "李涛",
+    "display_name_en": "Tao Li",
+    "slug": "tao-li",
+    "role": "contributor",
+    "profile_visibility": "public",
+    "bio": "自然史摄影爱好者，长期关注华南地区的跳蛛与叶甲。受邀向本站投稿。"
+  },
+  {
+    "id": "prof-private-friend",
+    "display_name": "（一位选择不公开主页的朋友）",
+    "display_name_en": null,
+    "slug": null,
+    "role": "contributor",
+    "profile_visibility": "private",
+    "bio": null
+  }
+]
