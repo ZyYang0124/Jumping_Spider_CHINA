@@ -11,6 +11,7 @@ import {
   type PublicObservation,
 } from './privacy';
 import {
+  displayNameOf,
   mediaById,
   observations,
   profiles,
@@ -33,6 +34,9 @@ function mediaManifest(): Record<string, { width: number; height: number }> {
 }
 
 const manifest = mediaManifest();
+const publishedObservationIds = new Set(
+  observations.filter((o) => o.status === 'published' && o.visibility === 'public').map((o) => o.id),
+);
 
 export const allPublicObservations: PublicObservation[] = getPublicObservations().map((o) => {
   o.media = o.media.map((m) => ({
@@ -134,6 +138,14 @@ export function getUnidentifiedObservations(): PublicObservation[] {
 
 // ---------- 调查 ----------
 
+export interface PublicTripDay {
+  label: string;
+  title: string;
+  date: string;
+  text: string;
+  media: { medium: string; large: string; caption: string | null; photographer: string; ratio: 'landscape' | 'portrait' | 'square' }[];
+}
+
 export interface PublicTrip {
   slug: string;
   title: string;
@@ -142,9 +154,36 @@ export interface PublicTrip {
   end_date: string;
   province: string;
   summary: string;
-  story: string;
   cover: { medium: string; large: string } | null;
+  days: PublicTripDay[];
   observations: PublicObservation[];
+}
+
+/** 仅解析「已发布且公开」观察所属的媒体，供 Trip 正文插图使用 */
+function safeTripMedia(mediaIds: string[]) {
+  return mediaIds
+    .map((id) => mediaById.get(id))
+    .filter(
+      (m): m is NonNullable<ReturnType<typeof mediaById.get>> =>
+        !!m && m.visibility === 'public' && publishedObservationIds.has(m.observation_id),
+    )
+    .map((m) => {
+      const dim = manifest[m.id];
+      const ratio = dim && dim.width && dim.height
+        ? dim.width / dim.height > 1.15
+          ? 'landscape'
+          : dim.width / dim.height < 0.87
+            ? 'portrait'
+            : 'square'
+        : 'landscape';
+      return {
+        medium: withBase(`/media/derivatives/${m.id}_medium.jpg`),
+        large: withBase(`/media/derivatives/${m.id}_large.jpg`),
+        caption: m.caption,
+        photographer: displayNameOf(m.photographer_profile_id) ?? m.photographer_name ?? '未知',
+        ratio: ratio as 'landscape' | 'portrait' | 'square',
+      };
+    });
 }
 
 export function getPublicTrips(): PublicTrip[] {
@@ -160,13 +199,19 @@ export function getPublicTrips(): PublicTrip[] {
         end_date: t.end_date,
         province: t.province,
         summary: t.summary,
-        story: t.story,
         cover: cover
           ? {
               medium: withBase(`/media/derivatives/${cover.id}_medium.jpg`),
               large: withBase(`/media/derivatives/${cover.id}_large.jpg`),
             }
           : null,
+        days: t.days.map((d) => ({
+          label: d.label,
+          title: d.title,
+          date: d.date,
+          text: d.text,
+          media: safeTripMedia(d.media_ids),
+        })),
         observations: allPublicObservations.filter((o) => o.trip?.slug === t.slug),
       };
     })
@@ -175,6 +220,50 @@ export function getPublicTrips(): PublicTrip[] {
 
 export function getPublicTrip(slug: string): PublicTrip | undefined {
   return getPublicTrips().find((t) => t.slug === slug);
+}
+
+// ---------- 地点（面向访客的地点视觉卡；观测 ID 留在详情页） ----------
+
+export interface LocalityCard {
+  province: string;
+  name: string;
+  county: string | null;
+  locality: string | null;
+  elevation: number | null;
+  visibilityLabel: string;
+  count: number;
+  habitats: string[];
+  cover: { thumb: string; medium: string; large: string } | null;
+}
+
+export function getLocalityCards(): LocalityCard[] {
+  const byLocality = new Map<string, LocalityCard>();
+  for (const o of allPublicObservations) {
+    const loc = o.location;
+    const nameParts = [loc.county, loc.locality].filter(Boolean) as string[];
+    const key = `${loc.state_province}|${nameParts.join('·')}`;
+    let card = byLocality.get(key);
+    if (!card) {
+      card = {
+        province: loc.state_province,
+        name: nameParts.join(' · ') || loc.state_province,
+        county: loc.county,
+        locality: loc.locality,
+        elevation: loc.elevation_m,
+        visibilityLabel: loc.visibility,
+        count: 0,
+        habitats: [],
+        cover: null,
+      };
+      byLocality.set(key, card);
+    }
+    card.count += 1;
+    if (o.habitat && !card.habitats.includes(o.habitat)) card.habitats.push(o.habitat);
+    if (!card.cover && o.cover) {
+      card.cover = { thumb: o.cover.thumb, medium: o.cover.medium, large: o.cover.large };
+    }
+  }
+  return [...byLocality.values()].sort((a, b) => b.count - a.count);
 }
 
 // ---------- 地点（按省份聚合，仅文字层级；MVP 不做交互地图） ----------
@@ -226,10 +315,12 @@ export interface PublicContributor {
   name: string;
   nameEn: string | null;
   slug: string;
+  title: string | null;
   bio: string | null;
-  role: string;
   observationCount: number;
   provinces: string[];
+  /** 代表照片（本人最喜欢的一张），用作个人卡封面 */
+  favorite: { thumb: string; medium: string; large: string } | null;
   coverThumbs: { thumb: string; url: string; alt: string }[];
 }
 
@@ -247,6 +338,17 @@ export function getPublicContributors(): PublicContributor[] {
           provinces.push(o.location.state_province);
         }
       }
+      const favoriteMedia = p.favorite_media_id ? mediaById.get(p.favorite_media_id) : undefined;
+      const favorite =
+        favoriteMedia &&
+        favoriteMedia.visibility === 'public' &&
+        publishedObservationIds.has(favoriteMedia.observation_id)
+          ? {
+              thumb: withBase(`/media/derivatives/${favoriteMedia.id}_thumb.jpg`),
+              medium: withBase(`/media/derivatives/${favoriteMedia.id}_medium.jpg`),
+              large: withBase(`/media/derivatives/${favoriteMedia.id}_large.jpg`),
+            }
+          : null;
       const coverThumbs = observedBy
         .filter((o) => o.cover)
         .slice(0, 6)
@@ -259,10 +361,11 @@ export function getPublicContributors(): PublicContributor[] {
         name: p.display_name,
         nameEn: p.display_name_en,
         slug: p.slug!,
+        title: p.title,
         bio: p.bio,
-        role: p.role,
         observationCount: own.length,
         provinces,
+        favorite,
         coverThumbs,
       };
     })

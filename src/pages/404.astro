@@ -1,11 +1,13 @@
 ---
 import Base from '../layouts/Base.astro';
+import EightEyes from '../components/EightEyes.astro';
 import { withBase } from '../lib/privacy';
 ---
 
 <Base title="页面不存在">
   <div class="container">
     <div class="notfound">
+      <div class="mark"><EightEyes size={56} /></div>
       <h1>404</h1>
       <p>这一页可能已被归档，或者从未被观察到。</p>
       <p><a href={withBase('/observations/')} style="text-decoration: underline;">回到观察记录 →</a></p>

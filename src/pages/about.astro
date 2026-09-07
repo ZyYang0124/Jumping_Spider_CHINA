@@ -45,6 +45,17 @@ import { withBase } from '../lib/privacy';
         想把你的观察交给本站？写信到 <a href="mailto:yangzy0124@gmail.com" style="text-decoration: underline;">yangzy0124@gmail.com</a>。你保留照片版权，站长可以为排版、鉴定和数据质量目的修订元数据；敏感情形下地点可能被泛化或隐藏；投稿不保证发表。
       </p>
 
+      <h2 id="colophon">Colophon</h2>
+      <p class="colophon">
+        本站使用 <code>Astro</code> 构建的纯静态站点，源数据为类型化 JSON（<code>src/data/</code>），
+        经构建期隐私管线（<code>src/lib/privacy.ts</code>）脱敏后生成页面与公开 JSON；
+        媒体派生图由 <code>sharp</code> 生成并剥离全部 EXIF。
+        每次发布运行公开数据安全测试（<code>npm run test:privacy</code>）。
+        部署于 GitHub Pages，源码开源于
+        <a href="https://github.com/ZyYang0124/Jumping_Spider_CHINA" style="text-decoration: underline;">GitHub</a>。
+        投稿工作流与审核后台（Field Studio）按规划在后续阶段接入。
+      </p>
+
       <h2>免责声明</h2>
       <p style="font-size: 13.5px; color: var(--muted);">
         {siteConfig.disclaimer}

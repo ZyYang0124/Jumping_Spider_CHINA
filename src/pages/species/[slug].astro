@@ -3,7 +3,6 @@ import Base from '../../layouts/Base.astro';
 import ObsCard from '../../components/ObsCard.astro';
 import { getSpeciesGroup, getSpeciesGroups, speciesSlug } from '../../lib/queries';
 import { withBase } from '../../lib/privacy';
-import { siteConfig } from '../../lib/store';
 import { sciNameHtml } from '../../lib/format';
 import { RANK_ZH } from '../../lib/labels';
 
@@ -14,22 +13,40 @@ export function getStaticPaths() {
 const { slug } = Astro.params;
 const group = getSpeciesGroup(slug!);
 if (!group) return Astro.redirect(withBase('/species/'));
+
+const monthSet = [...new Set(group.observations.map((o) => o.observed_at.slice(5, 7)))]
+  .map((m) => String(Number(m)))
+  .sort((a, b) => Number(a) - Number(b));
+const placeSet = new Map<string, string[]>();
+for (const o of group.observations) {
+  const key = o.location.state_province;
+  const nameParts = [o.location.county, o.location.locality].filter(Boolean) as string[];
+  const list = placeSet.get(key) ?? [];
+  for (const part of nameParts) {
+    if (!list.includes(part)) list.push(part);
+  }
+  placeSet.set(key, list);
+}
 ---
 
 <Base title={group.display} description={`${group.display}：本站共 ${group.observations.length} 条已发布观察记录。`}>
-  <div class="container">
-    <header class="species-hero">
-      <h1>
+  <header class="species-hero">
+    <div class="container-wide">
+      <div class="kicker on-paper">{RANK_ZH[group.rank] ?? group.rank}级 · 本站记录</div>
+      <h1 style="margin-top: 10px;">
         <span set:html={sciNameHtml(group.display, group.rank)} />
         {group.taxon_status === 'provisional' && <span class="status-tag">暂定类群</span>}
       </h1>
+      {group.chinese_name && <div class="zh-name">{group.chinese_name}</div>}
       <div class="counts">
-        {group.chinese_name && <>{group.chinese_name} · </>}
-        {RANK_ZH[group.rank] ?? group.rank}级记录 · {group.observations.length} 条观察
-        {group.provinces.length > 0 && <> · 分布于本站记录中的 {group.provinces.join('、')}</>}
+        {group.observations.length} 次相遇
+        {group.provinces.length > 0 && <> · {group.provinces.join('、')}</>}
+        {monthSet.length > 0 && <> · 相遇于 {monthSet.join('、')} 月</>}
       </div>
-    </header>
+    </div>
+  </header>
 
+  <div class="container-wide">
     {group.personal_note && (
       <div class="personal-note">
         <div class="label">从 野 外 笔 记 看</div>
@@ -44,8 +61,22 @@ if (!group) return Astro.redirect(withBase('/species/'));
       </div>
     </section>
 
+    {placeSet.size > 0 && (
+      <section class="section">
+        <div class="section-head"><h2>在哪里遇见</h2></div>
+        <div class="side-secondary" style="max-width: 720px;">
+          {[...placeSet.entries()].map(([prov, locals]) => (
+            <div style="margin-bottom: 8px;">
+              <strong style="color: var(--ink); font-weight: 600;">{prov}</strong>
+              {locals.length > 0 && <> · {locals.join('、')}</>}
+            </div>
+          ))}
+        </div>
+      </section>
+    )}
+
     <p class="disclaimer" style="padding-bottom: 70px;">
-      说明：{siteConfig.disclaimer}
+      本页仅显示本站实际记录，不代表该类群的完整分布。
     </p>
   </div>
 </Base>

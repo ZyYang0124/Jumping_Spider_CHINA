@@ -18,13 +18,12 @@ const obs = getObservation(id!);
 if (!obs) return Astro.redirect(withBase('/observations/'));
 const loc = obs.location;
 
-const meta: [string, string | null][] = [
+const traits: [string, string | null][] = [
   ['性别', SEX_ZH[obs.sex as keyof typeof SEX_ZH] ?? null],
   ['龄期', LIFE_STAGE_ZH[obs.life_stage as keyof typeof LIFE_STAGE_ZH] ?? null],
   ['生境', obs.habitat],
   ['小生境', obs.microhabitat],
   ['行为', obs.behavior],
-  ['海拔', loc.elevation_m != null ? `约 ${loc.elevation_m} m` : null],
 ];
 
 const related = allPublicObservations
@@ -39,10 +38,21 @@ const related = allPublicObservations
 ---
 
 <Base title={`${obs.identification?.display ?? '未鉴定的跳蛛'} · ${obs.public_id}`} description={obs.field_note.slice(0, 80)}>
-  <div class="obs-hero">
-    {obs.cover && <img src={obs.cover.large} alt={obs.cover.caption ?? obs.public_id} fetchpriority="high" />}
+  <figure class="obs-hero">
+    <div class="frame" id="hero-open" role="button" tabindex="0" aria-label="查看完整原始照片">
+      {obs.cover && <img src={obs.cover.large} alt={obs.cover.caption ?? obs.public_id} fetchpriority="high" />}
+    </div>
+    {obs.cover && <figcaption class="hint">点击查看完整原始照片 · {coordLabel(loc) ?? ''}</figcaption>}
+  </figure>
+
+  <div class="lightbox" id="hero-lightbox" role="dialog" aria-modal="true" aria-label="原始照片">
+    <button class="close" type="button" aria-label="关闭">×</button>
+    {obs.cover && <img src={obs.cover.large} alt={obs.cover.caption ?? obs.public_id} />}
+    <div class="cap">
+      <span class="text">{obs.cover?.caption ?? ''}</span>
+      <span class="who">© {obs.cover?.photographer ?? ''}</span>
+    </div>
   </div>
-  <div class="strip"></div>
 
   <div class="container">
     <header class="obs-title">
@@ -56,7 +66,6 @@ const related = allPublicObservations
       </h1>
       <div class="byline">
         {formatDate(obs.observed_at, obs.observed_at_precision)} · {locationLine(loc)}
-        {loc.elevation_m != null && ` · 海拔约 ${loc.elevation_m} m`}
         <br />
         观察者 {obs.observer_name}
       </div>
@@ -75,29 +84,27 @@ const related = allPublicObservations
           </section>
         )}
 
-        <section class="side-block" style="margin-top: 30px;">
-          <h3>鉴 定</h3>
+        <section class="side-block" style="margin-top: 30px; border-top: none; padding-top: 0;">
           {obs.identification ? (
-            <div class="kv">
-              <div class="row">
-                <span class="k">当前鉴定</span>
-                <span class="v">
-                  <SciName display={obs.identification.display} rank={obs.identification.taxon_rank} />
-                  <EvidenceBadge evidence={obs.identification.evidence} />
-                </span>
+            <>
+              <h3 class="side-kicker">鉴 定</h3>
+              <div class="side-primary">
+                <SciName display={obs.identification.display} rank={obs.identification.taxon_rank} />
+                <EvidenceBadge evidence={obs.identification.evidence} />
               </div>
-              <div class="row">
-                <span class="k">鉴定人</span>
-                <span class="v">{obs.identification.identified_by}（{obs.identification.identified_at}）</span>
+              <div class="side-footnote">
+                {obs.identification.identified_by} · {obs.identification.identified_at}
+                {obs.identification.remarks && <br />}
+                {obs.identification.remarks}
               </div>
-              {obs.identification.remarks && (
-                <div class="row"><span class="k">备注</span><span class="v">{obs.identification.remarks}</span></div>
-              )}
-            </div>
+            </>
           ) : (
-            <p class="v" style="font-size: 14px; color: var(--muted); margin: 0;">
-              暂无鉴定。未知与存疑的记录同样是有效观察。
-            </p>
+            <>
+              <h3 class="side-kicker">鉴 定</h3>
+              <p class="side-secondary" style="margin: 0;">
+                暂无鉴定。未知与存疑的记录同样是有效观察。
+              </p>
+            </>
           )}
           {obs.identification_history.length > 1 && (
             <div class="id-history">
@@ -118,56 +125,45 @@ const related = allPublicObservations
 
         {obs.specimen && (
           <section class="side-block">
-            <h3>标 本</h3>
-            <div class="kv">
-              <div class="row"><span class="k">馆藏号</span><span class="v">{obs.specimen.catalog_number}</span></div>
-              <div class="row"><span class="k">保存</span><span class="v">{obs.specimen.repository}{obs.specimen.preservation ? ` · ${obs.specimen.preservation}` : ''}</span></div>
-              {obs.specimen.notes && <div class="row"><span class="k">备注</span><span class="v">{obs.specimen.notes}</span></div>}
+            <h3 class="side-kicker">标 本</h3>
+            <div class="side-secondary">
+              {obs.specimen.catalog_number} · {obs.specimen.repository}
+              {obs.specimen.preservation ? ` · ${obs.specimen.preservation}` : ''}
+              {obs.specimen.notes && <br />}
+              {obs.specimen.notes}
             </div>
           </section>
         )}
       </article>
 
       <aside>
-        <section class="side-block">
-          <h3>时 间</h3>
-          <div class="kv"><div class="row"><span class="k">日期</span><span class="v">{formatDate(obs.observed_at, obs.observed_at_precision)}</span></div></div>
-        </section>
-
-        <section class="side-block">
-          <h3>地 点</h3>
-          <div class="kv">
-            <div class="row"><span class="k">地区</span><span class="v">{locationLine(loc)}</span></div>
-            {loc.elevation_m != null && (
-              <div class="row"><span class="k">海拔</span><span class="v">约 {loc.elevation_m} m</span></div>
+        <section class="side-block" style="border-top: none; padding-top: 0;">
+          <h3 class="side-kicker">地 点</h3>
+          <div class="side-primary">{loc.locality ?? loc.county ?? loc.state_province}</div>
+          <div class="side-secondary">{[loc.state_province, loc.county].filter(Boolean).join(' · ')}</div>
+          <div class="side-footnote">
+            {loc.elevation_m != null && <>海拔约 {loc.elevation_m} m<br /></>}
+            {loc.latitude != null && loc.longitude != null ? (
+              <>{loc.latitude.toFixed(2)}, {loc.longitude.toFixed(2)}<br />{coordLabel(loc)}</>
+            ) : (
+              LOCATION_VISIBILITY_ZH[loc.visibility]
             )}
-            <div class="row"><span class="k">坐标</span>
-              <span class="v">
-                {loc.latitude != null && loc.longitude != null ? (
-                  <>{loc.latitude.toFixed(2)}, {loc.longitude.toFixed(2)}<br /><small style="color: var(--faint);">{coordLabel(loc)}</small></>
-                ) : (
-                  <small style="color: var(--faint);">{LOCATION_VISIBILITY_ZH[loc.visibility]}</small>
-                )}
-              </span>
-            </div>
           </div>
+          {obs.trip && (
+            <p class="side-link" style="margin-bottom: 0;">
+              来自调查 <a href={withBase(`/trips/${obs.trip.slug}/`)} style="text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px;">{obs.trip.title} →</a>
+            </p>
+          )}
         </section>
 
-        {meta.some(([, v]) => v) && (
+        {traits.some(([, v]) => v) && (
           <section class="side-block">
-            <h3>观 察</h3>
-            <div class="kv">
-              {meta.filter(([, v]) => v).map(([k, v]) => (
-                <div class="row"><span class="k">{k}</span><span class="v">{v}</span></div>
+            <h3 class="side-kicker">观 察</h3>
+            <div class="side-list">
+              {traits.filter(([, v]) => v).map(([k, v]) => (
+                <div class="row"><span class="k">{k}</span><span>{v}</span></div>
               ))}
             </div>
-          </section>
-        )}
-
-        {obs.trip && (
-          <section class="side-block">
-            <h3>来 自 调 查</h3>
-            <a href={withBase(`/trips/${obs.trip.slug}/`)} style="font-size: 14.5px;">{obs.trip.title} →</a>
           </section>
         )}
       </aside>
@@ -183,3 +179,33 @@ const related = allPublicObservations
     )}
   </div>
 </Base>
+
+<script>
+  const openBtn = document.getElementById('hero-open');
+  const box = document.getElementById('hero-lightbox');
+  if (openBtn && box) {
+    const close = () => {
+      box.classList.remove('open');
+      document.body.style.overflow = '';
+    };
+    const open = () => {
+      box.classList.add('open');
+      document.body.style.overflow = 'hidden';
+      box.querySelector('.close')?.focus();
+    };
+    openBtn.addEventListener('click', open);
+    openBtn.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        open();
+      }
+    });
+    box.querySelector('.close')?.addEventListener('click', close);
+    box.addEventListener('click', (e) => {
+      if (e.target === box) close();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') close();
+    });
+  }
+</script>

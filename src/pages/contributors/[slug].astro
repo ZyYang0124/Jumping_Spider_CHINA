@@ -20,7 +20,7 @@ const identified = allPublicObservations.filter((o) => o.identification?.identif
     <div class="page-title">
       <h1>{c.name}{c.nameEn ? <span style="font-size: 0.5em; color: var(--faint); margin-left: 12px; letter-spacing: 0.12em;">{c.nameEn}</span> : null}</h1>
       <p class="lede">
-        {c.role === 'owner' ? '站长 · 站内全部记录的鉴定与编辑' : '受邀贡献者 · 材料经审核后发布'}
+        {c.title ?? '中国跳蛛观察志的伙伴'}
         {c.bio ? <><br />{c.bio}</> : null}
       </p>
     </div>

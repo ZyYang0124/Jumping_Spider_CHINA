@@ -24,18 +24,37 @@ const timeline = [...trip.observations].sort((a, b) => a.observed_at.localeCompa
     {trip.cover && <img src={trip.cover.large} alt={`${trip.title} 封面照片`} fetchpriority="high" />}
     <div class="veil"></div>
     <div class="inner">
+      <div class="kicker">Field Trip · {trip.province}</div>
       <h1>{trip.title}</h1>
-      <div class="dates">{trip.province} · {trip.start_date} – {trip.end_date}</div>
+      {trip.subtitle && <div class="sub">{trip.subtitle}</div>}
+      <div class="dates">{trip.start_date} — {trip.end_date}</div>
     </div>
   </section>
 
   <div class="container">
-    <article class="trip-story">
-      <div class="label">调 查 日 志</div>
-      {trip.story.split('\n\n').map((p) => <p>{p}</p>)}
-    </article>
+    <div class="trip-days">
+      <p style="font-size: 17px; color: var(--muted); margin: 0 0 8px;">{trip.summary}</p>
+      {trip.days.map((d) => (
+        <section class="trip-day">
+          <div class="day-label">{d.label}</div>
+          <h3>{d.title}</h3>
+          <div class="day-date">{d.date}</div>
+          <p>{d.text}</p>
+          {d.media.length > 0 && (
+            <div class="day-media">
+              {d.media.map((m) => (
+                <figure class={`m-${m.ratio}`}>
+                  <img src={m.medium} alt={m.caption ?? ''} loading="lazy" />
+                  <figcaption>{m.caption} · © {m.photographer}</figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
+        </section>
+      ))}
+    </div>
 
-    <section class="section" style="padding-top: 20px;">
+    <section class="section" style="padding-top: 30px;">
       <div class="section-head">
         <h2>本期记录</h2>
         <span class="more">{observed} 条观察{distinctNames.length > 0 && ` · ${distinctNames.length} 个已鉴定类群`}</span>
@@ -49,7 +68,7 @@ const timeline = [...trip.observations].sort((a, b) => a.observed_at.localeCompa
     </section>
 
     <p class="disclaimer" style="padding-bottom: 70px;">
-      说明：调查页仅汇总本站已发布的记录。页面中的地点遵循与观察记录一致的隐私规则——敏感情形只公开到地名，甚至完全保密。
+      本页仅汇总本站已发布的记录；敏感情形只公开到地名，甚至完全保密。
     </p>
   </div>
 </Base>

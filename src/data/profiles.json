@@ -6,7 +6,9 @@
     "slug": "zhiyong-yang",
     "role": "owner",
     "profile_visibility": "public",
-    "bio": "蛛形纲研究者，跳蛛分类爱好者。中国跳蛛观察志站长，负责全部记录的鉴定与编辑。"
+    "title": "蛛形纲研究 · 跳蛛分类与野外观察",
+    "bio": "跳蛛分类爱好者，中国跳蛛观察志站长。喜欢在林缘翻叶子，也喜欢在白底棚里给每一条记录拍一张体面的肖像。站内全部记录的鉴定与编辑由他承担。",
+    "favorite_media_id": "m-45d28a3b"
   },
   {
     "id": "prof-taoli",
@@ -15,7 +17,9 @@
     "slug": "tao-li",
     "role": "contributor",
     "profile_visibility": "public",
-    "bio": "自然史摄影爱好者，长期关注华南地区的跳蛛与叶甲。受邀向本站投稿。"
+    "title": "自然观察与摄影",
+    "bio": "自然史摄影爱好者，长期关注华南的跳蛛与叶甲。鹦哥岭雨后那对翠蛛的求偶与交配，是他带给本站的礼物。",
+    "favorite_media_id": "m-745a0476"
   },
   {
     "id": "prof-private-friend",
@@ -24,6 +28,8 @@
     "slug": null,
     "role": "contributor",
     "profile_visibility": "private",
-    "bio": null
+    "title": null,
+    "bio": null,
+    "favorite_media_id": null
   }
 ]

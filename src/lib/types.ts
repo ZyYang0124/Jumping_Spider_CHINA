@@ -55,7 +55,11 @@ export interface Profile {
   slug: string | null;
   role: 'owner' | 'editor' | 'contributor';
   profile_visibility: 'public' | 'private';
+  /** 公开页展示的人文身份描述（非权限角色） */
+  title: string | null;
   bio: string | null;
+  /** 用于个人页封面的代表性照片 */
+  favorite_media_id: string | null;
 }
 
 export interface Taxon {
@@ -133,6 +137,15 @@ export interface MediaRecord {
   visibility: Visibility;
 }
 
+/** Trip 的逐日日志段：支持正文插图与图注（field journal 形态） */
+export interface TripDay {
+  label: string;
+  title: string;
+  date: string;
+  text: string;
+  media_ids: string[];
+}
+
 export interface Trip {
   id: string;
   slug: string;
@@ -143,7 +156,7 @@ export interface Trip {
   province: string;
   cover_media_id: string;
   summary: string;
-  story: string;
+  days: TripDay[];
   visibility: Visibility;
 }
 

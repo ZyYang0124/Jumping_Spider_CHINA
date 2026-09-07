@@ -4,18 +4,17 @@ import { getSpeciesGroups, getUnidentifiedObservations, speciesSlug } from '../.
 import { withBase } from '../../lib/privacy';
 import { sciNameHtml } from '../../lib/format';
 import ObsCard from '../../components/ObsCard.astro';
-import { RANK_ZH } from '../../lib/labels';
 
 const groups = getSpeciesGroups();
 const unidentified = getUnidentifiedObservations();
 ---
 
 <Base title="物种" description="由观察记录聚合而成的物种页面——是相遇的积累，不是名录的条目。">
-  <div class="container">
-    <div class="page-title">
-      <h1>物种</h1>
-      <p class="lede">
-        这里的每个条目都由「已发布观察 + 当前鉴定」实时聚合而来，本站没有手工维护的百科条目。
+  <div class="container-wide">
+    <div class="page-title" style="padding: 44px 0 6px;">
+      <h1 style="font-family: var(--serif); font-weight: 400; font-size: clamp(28px, 4vw, 40px); margin: 0;">物种</h1>
+      <p class="lede" style="color: var(--muted); margin: 10px 0 0; max-width: 640px; font-size: 15px;">
+        这里的每个条目都由「已发布观察 + 当前鉴定」聚合而来，本站没有手工维护的百科条目。
         缺某个物种是常态——网站的边界由我们实际观察过什么决定。
       </p>
     </div>
@@ -23,25 +22,22 @@ const unidentified = getUnidentifiedObservations();
     <div class="species-list">
       {groups.map((g) => (
         <a class="species-card" href={withBase(`/species/${speciesSlug(g)}/`)}>
-          <div class="cover">
+          <div class="frame">
             {g.observations.find((o) => o.cover) && (
               <img
-                src={g.observations.find((o) => o.cover)!.cover!.thumb}
+                src={g.observations.find((o) => o.cover)!.cover!.medium}
                 alt={`${g.display} 代表照片`}
                 loading="lazy"
               />
             )}
           </div>
-          <div class="body">
-            <div class="name">
-              <span set:html={sciNameHtml(g.display, g.rank)} />
-              {g.taxon_status === 'provisional' && <span class="status-tag">暂定</span>}
-            </div>
-            <div class="sub">
-              {RANK_ZH[g.rank] ?? g.rank}级 · {g.observations.length} 条记录<br />
-              {g.provinces.join('、')}
-              {g.chinese_name ? <><br />{g.chinese_name}</> : null}
-            </div>
+          <div class="name">
+            <span set:html={sciNameHtml(g.display, g.rank)} />
+            {g.taxon_status === 'provisional' && <span class="status-tag">暂定</span>}
+          </div>
+          <div class="sub">
+            {g.observations.length} 次相遇 · {g.provinces.join('、')}
+            {g.chinese_name ? <><br />{g.chinese_name}</> : null}
           </div>
         </a>
       ))}

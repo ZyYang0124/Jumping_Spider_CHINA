@@ -1,16 +1,22 @@
 ---
 import Base from '../layouts/Base.astro';
 import ObsCard from '../components/ObsCard.astro';
-import { allPublicObservations, getPublicTrips, getProvinceGroups, getSpeciesGroups, speciesSlug } from '../lib/queries';
+import { allPublicObservations, getPublicTrips, getLocalityCards, getSpeciesGroups, speciesSlug } from '../lib/queries';
 import { withBase } from '../lib/privacy';
 import { siteConfig } from '../lib/store';
-import { sciNameHtml } from '../lib/format';
+import { sciNameHtml, formatDate } from '../lib/format';
+import { LOCATION_VISIBILITY_ZH } from '../lib/labels';
 
 const hero = allPublicObservations.find((o) => o.cover?.id === 'm-3047463f')?.cover ?? allPublicObservations[0]?.cover ?? null;
-const recent = allPublicObservations.slice(0, 8);
+const [lead, ...rest] = allPublicObservations;
+const featuredSide = rest.slice(0, 2);
+const grid = rest.slice(2, 7);
 const trips = getPublicTrips().slice(0, 2);
-const provinces = getProvinceGroups().slice(0, 6);
 const species = getSpeciesGroups().slice(0, 4);
+const places = getLocalityCards().slice(0, 3);
+const years = allPublicObservations.length > 0
+  ? `${allPublicObservations.at(-1)!.observed_at.slice(0, 4)}—${allPublicObservations[0].observed_at.slice(0, 4)}`
+  : '';
 ---
 
 <Base>
@@ -18,7 +24,7 @@ const species = getSpeciesGroups().slice(0, 4);
     {hero && <img class="hero-photo" src={hero.large} alt="封面照片：求偶中的雄性翠蛛" fetchpriority="high" />}
     <div class="veil"></div>
     <div class="inner">
-      <div class="sub-en">{siteConfig.site_name_en}</div>
+      <div class="kicker">Field Notes · China {years}</div>
       <h1>{siteConfig.site_name}</h1>
       <p>{siteConfig.subtitle}</p>
       <div class="actions">
@@ -29,15 +35,60 @@ const species = getSpeciesGroups().slice(0, 4);
     {hero && <span class="hero-credit">© {hero.photographer}</span>}
   </section>
 
-  <div class="container">
+  <div class="container-wide">
     <section class="section">
       <div class="section-head">
         <h2>最近的野外笔记</h2>
         <a class="more" href={withBase('/observations/')}>全部记录 →</a>
       </div>
       <p class="section-lede">每一条记录都始于一次相遇：在哪里、什么时候、以怎样的方式。</p>
-      <div class="card-grid">
-        {recent.map((o) => <ObsCard obs={o} />)}
+
+      <div class="featured-grid">
+        {lead && (
+          <a class="ed-card ed-lead" href={lead.url}>
+            <div class="frame">
+              {lead.cover && <img src={lead.cover.large} alt={lead.cover.caption ?? lead.public_id} fetchpriority="high" />}
+            </div>
+            <div class="meta">
+              <div class="name">
+                {lead.identification ? (
+                  <span set:html={sciNameHtml(lead.identification.display, lead.identification.taxon_rank)} />
+                ) : (
+                  <span>未鉴定的跳蛛</span>
+                )}
+              </div>
+              <div class="sub">
+                {formatDate(lead.observed_at, lead.observed_at_precision)} · {lead.location.state_province}
+                {lead.location.county ? ` ${lead.location.county}` : ''}
+              </div>
+              <p class="excerpt">{lead.field_note}</p>
+            </div>
+          </a>
+        )}
+        {featuredSide.map((o) => (
+          <a class="ed-card ed-side" href={o.url}>
+            <div class="frame">
+              {o.cover && <img src={o.cover.medium} alt={o.cover.caption ?? o.public_id} loading="lazy" />}
+            </div>
+            <div class="meta">
+              <div class="name">
+                {o.identification ? (
+                  <span set:html={sciNameHtml(o.identification.display, o.identification.taxon_rank)} />
+                ) : (
+                  <span>未鉴定的跳蛛</span>
+                )}
+              </div>
+              <div class="sub">
+                {formatDate(o.observed_at, o.observed_at_precision)} · {o.location.state_province}
+                {o.location.county ? ` ${o.location.county}` : ''}
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+
+      <div class="card-grid" style="margin-top: 40px;">
+        {grid.map((o) => <ObsCard obs={o} />)}
       </div>
     </section>
 
@@ -49,12 +100,11 @@ const species = getSpeciesGroups().slice(0, 4);
       <div class="trip-list">
         {trips.map((t) => (
           <a class="trip-card" href={withBase(`/trips/${t.slug}/`)}>
-            <div class="cover">{t.cover && <img src={t.cover.medium} alt={`${t.title} 封面`} loading="lazy" />}</div>
-            <div class="body">
-              <h2>{t.title}</h2>
-              <div class="dates">{t.province} · {t.start_date} – {t.end_date} · {t.observations.length} 条记录</div>
-              <p>{t.summary}</p>
-            </div>
+            <div class="cover">{t.cover && <img src={t.cover.large} alt={`${t.title} 封面`} loading="lazy" />}</div>
+            <h2>{t.title}</h2>
+            {t.subtitle && <div class="sub-title">{t.subtitle}</div>}
+            <div class="dates">{t.province} · {t.start_date} – {t.end_date} · {t.observations.length} 条记录</div>
+            <p>{t.summary}</p>
           </a>
         ))}
       </div>
@@ -62,26 +112,24 @@ const species = getSpeciesGroups().slice(0, 4);
 
     <section class="section">
       <div class="section-head">
-        <h2>物种种语</h2>
+        <h2>相遇的物种</h2>
         <a class="more" href={withBase('/species/')}>全部物种 →</a>
       </div>
       <p class="section-lede">物种页由观察记录聚合而成——它们是相遇的积累，而不是名录的条目。</p>
-      <div class="card-grid">
+      <div class="species-list" style="padding-top: 0;">
         {species.map((g) => (
-          <a class="obs-card" href={withBase(`/species/${speciesSlug(g)}/`)}>
+          <a class="species-card" href={withBase(`/species/${speciesSlug(g)}/`)}>
             <div class="frame">
               {g.observations.find((o) => o.cover) && (
                 <img
-                  src={g.observations.find((o) => o.cover)!.cover!.thumb}
+                  src={g.observations.find((o) => o.cover)!.cover!.medium}
                   alt={`${g.display} 的代表照片`}
                   loading="lazy"
                 />
               )}
             </div>
-            <div class="meta">
-              <div class="name" set:html={sciNameHtml(g.display, g.rank)} />
-              <div class="sub">{g.observations.length} 条记录 · {g.provinces.join('、')}</div>
-            </div>
+            <div class="name" set:html={sciNameHtml(g.display, g.rank)} />
+            <div class="sub">{g.observations.length} 条记录 · {g.provinces.join('、')}</div>
           </a>
         ))}
       </div>
@@ -89,16 +137,17 @@ const species = getSpeciesGroups().slice(0, 4);
 
     <section class="section" style="padding-bottom: 70px;">
       <div class="section-head">
-        <h2>按地点探索</h2>
+        <h2>地点</h2>
         <a class="more" href={withBase('/places/')}>全部地点 →</a>
       </div>
       <p class="section-lede">敏感到位的记录只公开到地名，甚至完全保密——这是本站从第一天就坚持的底线。</p>
-      <div class="place-rows" style="border-top: 1px solid var(--line);">
-        {provinces.map((p) => (
-          <div class="place-row">
-            <span class="loc-name">{p.province}</span>
-            <span class="loc-meta">{p.count} 条记录 · {p.localities.length} 个地点</span>
-          </div>
+      <div class="place-cards">
+        {places.map((p) => (
+          <a class="place-card" href={withBase('/places/')}>
+            <div class="frame">{p.cover && <img src={p.cover.medium} alt={p.name} loading="lazy" />}</div>
+            <div class="name">{p.name}</div>
+            <div class="meta">{p.province} · {p.count} 次相遇{p.elevation != null ? ` · 海拔约 ${p.elevation} m` : ''} · {LOCATION_VISIBILITY_ZH[p.visibilityLabel as keyof typeof LOCATION_VISIBILITY_ZH]}</div>
+          </a>
         ))}
       </div>
     </section>

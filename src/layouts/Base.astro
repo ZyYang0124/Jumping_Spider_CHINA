@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import EightEyes from '../components/EightEyes.astro';
 import { siteConfig } from '../lib/store';
 import { withBase } from '../lib/privacy';
 
@@ -12,9 +13,9 @@ const { title, description = siteConfig.subtitle } = Astro.props;
 const pageTitle = title ? `${title} · ${siteConfig.site_name}` : `${siteConfig.site_name} | ${siteConfig.site_name_en}`;
 
 const nav = [
-  { href: '/observations/', label: '观察记录' },
-  { href: '/species/', label: '物种' },
+  { href: '/observations/', label: '观察' },
   { href: '/trips/', label: '野外调查' },
+  { href: '/species/', label: '物种' },
   { href: '/places/', label: '地点' },
   { href: '/contributors/', label: '伙伴' },
   { href: '/about/', label: '关于' },
@@ -52,10 +53,17 @@ const nav = [
 
     <footer class="site-footer">
       <div class="inner">
-        <div class="fn">{siteConfig.site_name} · {siteConfig.site_name_en}</div>
-        <p>{siteConfig.disclaimer}</p>
-        <p>{siteConfig.demo_note}</p>
-        <p>© {new Date().getFullYear()} {siteConfig.copyright_holder} · {siteConfig.footer_note}</p>
+        <div class="mark"><EightEyes size={34} /></div>
+        <div class="fn">{siteConfig.site_name}</div>
+        <div class="fen">{siteConfig.site_name_en}</div>
+        <p class="motto">一个关于相遇、观察与自然史的个人策展项目。</p>
+        <p class="legal">
+          © {new Date().getFullYear()} {siteConfig.copyright_holder}
+          <span class="sep">·</span>
+          <a href="https://github.com/ZyYang0124/Jumping_Spider_CHINA" rel="noopener">GitHub</a>
+          <span class="sep">·</span>
+          <a href={withBase('/about/#colophon')}>Colophon</a>
+        </p>
       </div>
     </footer>
   </body>
