@@ -117,6 +117,8 @@ export interface Identification {
   taxon_id: string;
   display_identification: string;
   identified_by_profile_id: string | null;
+  /** 无账号的鉴定人姓名（如外部专家） */
+  identified_by_text?: string | null;
   identified_at: string;
   evidence: Evidence;
   remarks: string | null;
@@ -186,4 +188,17 @@ export interface SiteConfig {
   disclaimer: string;
   demo_note: string;
   footer_note: string;
+}
+
+/** 观察博文（Field Studio 撰写、审核发布后导出；body_html 已在导出时消毒） */
+export interface Post {
+  id: string;
+  slug: string;
+  title: string;
+  author_name: string;
+  created_at: string;
+  cover_media_public_id: string | null;
+  related_observation_public_ids: string[];
+  body_md: string;
+  body_html: string;
 }

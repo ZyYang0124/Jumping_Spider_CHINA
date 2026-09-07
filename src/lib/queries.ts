@@ -16,6 +16,7 @@ import {
   media,
   mediaById,
   observations,
+  posts,
   profiles,
   taxa,
   taxonById,
@@ -464,6 +465,50 @@ export function getTaxonomyBrowse(): TaxonNode | null {
   return buildNode(root);
 }
 
+// ---------- 观察博文 ----------
+
+export interface PublicPost {
+  slug: string;
+  title: string;
+  author: string;
+  created_at: string;
+  cover: { thumb: string; medium: string; large: string } | null;
+  relatedObservations: { public_id: string; url: string; display: string | null }[];
+  bodyHtml: string;
+}
+
+function postCover(mediaPublicId: string | null) {
+  if (!mediaPublicId) return null;
+  const record = media.find((m) => m.public_id === mediaPublicId && m.visibility === 'public');
+  if (!record || !publishedObservationIds.has(record.observation_id)) return null;
+  return {
+    thumb: withBase(`/media/derivatives/${record.id}_thumb.jpg`),
+    medium: withBase(`/media/derivatives/${record.id}_medium.jpg`),
+    large: withBase(`/media/derivatives/${record.id}_large.jpg`),
+  };
+}
+
+export function getPublishedPosts(): PublicPost[] {
+  return posts.map((p) => ({
+    slug: p.slug,
+    title: p.title,
+    author: p.author_name,
+    created_at: p.created_at,
+    cover: postCover(p.cover_media_public_id),
+    relatedObservations: p.related_observation_public_ids
+      .map((pid) => {
+        const o = getObservation(pid);
+        return o ? { public_id: o.public_id, url: o.url, display: o.identification?.display ?? null } : null;
+      })
+      .filter((x): x is NonNullable<typeof x> => x != null),
+    bodyHtml: p.body_html,
+  }));
+}
+
+export function getPublishedPost(slug: string): PublicPost | undefined {
+  return getPublishedPosts().find((p) => p.slug === slug);
+}
+
 // ---------- 搜索索引（只含公开安全字段） ----------
 
 export function buildSearchIndex() {
@@ -496,5 +541,14 @@ export function buildSearchIndex() {
     text: [t.subtitle ?? '', t.summary].join(' '),
     thumb: null,
   }));
-  return { observations: obs, species, trips: tripIndex };
+  const postIndex = getPublishedPosts().map((p) => ({
+    type: 'post',
+    id: p.slug,
+    url: withBase(`/posts/${p.slug}/`),
+    title: p.title,
+    meta: `${p.created_at.slice(0, 10)} · ${p.author}`,
+    text: p.bodyHtml.replace(/<[^>]+>/g, ' ').slice(0, 400),
+    thumb: p.cover?.thumb ?? null,
+  }));
+  return { observations: obs, species, trips: tripIndex, posts: postIndex };
 }

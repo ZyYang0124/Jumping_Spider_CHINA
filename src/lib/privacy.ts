@@ -149,13 +149,14 @@ function publicIdentification(idn: {
   taxon_id: string;
   evidence: Evidence;
   identified_by_profile_id: string | null;
+  identified_by_text?: string | null;
   identified_at: string;
   remarks: string | null;
 }): PublicIdentification {
   const taxon = taxonById.get(idn.taxon_id);
   if (!taxon) throw new Error(`鉴定引用的 taxon ${idn.taxon_id} 不存在（规则 6）`);
   const identifiedBy =
-    displayNameOf(idn.identified_by_profile_id) ?? idn.identified_by_profile_id ?? '未知';
+    displayNameOf(idn.identified_by_profile_id) ?? idn.identified_by_text ?? idn.identified_by_profile_id ?? '未知';
   return {
     display: idn.display_identification,
     taxon_slug: taxon.slug,

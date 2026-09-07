@@ -6,6 +6,7 @@ import type {
   LocationRecord,
   MediaRecord,
   Observation,
+  Post,
   Profile,
   SiteConfig,
   Specimen,
@@ -14,6 +15,7 @@ import type {
 } from './types';
 
 // 数据以 Vite 静态导入内联进构建产物；这里的 JSON 即「数据库」的源表。
+// studio-*.json 由 Field Studio 后端导出（见 studio/src/export.ts），与手写数据合并、不覆盖。
 import siteConfigJson from '../data/site.config.json';
 import profilesJson from '../data/profiles.json';
 import taxaJson from '../data/taxa.json';
@@ -24,15 +26,31 @@ import mediaJson from '../data/media.json';
 import tripsJson from '../data/trips.json';
 import specimensJson from '../data/specimens.json';
 
+const studioModules = import.meta.glob('../data/studio-*.json', { eager: true });
+function loadStudio<T>(name: string): T[] {
+  const mod = studioModules[`../data/studio-${name}.json`] as { default: T } | undefined;
+  return (mod?.default ?? []) as T[];
+}
+
 export const siteConfig = siteConfigJson as unknown as SiteConfig;
 export const profiles = profilesJson as unknown as Profile[];
 export const taxa = taxaJson as unknown as Taxon[];
-export const locations = locationsJson as unknown as LocationRecord[];
-export const observations = observationsJson as unknown as Observation[];
-export const identifications = identificationsJson as unknown as Identification[];
-export const media = mediaJson as unknown as MediaRecord[];
+export const locations = [
+  ...(locationsJson as unknown as LocationRecord[]),
+  ...loadStudio<LocationRecord>('locations'),
+];
+export const observations = [
+  ...(observationsJson as unknown as Observation[]),
+  ...loadStudio<Observation>('observations'),
+];
+export const identifications = [
+  ...(identificationsJson as unknown as Identification[]),
+  ...loadStudio<Identification>('identifications'),
+];
+export const media = [...(mediaJson as unknown as MediaRecord[]), ...loadStudio<MediaRecord>('media')];
 export const trips = tripsJson as unknown as Trip[];
 export const specimens = specimensJson as unknown as Specimen[];
+export const posts = loadStudio<Post>('posts');
 
 // ---------- 校验（dev/构建期 "migration gate"） ----------
 

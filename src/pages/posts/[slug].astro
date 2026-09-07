@@ -1,0 +1,60 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getPublishedPost, getPublishedPosts } from '../../lib/queries';
+import { withBase } from '../../lib/privacy';
+import { formatDate } from '../../lib/format';
+
+export function getStaticPaths() {
+  return getPublishedPosts().map((p) => ({ params: { slug: p.slug } }));
+}
+
+const { slug } = Astro.params;
+const post = getPublishedPost(slug!);
+if (!post) return Astro.redirect(withBase('/posts/'));
+---
+
+<Base title={post.title} description={post.bodyHtml.replace(/<[^>]+>/g, ' ').slice(0, 90)}>
+  <article class="container-narrow">
+    <div class="page-title" style="padding: 48px 0 6px;">
+      <div class="kicker on-paper">观 察 博 文</div>
+      <h1 style="font-family: var(--serif); font-weight: 400; font-size: clamp(30px, 5vw, 46px); margin: 10px 0 8px; letter-spacing: -0.01em;">{post.title}</h1>
+      <div class="byline" style="color: var(--muted); font-size: 14px;">
+        {formatDate(post.created_at.slice(0, 10), 'day')} · {post.author}
+      </div>
+    </div>
+
+    {post.cover && (
+      <figure style="margin: 26px 0 8px;">
+        <img src={post.cover.large} alt={post.title} style="width: 100%; height: auto;" fetchpriority="high" />
+      </figure>
+    )}
+
+    <div class="post-body" set:html={post.bodyHtml} />
+
+    {post.relatedObservations.length > 0 && (
+      <section class="side-block" style="margin-top: 44px;">
+        <h3 class="side-kicker">相 关 观 察</h3>
+        <div class="side-secondary">
+          {post.relatedObservations.map((o) => (
+            <div><a href={o.url} style="text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px;">{o.public_id}</a> · {o.display ?? '未鉴定的跳蛛'}</div>
+          ))}
+        </div>
+      </section>
+    )}
+
+    <p style="padding-bottom: 60px; margin-top: 40px;"><a href={withBase('/posts/')} style="text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px;">← 全部博文</a></p>
+  </article>
+</Base>
+
+<style>
+  .post-body { font-size: 17px; line-height: 2.05; padding-top: 14px; }
+  .post-body :global(p) { margin: 0 0 1.25em; text-align: justify; }
+  .post-body :global(h2) { font-family: var(--serif); font-size: 22px; font-weight: 700; margin: 1.6em 0 0.6em; }
+  .post-body :global(h3) { font-size: 18px; margin: 1.4em 0 0.5em; }
+  .post-body :global(img) { margin: 8px 0; }
+  .post-body :global(blockquote) {
+    margin: 1.4em 0; padding: 4px 20px; border-left: 3px solid var(--accent);
+    background: var(--paper-deep); color: var(--muted);
+  }
+  .post-body :global(code) { background: var(--paper-deep); padding: 1px 6px; font-size: 0.85em; }
+</style>
