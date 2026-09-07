@@ -55,6 +55,9 @@ git push origin main                 # 源码
 # 静态产物推送 gh-pages 分支后，在仓库 Settings → Pages 选择 gh-pages 分支
 ```
 
+注意：`public/.nojekyll` 必须存在——GitHub Pages 项目站点默认运行 Jekyll，
+会忽略下划线开头的目录（Astro 的 `_astro/` 样式与脚本），缺该文件会导致线上样式全部 404。
+
 ## 路线图
 
 按 `prompt.md` / `开发规范SOP.md` 的规划，后续阶段将接入 Supabase（PostgreSQL + RLS）、
