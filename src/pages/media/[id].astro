@@ -1,0 +1,89 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getAllPublicMedia, getPublicMediaDetail } from '../../lib/queries';
+import { withBase } from '../../lib/privacy';
+import { VIEW_TYPE_ZH, LICENSE_ZH, SEX_ZH, LIFE_STAGE_ZH, EVIDENCE_ZH, LOCATION_VISIBILITY_ZH } from '../../lib/labels';
+import { formatDate, sciNameHtml } from '../../lib/format';
+
+export function getStaticPaths() {
+  return getAllPublicMedia().map((entry) => ({ params: { id: entry.media.public_id } }));
+}
+
+const { id } = Astro.params;
+const detail = getPublicMediaDetail(id!);
+if (!detail) return Astro.redirect(withBase('/media/'));
+const { media, observation: obs } = detail;
+---
+
+<Base title={`${media.public_id} · ${obs.identification_display ?? '未鉴定的跳蛛'}`} description={`${media.public_id} — ${obs.identification_display ?? '未鉴定的跳蛛'} 的影像记录。`}>
+  <div class="container-wide">
+    <div class="media-detail">
+      <figure class="media-detail-figure">
+        <img src={media.large} alt={media.caption ?? media.public_id} fetchpriority="high" width={media.width} height={media.height} />
+        {media.caption && <figcaption>{media.caption}</figcaption>}
+      </figure>
+
+      <aside class="media-detail-meta">
+        <div class="side-block" style="border-top: none; padding-top: 0;">
+          <h3 class="side-kicker">影 像</h3>
+          {obs.identification_display ? (
+            <div class="side-primary">
+              <a href={withBase(`/species/${obs.identification_slug}/`)} style="text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px;">
+                <span set:html={sciNameHtml(obs.identification_display, obs.identification_rank ?? 'species')} />
+              </a>
+            </div>
+          ) : (
+            <div class="side-primary">未鉴定的跳蛛</div>
+          )}
+          <div class="side-secondary">{media.public_id}</div>
+          {obs.evidence && <div class="side-footnote">鉴定证据：{EVIDENCE_ZH[obs.evidence as keyof typeof EVIDENCE_ZH] ?? obs.evidence}</div>}
+        </div>
+
+        <div class="side-block">
+          <h3 class="side-kicker">观 察</h3>
+          <div class="side-secondary">
+            <a href={obs.url} style="text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px;">{obs.public_id} →</a><br />
+            {formatDate(obs.observed_at, obs.observed_at_precision)}
+          </div>
+        </div>
+
+        <div class="side-block">
+          <h3 class="side-kicker">地 点</h3>
+          <div class="side-secondary">{obs.place_line}</div>
+          <div class="side-footnote">
+            {obs.elevation_m != null && <>海拔约 {obs.elevation_m} m<br /></>}
+            {LOCATION_VISIBILITY_ZH[obs.place_visibility as keyof typeof LOCATION_VISIBILITY_ZH]}
+          </div>
+        </div>
+
+        <div class="side-block">
+          <h3 class="side-kicker">记 录</h3>
+          <div class="side-list">
+            <div class="row"><span class="k">视角</span><span>{VIEW_TYPE_ZH[media.view_type as keyof typeof VIEW_TYPE_ZH] ?? media.view_type}</span></div>
+            <div class="row"><span class="k">性别</span><span>{SEX_ZH[obs.sex as keyof typeof SEX_ZH] ?? obs.sex}</span></div>
+            <div class="row"><span class="k">龄期</span><span>{LIFE_STAGE_ZH[obs.life_stage as keyof typeof LIFE_STAGE_ZH] ?? obs.life_stage}</span></div>
+          </div>
+        </div>
+
+        <div class="side-block">
+          <h3 class="side-kicker">署 名</h3>
+          <div class="side-secondary">
+            摄影 {media.photographer}<br />
+            © {media.photographer} · {LICENSE_ZH[detail.license as keyof typeof LICENSE_ZH] ?? detail.license}
+          </div>
+        </div>
+      </aside>
+    </div>
+    <p class="disclaimer" style="padding-bottom: 60px;">
+      本页是单张影像的可引用档案页；如需完整观察情境，请前往对应观察记录。
+    </p>
+  </div>
+</Base>
+
+<style>
+  .media-detail { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 48px; padding: 40px 0 20px; }
+  @media (max-width: 900px) { .media-detail { grid-template-columns: 1fr; gap: 28px; } }
+  .media-detail-figure { margin: 0; }
+  .media-detail-figure img { width: 100%; height: auto; max-height: 78vh; object-fit: contain; background: var(--paper-deep); }
+  .media-detail-figure figcaption { font-size: 13px; color: var(--muted); padding-top: 10px; }
+</style>

@@ -40,8 +40,10 @@ const forbiddenIds = observations
   .filter((o) => o.status !== 'published')
   .map((o) => o.public_id);
 
-// 3. 非公开媒体不得出现
-const forbiddenMedia = media.filter((m) => m.visibility !== 'public').map((m) => m.id);
+// 3. 非公开媒体不得出现（内部 id 与稳定公开编号都要查）
+const forbiddenMedia = media
+  .filter((m) => m.visibility !== 'public')
+  .flatMap((m) => [m.id, m.public_id].filter(Boolean));
 
 // 4. 公开产物中不得出现私有字段名
 const forbiddenKeys = ['exact_latitude', 'exact_longitude', 'exif_json_private'];

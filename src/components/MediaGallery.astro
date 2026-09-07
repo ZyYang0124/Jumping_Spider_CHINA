@@ -1,58 +1,117 @@
 ---
-// 摄影优先图库 + 轻量灯箱（键盘可导航，prefers-reduced-motion 友好）
+// 摄影优先图库：按视角语义分组（隐藏空组）、精选/全部两层、Lightbox 可溯源到媒体详情。
 import type { PublicMedia } from '../lib/privacy';
 import { VIEW_TYPE_ZH, LICENSE_ZH } from '../lib/labels';
 
 interface Props {
   media: PublicMedia[];
+  /** 精选数量：超过则默认折叠，提供「查看全部影像」；不传则全部展示 */
+  curatedLimit?: number;
 }
 
-const { media } = Astro.props;
+const { media, curatedLimit } = Astro.props;
+
+type GroupKey = 'LIVE' | 'BEHAVIOR' | 'HABITAT' | 'SPECIMEN' | 'OTHER';
+const GROUP_LABELS: Record<GroupKey, string> = {
+  LIVE: '活体',
+  BEHAVIOR: '行为',
+  HABITAT: '生境',
+  SPECIMEN: '标本与镜检',
+  OTHER: '其他',
+};
+function groupOf(viewType: string): GroupKey {
+  if (viewType.startsWith('live_')) return 'LIVE';
+  if (viewType === 'behavior') return 'BEHAVIOR';
+  if (viewType === 'habitat') return 'HABITAT';
+  if (['specimen_dorsal', 'specimen_ventral', 'male_palp', 'epigyne', 'vulva', 'microscopy'].includes(viewType)) return 'SPECIMEN';
+  return 'OTHER';
+}
+
 const items = media.map((m) => ({
   ...m,
   vtLabel: VIEW_TYPE_ZH[m.view_type] ?? m.view_type,
   licenseLabel: LICENSE_ZH[m.license as keyof typeof LICENSE_ZH] ?? '',
+  group: groupOf(m.view_type),
 }));
+
+const groups: { key: GroupKey; label: string; items: typeof items }[] = [];
+for (const g of ['LIVE', 'BEHAVIOR', 'HABITAT', 'SPECIMEN', 'OTHER'] as GroupKey[]) {
+  const list = items.filter((i) => i.group === g);
+  if (list.length > 0) groups.push({ key: g, label: GROUP_LABELS[g], items: list });
+}
+const showGroupLabels = groups.length > 1;
+const limit = curatedLimit ?? items.length;
+const hasMore = items.length > limit;
 ---
 
-<div class="gallery">
-  {items.map((m, i) => (
-    <figure
-      data-index={i}
-      data-large={m.large}
-      data-caption={m.caption ?? ''}
-      data-photographer={m.photographer}
-      tabindex="0"
-      role="button"
-      aria-label={`查看大图：${m.caption ?? m.vtLabel}`}
-    >
-      <img src={m.medium} alt={m.caption ?? m.vtLabel} loading="lazy" width={m.width} height={m.height} />
-      <span class="vt">{m.vtLabel}</span>
-      <figcaption>
-        {m.caption}
-        <span class="who">© {m.photographer}{m.licenseLabel === '版权所有' ? '' : ` · ${m.licenseLabel}`}</span>
-      </figcaption>
-    </figure>
+<div class="media-archive" data-limit={limit}>
+  {groups.map((g) => (
+    <div class="media-group">
+      {showGroupLabels && <div class="media-group-label">{g.label}</div>}
+      <div class="gallery">
+        {g.items.map((m) => {
+          const flatIndex = items.indexOf(m);
+          return (
+            <figure
+              class:list={[{ 'is-extra': flatIndex >= limit }]}
+              data-index={flatIndex}
+              data-large={m.large}
+              data-caption={m.caption ?? ''}
+              data-photographer={m.photographer}
+              data-public-id={m.public_id}
+              data-detail={m.detail_url}
+              tabindex="0"
+              role="button"
+              aria-label={`查看大图：${m.caption ?? m.vtLabel}（${m.public_id}）`}
+            >
+              <img src={m.medium} alt={m.caption ?? m.vtLabel} loading="lazy" width={m.width} height={m.height} />
+              <span class="vt">{m.vtLabel}</span>
+              <figcaption>
+                {m.caption}
+                <span class="who">© {m.photographer}{m.licenseLabel === '版权所有' ? '' : ` · ${m.licenseLabel}`}</span>
+              </figcaption>
+            </figure>
+          );
+        })}
+      </div>
+    </div>
   ))}
+
+  {hasMore && (
+    <button class="show-all" type="button">
+      查看全部影像（共 {items.length} 张）
+    </button>
+  )}
 </div>
 
 <div class="lightbox" role="dialog" aria-modal="true" aria-label="图片灯箱">
   <button class="close" type="button" aria-label="关闭">×</button>
   <button class="prev" type="button" aria-label="上一张">‹</button>
   <img src="" alt="" />
-  <div class="cap"><span class="text"></span><span class="who"></span></div>
+  <div class="cap">
+    <span class="text"></span>
+    <span class="who"></span>
+    <span class="ref"></span>
+  </div>
   <button class="next" type="button" aria-label="下一张">›</button>
 </div>
 
 <script>
-  const galleries = document.querySelectorAll<HTMLElement>('.gallery');
-  for (const gallery of galleries) {
-    const figures = Array.from(gallery.querySelectorAll<HTMLElement>('figure'));
-    const lightbox = gallery.parentElement?.querySelector<HTMLElement>('.lightbox');
+  for (const archive of document.querySelectorAll<HTMLElement>('.media-archive')) {
+    const figures = Array.from(archive.querySelectorAll<HTMLElement>('figure'));
+    const lightbox = archive.parentElement?.querySelector<HTMLElement>('.lightbox');
+    const showAllBtn = archive.querySelector<HTMLButtonElement>('.show-all');
+    if (showAllBtn) {
+      showAllBtn.addEventListener('click', () => {
+        archive.classList.add('show-all-enabled');
+        showAllBtn.remove();
+      });
+    }
     if (!lightbox) continue;
     const img = lightbox.querySelector('img')!;
     const textEl = lightbox.querySelector('.cap .text')!;
     const whoEl = lightbox.querySelector('.cap .who')!;
+    const refEl = lightbox.querySelector('.cap .ref')!;
     let index = 0;
 
     const show = (i: number) => {
@@ -62,6 +121,15 @@ const items = media.map((m) => ({
       img.alt = f.dataset.caption ?? '';
       textEl.textContent = f.dataset.caption ?? '';
       whoEl.textContent = `© ${f.dataset.photographer ?? ''}`;
+      const pid = f.dataset.publicId ?? '';
+      const detail = f.dataset.detail ?? '';
+      refEl.replaceChildren();
+      const code = document.createElement('span');
+      code.textContent = pid;
+      const link = document.createElement('a');
+      link.href = detail;
+      link.textContent = '影像详情 →';
+      refEl.append(code, link);
     };
     const open = (i: number) => {
       show(i);
@@ -100,4 +168,19 @@ const items = media.map((m) => ({
 
 <style>
   .who { display: block; color: var(--faint); font-size: 12px; margin-top: 2px; }
+  .ref { display: block; margin-top: 6px; font-size: 12.5px; letter-spacing: 0.08em; }
+  .ref :global(a) { color: #d8d3c7; text-decoration: underline; text-underline-offset: 3px; margin-left: 10px; }
+  .media-group-label {
+    font-size: 11px; letter-spacing: 0.3em; color: var(--faint);
+    margin: 18px 0 10px;
+  }
+  .show-all {
+    font-family: var(--sans); font-size: 13.5px; letter-spacing: 0.06em;
+    background: none; border: 1px solid var(--line); color: var(--muted);
+    padding: 9px 20px; cursor: pointer; margin: 4px 0 24px; transition: border-color 0.2s ease, color 0.2s ease;
+  }
+  .show-all:hover { border-color: var(--faint); color: var(--ink); }
+  figure.is-extra { display: none; }
+  .show-all-enabled figure.is-extra { display: block; }
+  .show-all-enabled + .lightbox .show-all, .media-archive.show-all-enabled .show-all { display: none; }
 </style>

@@ -80,7 +80,7 @@ const related = allPublicObservations
 
         {obs.media.length > 0 && (
           <section style="margin-top: 26px;">
-            <MediaGallery media={obs.media} />
+            <MediaGallery media={obs.media} curatedLimit={6} />
           </section>
         )}
 

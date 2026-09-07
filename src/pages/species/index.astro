@@ -1,60 +1,167 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { getSpeciesGroups, getUnidentifiedObservations, speciesSlug } from '../../lib/queries';
+import { getSpeciesGroups, getUnidentifiedObservations, getTaxonomyBrowse, speciesSlug } from '../../lib/queries';
 import { withBase } from '../../lib/privacy';
 import { sciNameHtml } from '../../lib/format';
 import ObsCard from '../../components/ObsCard.astro';
+import { RANK_ZH } from '../../lib/labels';
 
 const groups = getSpeciesGroups();
 const unidentified = getUnidentifiedObservations();
+const tree = getTaxonomyBrowse();
 ---
 
 <Base title="物种" description="由观察记录聚合而成的物种页面——是相遇的积累，不是名录的条目。">
   <div class="container-wide">
     <div class="page-title" style="padding: 44px 0 6px;">
       <h1 style="font-family: var(--serif); font-weight: 400; font-size: clamp(28px, 4vw, 40px); margin: 0;">物种</h1>
-      <p class="lede" style="color: var(--muted); margin: 10px 0 0; max-width: 640px; font-size: 15px;">
+      <p class="lede" style="color: var(--muted); margin: 10px 0 0; max-width: 680px; font-size: 15px;">
         这里的每个条目都由「已发布观察 + 当前鉴定」聚合而来，本站没有手工维护的百科条目。
         缺某个物种是常态——网站的边界由我们实际观察过什么决定。
       </p>
-    </div>
-
-    <div class="species-list">
-      {groups.map((g) => (
-        <a class="species-card" href={withBase(`/species/${speciesSlug(g)}/`)}>
-          <div class="frame">
-            {g.observations.find((o) => o.cover) && (
-              <img
-                src={g.observations.find((o) => o.cover)!.cover!.medium}
-                alt={`${g.display} 代表照片`}
-                loading="lazy"
-              />
-            )}
-          </div>
-          <div class="name">
-            <span set:html={sciNameHtml(g.display, g.rank)} />
-            {g.taxon_status === 'provisional' && <span class="status-tag">暂定</span>}
-          </div>
-          <div class="sub">
-            {g.observations.length} 次相遇 · {g.provinces.join('、')}
-            {g.chinese_name ? <><br />{g.chinese_name}</> : null}
-          </div>
-        </a>
-      ))}
-    </div>
-
-    <section class="section" style="padding-bottom: 70px;">
-      <div class="section-head">
-        <h2>未鉴定</h2>
+      <div class="browse-toggle" role="tablist" aria-label="浏览方式">
+        <button type="button" data-view="photo" class="active" aria-pressed="true">照片</button>
+        <button type="button" data-view="taxonomy" aria-pressed="false">分类</button>
       </div>
-      <p class="section-lede">未知是一等公民。这些记录暂时没有鉴定，但它们同样成立。</p>
-      {unidentified.length > 0 ? (
-        <div class="card-grid">
-          {unidentified.map((o) => <ObsCard obs={o} />)}
+    </div>
+
+    <div id="view-photo">
+      <div class="species-list">
+        {groups.map((g) => (
+          <a class="species-card" href={withBase(`/species/${speciesSlug(g)}/`)}>
+            <div class="frame">
+              {g.observations.find((o) => o.cover) && (
+                <img
+                  src={g.observations.find((o) => o.cover)!.cover!.medium}
+                  alt={`${g.display} 代表照片`}
+                  loading="lazy"
+                />
+              )}
+            </div>
+            <div class="name">
+              <span set:html={sciNameHtml(g.display, g.rank)} />
+              {g.taxon_status === 'provisional' && <span class="status-tag">暂定</span>}
+            </div>
+            <div class="sub">
+              {g.observations.length} 次相遇 · {g.provinces.join('、')}
+              {g.chinese_name ? <><br />{g.chinese_name}</> : null}
+            </div>
+          </a>
+        ))}
+      </div>
+
+      <section class="section" style="padding-bottom: 70px;">
+        <div class="section-head">
+          <h2>未鉴定</h2>
         </div>
-      ) : (
-        <div class="empty-state">目前所有记录都已有鉴定。</div>
+        <p class="section-lede">未知是一等公民。这些记录暂时没有鉴定，但它们同样成立。</p>
+        {unidentified.length > 0 ? (
+          <div class="card-grid">
+            {unidentified.map((o) => <ObsCard obs={o} />)}
+          </div>
+        ) : (
+          <div class="empty-state">目前所有记录都已有鉴定。</div>
+        )}
+      </section>
+    </div>
+
+    <div id="view-taxonomy" class="taxonomy-view" hidden>
+      {tree && (
+        <div class="tax-tree" style="padding: 30px 0 60px;">
+          <div class="tax-root">
+            <span class="tax-rank">{RANK_ZH[tree.taxon.rank] ?? tree.taxon.rank}</span>
+            {tree.taxon.scientific_name}{tree.taxon.chinese_name ? `（${tree.taxon.chinese_name}）` : ''}
+            <span class="tax-count">{tree.count} 次相遇</span>
+          </div>
+          <ul>
+            {tree.children.map((mid) => (
+              <li>
+                <div class="tax-node">
+                  <span class="tax-rank">{RANK_ZH[mid.taxon.rank] ?? mid.taxon.rank}</span>
+                  {mid.taxon.rank === 'genus' ? <i>{mid.taxon.scientific_name}</i> : mid.taxon.scientific_name}
+                  <span class="tax-count">{mid.count}</span>
+                </div>
+                {(mid.children.length > 0 || mid.ownCount > 0) && (
+                  <ul>
+                    {mid.ownCount > 0 && (
+                      <li class="tax-node">
+                        {mid.slug && <a href={withBase(`/species/${mid.slug}/`)}>{mid.taxon.scientific_name} sp.</a>}
+                        {!mid.slug && <span>{mid.taxon.scientific_name} sp.</span>}
+                        <span class="tax-count">{mid.ownCount}</span>
+                      </li>
+                    )}
+                    {mid.children.map((child) => (
+                      <li>
+                        <div class="tax-node">
+                          <span class="tax-rank">{RANK_ZH[child.taxon.rank] ?? child.taxon.rank}</span>
+                          {child.taxon.rank === 'genus' ? <i>{child.taxon.scientific_name}</i> : <span set:html={sciNameHtml(child.taxon.scientific_name, child.taxon.rank)} />}
+                          {child.taxon.chinese_name ? `（${child.taxon.chinese_name}）` : ''}
+                          <span class="tax-count">{child.count}</span>
+                        </div>
+                        {(child.children.length > 0 || child.ownCount > 0) && (
+                          <ul>
+                            {child.ownCount > 0 && (
+                              <li class="tax-node">
+                                {child.slug && <a href={withBase(`/species/${child.slug}/`)}>{child.taxon.scientific_name} sp.</a>}
+                                {!child.slug && <span>{child.taxon.scientific_name} sp.</span>}
+                                <span class="tax-count">{child.ownCount}</span>
+                              </li>
+                            )}
+                            {child.children.map((sp) => (
+                              <li class="tax-node">
+                                {sp.slug && <a href={withBase(`/species/${sp.slug}/`)}><span set:html={sciNameHtml(sp.taxon.scientific_name, sp.taxon.rank)} /></a>}
+                                {!sp.slug && <span set:html={sciNameHtml(sp.taxon.scientific_name, sp.taxon.rank)} />}
+                                {sp.taxon.status === 'provisional' && <span class="status-tag">工作编号</span>}
+                                <span class="tax-count">{sp.count}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p class="tax-note">仅显示本站实际记录的类群，不是完整名录。带「工作编号」标记的为临时工作编号，并非正式发表的物种名称。</p>
+        </div>
       )}
-    </section>
+    </div>
   </div>
 </Base>
+
+<script>
+  const buttons = document.querySelectorAll<HTMLButtonElement>('.browse-toggle button');
+  const photoView = document.getElementById('view-photo')!;
+  const taxView = document.getElementById('view-taxonomy')!;
+  for (const b of buttons) {
+    b.addEventListener('click', () => {
+      for (const x of buttons) {
+        x.classList.toggle('active', x === b);
+        x.setAttribute('aria-pressed', String(x === b));
+      }
+      const isPhoto = b.dataset.view === 'photo';
+      photoView.hidden = !isPhoto;
+      taxView.hidden = isPhoto;
+    });
+  }
+</script>
+
+<style>
+  .browse-toggle { display: inline-flex; gap: 0; margin-top: 18px; border: 1px solid var(--line); width: fit-content; }
+  .browse-toggle button {
+    font-family: var(--sans); font-size: 13px; letter-spacing: 0.1em;
+    background: none; border: none; padding: 7px 18px; cursor: pointer; color: var(--muted);
+  }
+  .browse-toggle button.active { background: var(--ink); color: var(--paper); }
+  .taxonomy-view { font-size: 15px; }
+  .tax-root { font-family: var(--serif); font-size: 19px; margin-bottom: 18px; }
+  .tax-rank { display: inline-block; font-size: 11px; color: var(--faint); letter-spacing: 0.2em; margin-right: 10px; }
+  .tax-count { color: var(--faint); font-size: 12.5px; margin-left: 10px; }
+  .tax-tree ul { list-style: none; padding-left: 26px; margin: 6px 0; border-left: 1px solid var(--line); }
+  .tax-node { padding: 4px 0; }
+  .tax-node :global(i) { font-family: var(--serif); }
+  .tax-node :global(a) { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .tax-note { font-size: 12.5px; color: var(--faint); margin-top: 24px; max-width: 640px; }
+</style>

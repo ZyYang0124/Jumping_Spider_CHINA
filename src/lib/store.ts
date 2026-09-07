@@ -46,6 +46,7 @@ function validate(): void {
   const locationIds = new Set(locations.map((l) => l.id));
   const observationIds = new Set(observations.map((o) => o.id));
   const mediaIds = new Set(media.map((m) => m.id));
+  const mediaPublicIds = new Set<string>();
   const tripIds = new Set(trips.map((t) => t.id));
   const publicIds = new Set<string>();
 
@@ -78,6 +79,9 @@ function validate(): void {
 
   for (const m of media) {
     if (!observationIds.has(m.observation_id)) fail(`媒体 ${m.id} 指向不存在的观察`);
+    if (!/^CSFN-M-\d{6}$/.test(m.public_id)) fail(`媒体 ${m.id} 的 public_id 格式非法：${m.public_id}`);
+    if (mediaPublicIds.has(m.public_id)) fail(`媒体 public_id 重复：${m.public_id}`);
+    mediaPublicIds.add(m.public_id);
     if (m.photographer_profile_id && !profileIds.has(m.photographer_profile_id)) {
       fail(`媒体 ${m.id} 的 photographer 不存在`);
     }

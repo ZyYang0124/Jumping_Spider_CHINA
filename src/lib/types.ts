@@ -125,6 +125,8 @@ export interface Identification {
 
 export interface MediaRecord {
   id: string;
+  /** 稳定公开编号 CSFN-M-NNNNNN，一经分配永不变、不含学名/文件名/地名 */
+  public_id: string;
   observation_id: string;
   source_original: string;
   view_type: MediaViewType;

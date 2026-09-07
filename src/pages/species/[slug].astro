@@ -1,7 +1,8 @@
 ---
 import Base from '../../layouts/Base.astro';
 import ObsCard from '../../components/ObsCard.astro';
-import { getSpeciesGroup, getSpeciesGroups, speciesSlug } from '../../lib/queries';
+import MediaGallery from '../../components/MediaGallery.astro';
+import { getSpeciesGroup, getSpeciesGroups, getMediaOfObservations, speciesSlug } from '../../lib/queries';
 import { withBase } from '../../lib/privacy';
 import { sciNameHtml } from '../../lib/format';
 import { RANK_ZH } from '../../lib/labels';
@@ -27,6 +28,7 @@ for (const o of group.observations) {
   }
   placeSet.set(key, list);
 }
+const speciesMedia = getMediaOfObservations(group.observations);
 ---
 
 <Base title={group.display} description={`${group.display}：本站共 ${group.observations.length} 条已发布观察记录。`}>
@@ -60,6 +62,17 @@ for (const o of group.observations) {
         {group.observations.map((o) => <ObsCard obs={o} />)}
       </div>
     </section>
+
+    {speciesMedia.length > 0 && (
+      <section class="section">
+        <div class="section-head">
+          <h2>照片档案</h2>
+          <a class="more" href={withBase('/media/')}>进入照片档案 →</a>
+        </div>
+        <p class="section-lede">该类群在本站的全部公开影像，共 {speciesMedia.length} 张，每张都有稳定编号与出处。</p>
+        <MediaGallery media={speciesMedia} curatedLimit={8} />
+      </section>
+    )}
 
     {placeSet.size > 0 && (
       <section class="section">

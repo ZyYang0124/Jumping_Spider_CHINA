@@ -1,4 +1,4 @@
-// 公开查询层：物种聚合、调查、地点、贡献者与搜索索引。
+// 公开查询层：物种聚合、调查、地点、贡献者、媒体档案与搜索索引。
 // 物种页面永远从「已发布观察 + 当前鉴定」推导，不手工维护物种条目（prompt.md §44）。
 
 import { readFileSync } from 'node:fs';
@@ -8,17 +8,20 @@ import {
   getPublicObservations,
   toPublicObservation,
   withBase,
+  type PublicMedia,
   type PublicObservation,
 } from './privacy';
 import {
   displayNameOf,
+  media,
   mediaById,
   observations,
   profiles,
   taxa,
+  taxonById,
   trips,
 } from './store';
-import type { Taxon } from './types';
+import type { Taxon, TaxonRank } from './types';
 
 const MEDIA_MANIFEST_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -63,21 +66,24 @@ export function getObservation(publicId: string): PublicObservation | undefined 
   return o;
 }
 
-// ---------- 物种聚合 ----------
+// ---------- 物种聚合（按 taxon 聚合：cf. 等不同表述合并到同一物种页） ----------
 
 export interface SpeciesGroup {
   key: string;
-  /** 页面主显示名 */
+  /** 页面主显示名（由 taxon 推导） */
   display: string;
-  /** 学名排版用 rank */
-  rank: Taxon['rank'];
-  taxon: Taxon | null;
-  /** 英文/中文副名 */
+  rank: TaxonRank;
+  taxon: Taxon;
   chinese_name: string | null;
   observations: PublicObservation[];
   provinces: string[];
   personal_note: string | null;
   taxon_status: Taxon['status'] | null;
+}
+
+function taxonDisplayName(taxon: Taxon): string {
+  if (taxon.rank === 'species' || taxon.rank === 'subspecies') return taxon.scientific_name;
+  return `${taxon.scientific_name} sp.`;
 }
 
 export function getSpeciesGroups(): SpeciesGroup[] {
@@ -86,21 +92,21 @@ export function getSpeciesGroups(): SpeciesGroup[] {
     const idn = o.identification;
     if (!idn) continue;
     const taxon = idn.taxon_slug ? findTaxonBySlug(idn.taxon_slug) : null;
-    const key = idn.display;
-    let g = groups.get(key);
+    if (!taxon) continue;
+    let g = groups.get(taxon.id);
     if (!g) {
       g = {
-        key,
-        display: idn.display,
-        rank: idn.taxon_rank,
+        key: taxon.id,
+        display: taxonDisplayName(taxon),
+        rank: taxon.rank,
         taxon,
-        chinese_name: taxon?.chinese_name ?? null,
+        chinese_name: taxon.chinese_name ?? null,
         observations: [],
         provinces: [],
-        personal_note: taxon?.personal_note ?? null,
-        taxon_status: taxon?.status ?? null,
+        personal_note: taxon.personal_note ?? null,
+        taxon_status: taxon.status,
       };
-      groups.set(key, g);
+      groups.set(taxon.id, g);
     }
     g.observations.push(o);
     const p = o.location.state_province;
@@ -113,27 +119,107 @@ export function getSpeciesGroups(): SpeciesGroup[] {
 }
 
 export function getSpeciesGroup(slug: string): SpeciesGroup | undefined {
-  return getSpeciesGroups().find((g) => (g.taxon?.slug ?? slugifyDisplay(g.display)) === slug);
+  return getSpeciesGroups().find((g) => g.taxon.slug === slug);
 }
 
 export function speciesSlug(g: SpeciesGroup): string {
-  return g.taxon?.slug ?? slugifyDisplay(g.display);
+  return g.taxon.slug;
 }
 
 function findTaxonBySlug(slug: string): Taxon | null {
   return taxa.find((t) => t.slug === slug) ?? null;
 }
 
-function slugifyDisplay(display: string): string {
-  return display
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '');
-}
-
 /** 未鉴定（无当前鉴定）的已发布观察 */
 export function getUnidentifiedObservations(): PublicObservation[] {
   return allPublicObservations.filter((o) => o.identification == null);
+}
+
+// ---------- 媒体档案：稳定编号 + 永久链接 ----------
+
+export interface PublicMediaDetail {
+  media: PublicMedia;
+  observation: {
+    public_id: string;
+    url: string;
+    observed_at: string;
+    observed_at_precision: string;
+    identification_display: string | null;
+    identification_rank: TaxonRank | null;
+    identification_slug: string | null;
+    evidence: string | null;
+    sex: string;
+    life_stage: string;
+    place_line: string;
+    place_visibility: string;
+    elevation_m: number | null;
+  };
+  photographer: string;
+  license: string;
+}
+
+function fillDims(m: PublicMedia): PublicMedia {
+  return { ...m, width: manifest[m.id]?.width ?? 0, height: manifest[m.id]?.height ?? 0 };
+}
+
+export function getPublicMediaDetail(publicMediaId: string): PublicMediaDetail | undefined {
+  const record = media.find((m) => m.public_id === publicMediaId);
+  if (!record || record.visibility !== 'public') return undefined;
+  const obs = getObservationByRecord(record.observation_id);
+  if (!obs) return undefined;
+  const mediaDto = obs.media.find((m) => m.id === record.id);
+  if (!mediaDto) return undefined;
+  const loc = obs.location;
+  return {
+    media: fillDims(mediaDto),
+    observation: {
+      public_id: obs.public_id,
+      url: obs.url,
+      observed_at: obs.observed_at,
+      observed_at_precision: obs.observed_at_precision,
+      identification_display: obs.identification?.display ?? null,
+      identification_rank: obs.identification?.taxon_rank ?? null,
+      identification_slug: obs.identification?.taxon_slug ?? null,
+      evidence: obs.identification?.evidence ?? null,
+      sex: obs.sex,
+      life_stage: obs.life_stage,
+      place_line: [loc.state_province, loc.county, loc.locality].filter(Boolean).join(' · '),
+      place_visibility: loc.visibility,
+      elevation_m: loc.elevation_m,
+    },
+    photographer: mediaDto.photographer,
+    license: mediaDto.license,
+  };
+}
+
+function getObservationByRecord(observationId: string): PublicObservation | undefined {
+  const found = observations.find((o) => o.id === observationId);
+  if (!found || found.status !== 'published' || found.visibility !== 'public') return undefined;
+  return getObservation(found.public_id);
+}
+
+/** 全站公开媒体索引（/media/ 档案页用，按编号排序） */
+export function getAllPublicMedia(): { media: PublicMedia; observationPublicId: string; observationUrl: string; display: string | null }[] {
+  const out: { media: PublicMedia; observationPublicId: string; observationUrl: string; display: string | null }[] = [];
+  for (const record of [...media].sort((a, b) => a.public_id.localeCompare(b.public_id))) {
+    if (record.visibility !== 'public') continue;
+    const obs = getObservationByRecord(record.observation_id);
+    if (!obs) continue;
+    const dto = obs.media.find((m) => m.id === record.id);
+    if (!dto) continue;
+    out.push({
+      media: fillDims(dto),
+      observationPublicId: obs.public_id,
+      observationUrl: obs.url,
+      display: obs.identification?.display ?? null,
+    });
+  }
+  return out;
+}
+
+/** 某一组观察的全部公开媒体（物种页 PHOTOGRAPHIC RECORD 用） */
+export function getMediaOfObservations(obs: PublicObservation[]): PublicMedia[] {
+  return obs.flatMap((o) => o.media);
 }
 
 // ---------- 调查 ----------
@@ -266,50 +352,7 @@ export function getLocalityCards(): LocalityCard[] {
   return [...byLocality.values()].sort((a, b) => b.count - a.count);
 }
 
-// ---------- 地点（按省份聚合，仅文字层级；MVP 不做交互地图） ----------
-
-export interface ProvinceGroup {
-  province: string;
-  localities: {
-    name: string;
-    visibilityLabel: string;
-    elevation: number | null;
-    count: number;
-    observations: PublicObservation[];
-  }[];
-  count: number;
-}
-
-export function getProvinceGroups(): ProvinceGroup[] {
-  const byProvince = new Map<string, ProvinceGroup>();
-  for (const o of allPublicObservations) {
-    const prov = o.location.state_province;
-    let pg = byProvince.get(prov);
-    if (!pg) {
-      pg = { province: prov, localities: [], count: 0 };
-      byProvince.set(prov, pg);
-    }
-    pg.count += 1;
-    const nameParts = [o.location.county, o.location.locality].filter(Boolean) as string[];
-    const name = nameParts.join(' · ') || o.location.state_province;
-    let loc = pg.localities.find((l) => l.name === name);
-    if (!loc) {
-      loc = {
-        name,
-        visibilityLabel: o.location.visibility,
-        elevation: o.location.elevation_m,
-        count: 0,
-        observations: [],
-      };
-      pg.localities.push(loc);
-    }
-    loc.count += 1;
-    loc.observations.push(o);
-  }
-  return [...byProvince.values()].sort((a, b) => b.count - a.count);
-}
-
-// ---------- 贡献者（仅公开主页） ----------
+// ---------- 贡献者（仅公开主页，人文化呈现） ----------
 
 export interface PublicContributor {
   name: string;
@@ -319,7 +362,6 @@ export interface PublicContributor {
   bio: string | null;
   observationCount: number;
   provinces: string[];
-  /** 代表照片（本人最喜欢的一张），用作个人卡封面 */
   favorite: { thumb: string; medium: string; large: string } | null;
   coverThumbs: { thumb: string; url: string; alt: string }[];
 }
@@ -376,6 +418,52 @@ export function getPublicContributor(slug: string): PublicContributor | undefine
   return getPublicContributors().find((c) => c.slug === slug);
 }
 
+// ---------- 分类浏览（二级导航；只含本站实际出现的类群） ----------
+
+export interface TaxonNode {
+  taxon: Taxon;
+  /** 含子级的相遇数 */
+  count: number;
+  /** 直接以该阶元为当前鉴定的观察数 */
+  ownCount: number;
+  slug: string | null;
+  children: TaxonNode[];
+}
+
+export function getTaxonomyBrowse(): TaxonNode | null {
+  const root = taxa.find((t) => t.rank === 'family');
+  if (!root) return null;
+
+  const directCounts = new Map<string, number>();
+  for (const o of allPublicObservations) {
+    const slug = o.identification?.taxon_slug;
+    if (!slug) continue;
+    const taxon = findTaxonBySlug(slug);
+    if (!taxon) continue;
+    directCounts.set(taxon.id, (directCounts.get(taxon.id) ?? 0) + 1);
+  }
+
+  function buildNode(taxon: Taxon): TaxonNode | null {
+    const children = taxa
+      .filter((t) => t.parent_id === taxon.id)
+      .map(buildNode)
+      .filter((n): n is TaxonNode => n != null)
+      .sort((a, b) => b.count - a.count || a.taxon.scientific_name.localeCompare(b.taxon.scientific_name));
+    const ownCount = directCounts.get(taxon.id) ?? 0;
+    const count = ownCount + children.reduce((n, c) => n + c.count, 0);
+    if (count === 0) return null;
+    return {
+      taxon,
+      count,
+      ownCount,
+      slug: taxon.slug,
+      children,
+    };
+  }
+
+  return buildNode(root);
+}
+
 // ---------- 搜索索引（只含公开安全字段） ----------
 
 export function buildSearchIndex() {
@@ -395,7 +483,7 @@ export function buildSearchIndex() {
     id: speciesSlug(g),
     url: withBase(`/species/${speciesSlug(g)}/`),
     title: g.display,
-    meta: `${g.observations.length} 条记录 · ${g.provinces.join('、')}`,
+    meta: `${g.observations.length} 次相遇 · ${g.provinces.join('、')}`,
     text: [g.chinese_name ?? '', g.personal_note ?? ''].join(' '),
     thumb: g.observations.find((o) => o.cover)?.cover?.thumb ?? null,
   }));

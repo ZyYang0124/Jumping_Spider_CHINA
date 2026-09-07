@@ -36,6 +36,8 @@ export interface PublicLocation {
 
 export interface PublicMedia {
   id: string;
+  /** 稳定公开编号 CSFN-M-NNNNNN */
+  public_id: string;
   thumb: string;
   medium: string;
   large: string;
@@ -46,6 +48,7 @@ export interface PublicMedia {
   photographer: string;
   license: string;
   is_cover: boolean;
+  detail_url: string;
 }
 
 export interface PublicIdentification {
@@ -175,6 +178,7 @@ function publicMedia(observationId: string): PublicMedia[] {
         displayNameOf(m.photographer_profile_id) ?? m.photographer_name ?? '未知';
       return {
         id: m.id,
+        public_id: m.public_id,
         thumb: withBase(`/media/derivatives/${m.id}_thumb.jpg`),
         medium: withBase(`/media/derivatives/${m.id}_medium.jpg`),
         large: withBase(`/media/derivatives/${m.id}_large.jpg`),
@@ -186,6 +190,7 @@ function publicMedia(observationId: string): PublicMedia[] {
         photographer,
         license: m.license,
         is_cover: m.is_cover,
+        detail_url: withBase(`/media/${m.public_id}/`),
       };
     });
 }
