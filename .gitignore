@@ -19,3 +19,4 @@ studio/storage/
 # OS / editor
 .DS_Store
 Thumbs.db
+.wrangler/
