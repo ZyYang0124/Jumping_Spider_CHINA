@@ -1,0 +1,29 @@
+{
+  "name": "salticid-notes-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Field Studio 私有后端（仅本地运行，不参与公开站构建）",
+  "scripts": {
+    "migrate": "tsx src/db.ts",
+    "dev": "tsx src/server.ts",
+    "export": "tsx src/export.ts"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^12.6.0",
+    "astro": "^5.18.2",
+    "better-sqlite3": "^13.0.3",
+    "express": "^5.2.1",
+    "marked": "^18.0.11",
+    "multer": "^2.3.0",
+    "sanitize-html": "^2.17.7",
+    "sharp": "^0.34.0",
+    "exif-reader": "^2.0.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.13"
+  }
+}
