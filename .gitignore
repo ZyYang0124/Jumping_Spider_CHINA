@@ -9,7 +9,8 @@ node_modules/
 public/media/derivatives/
 
 # Field Studio 私有后端（数据库与上传原图不进仓库；密钥只进 .env）
-data/
+data/*.db
+data/*.db-*
 studio/storage/
 
 # environment
@@ -20,4 +21,3 @@ studio/storage/
 .DS_Store
 Thumbs.db
 .wrangler/
-src/data/generated/
