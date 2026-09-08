@@ -971,8 +971,9 @@ function mediaRefResolver(id: string): { url: string; ratio: number; caption: st
     | undefined;
   if (!m) return null;
   const ratio = m.width && m.height ? m.width / m.height : 1.5;
+  // _medium 为管线对每张公开图必产的档位（1200px），窄原图不会出现缺失的 -1280 变体
   return {
-    url: `/media/derivatives/${m.file_stem}-1280.jpg`,
+    url: `/media/derivatives/${m.file_stem}_medium.jpg`,
     ratio,
     caption: m.caption,
   };

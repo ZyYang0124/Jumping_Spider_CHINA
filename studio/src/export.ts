@@ -20,8 +20,9 @@ export function exportForStaticSite(db: Database): { observations: number; media
           | { file_stem: string; width: number | null; height: number | null; caption: string | null }
           | undefined;
         if (!m) return null;
+        // _medium 为管线对每张公开图必产的档位（1200px）
         return {
-          url: `/media/derivatives/${m.file_stem}-1280.jpg`,
+          url: `/media/derivatives/${m.file_stem}_medium.jpg`,
           ratio: m.width && m.height ? m.width / m.height : 1.5,
           caption: m.caption,
         };
