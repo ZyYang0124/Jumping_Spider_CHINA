@@ -91,7 +91,8 @@ export interface PublicObservation {
   trip: { slug: string; title: string } | null;
 }
 
-const BASE = '/Salticid_Notes';
+// 站点根路径：跟随 Astro 配置（canonical 域名为根路径，历史镜像为子路径）
+const BASE = import.meta.env.BASE_URL === '/' ? '' : import.meta.env.BASE_URL;
 
 export function withBase(path: string): string {
   return `${BASE}${path}`;
