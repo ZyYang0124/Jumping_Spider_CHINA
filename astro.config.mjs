@@ -11,4 +11,9 @@ export default defineConfig({
   build: {
     format: 'directory',
   },
+  // 导航连续性：hover 预取 + ClientRouter（Base.astro）
+  prefetch: {
+    prefetchAll: true,
+    defaultStrategy: 'hover',
+  },
 });

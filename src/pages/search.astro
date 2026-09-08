@@ -36,59 +36,67 @@ import { withBase } from '../lib/privacy';
     observations: IndexItem[];
     species: IndexItem[];
     trips: IndexItem[];
+    posts?: IndexItem[];
   }
 
-  const input = document.getElementById('q') as HTMLInputElement;
-  const resultsEl = document.getElementById('results')!;
-  const BASE = import.meta.env.BASE_URL;
-  let index: SearchIndex = { observations: [], species: [], trips: [] };
+  // 生命周期：astro:page-load（客户端导航后自动重新初始化）
+  function initSearch() {
+    const input = document.getElementById('q') as HTMLInputElement | null;
+    const resultsEl = document.getElementById('results');
+    if (!input || !resultsEl || resultsEl.dataset.init === '1') return;
+    resultsEl.dataset.init = '1';
 
-  fetch(`${BASE}data/search-index.json`)
-    .then((r) => r.json())
-    .then((data: SearchIndex) => {
-      index = data;
-      render('');
-    })
-    .catch(() => {
-      resultsEl.innerHTML = '<div class="search-empty">索引载入失败，请刷新重试。</div>';
-    });
+    const BASE = import.meta.env.BASE_URL;
+    let index: SearchIndex = { observations: [], species: [], trips: [] };
 
-  function rowOf(item: IndexItem): string {
-    const thumb = item.thumb
-      ? `<img src="${item.thumb}" alt="" loading="lazy" />`
-      : '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="" />';
-    return `<a class="result-row" href="${item.url}">${thumb}<span><span class="t">${item.title}</span><br /><span class="m">${item.meta}</span></span></a>`;
-  }
-
-  function render(q: string) {
-    const query = q.trim().toLowerCase();
-    if (!query) {
-      const latest = index.observations.slice(0, 5);
-      resultsEl.innerHTML =
-        '<div class="search-section"><h2>最新记录</h2>' + latest.map(rowOf).join('') + '</div>';
-      return;
+    function rowOf(item: IndexItem): string {
+      const thumb = item.thumb
+        ? `<img src="${item.thumb}" alt="" loading="lazy" />`
+        : '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="" />';
+      return `<a class="result-row" href="${item.url}">${thumb}<span><span class="t">${item.title}</span><br /><span class="m">${item.meta}</span></span></a>`;
     }
-    const match = (item: IndexItem) =>
-      (item.title + ' ' + item.meta + ' ' + item.text).toLowerCase().includes(query);
-    const sections: [string, IndexItem[]][] = [
-      ['观察记录', index.observations.filter(match)],
-      ['物种', index.species.filter(match)],
-      ['野外调查', index.trips.filter(match)],
-    ];
-    const html = sections
-      .filter(([, items]) => items.length > 0)
-      .map(
-        ([label, items]) =>
-          `<div class="search-section"><h2>${label}（${items.length}）</h2>${items.map(rowOf).join('')}</div>`,
-      )
-      .join('');
-    resultsEl.innerHTML =
-      html || '<div class="search-empty">没有匹配的记录。换个词试试？比如「Siler」「云南」「求偶」。</div>';
-  }
+    function render(q: string) {
+      const query = q.trim().toLowerCase();
+      if (!query) {
+        const latest = index.observations.slice(0, 5);
+        resultsEl.innerHTML =
+          '<div class="search-section"><h2>最新记录</h2>' + latest.map(rowOf).join('') + '</div>';
+        return;
+      }
+      const match = (item: IndexItem) =>
+        (item.title + ' ' + item.meta + ' ' + item.text).toLowerCase().includes(query);
+      const sections: [string, IndexItem[]][] = [
+        ['观察记录', index.observations.filter(match)],
+        ['物种', index.species.filter(match)],
+        ['野外调查', index.trips.filter(match)],
+        ['观察博文', (index.posts ?? []).filter(match)],
+      ];
+      const html = sections
+        .filter(([, items]) => items.length > 0)
+        .map(
+          ([label, items]) =>
+            `<div class="search-section"><h2>${label}（${items.length}）</h2>${items.map(rowOf).join('')}</div>`,
+        )
+        .join('');
+      resultsEl.innerHTML =
+        html || '<div class="search-empty">没有匹配的记录。换个词试试？比如「Siler」「云南」「求偶」。</div>';
+    }
 
-  let timer: ReturnType<typeof setTimeout>;
-  input.addEventListener('input', () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => render(input.value), 120);
-  });
+    fetch(`${BASE}data/search-index.json`)
+      .then((r) => r.json())
+      .then((data: SearchIndex) => {
+        index = data;
+        render(input.value);
+      })
+      .catch(() => {
+        resultsEl.innerHTML = '<div class="search-empty">索引载入失败，请刷新重试。</div>';
+      });
+
+    let timer: ReturnType<typeof setTimeout>;
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => render(input.value), 120);
+    });
+  }
+  document.addEventListener('astro:page-load', initSearch);
 </script>

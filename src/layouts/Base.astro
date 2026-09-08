@@ -1,15 +1,18 @@
 ---
 import '../styles/global.css';
 import EightEyes from '../components/EightEyes.astro';
+import { ClientRouter } from 'astro:transitions';
 import { siteConfig } from '../lib/store';
 import { withBase } from '../lib/privacy';
 
 interface Props {
   title?: string;
   description?: string;
+  /** 首页 Hero LCP 预加载（仅首页传入） */
+  preload?: { href: string; imagesrcset?: string; imagesizes?: string };
 }
 
-const { title, description = siteConfig.subtitle } = Astro.props;
+const { title, description = siteConfig.subtitle, preload } = Astro.props;
 const pageTitle = title ? `${title} · ${siteConfig.site_name}` : `${siteConfig.site_name} | ${siteConfig.site_name_en}`;
 
 const nav = [
@@ -35,9 +38,20 @@ const nav = [
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
     <meta name="generator" content={Astro.generator} />
+    {preload && (
+      <link
+        rel="preload"
+        as="image"
+        href={preload.href}
+        imagesrcset={preload.imagesrcset}
+        imagesizes={preload.imagesizes}
+        fetchpriority="high"
+      />
+    )}
+    <ClientRouter />
   </head>
   <body>
-    <header class="site-header">
+    <header class="site-header" transition:persist>
       <div class="inner">
         <a class="brand" href={withBase('/')}>
           <span class="zh">{siteConfig.site_name}</span>

@@ -97,73 +97,88 @@ const hasMore = items.length > limit;
 </div>
 
 <script>
-  for (const archive of document.querySelectorAll<HTMLElement>('.media-archive')) {
-    const figures = Array.from(archive.querySelectorAll<HTMLElement>('figure'));
-    const lightbox = archive.parentElement?.querySelector<HTMLElement>('.lightbox');
-    const showAllBtn = archive.querySelector<HTMLButtonElement>('.show-all');
-    if (showAllBtn) {
-      showAllBtn.addEventListener('click', () => {
+  // 生命周期：astro:page-load 在首次加载与每次客户端导航后触发；
+  // 事件委托 + 模块级状态只注册一次，导航越多不会累积监听。
+  let activeBox: HTMLElement | null = null;
+  let activeIndex = 0;
+  let activeFigures: HTMLElement[] = [];
+
+  function show(i: number) {
+    if (!activeBox) return;
+    activeIndex = (i + activeFigures.length) % activeFigures.length;
+    const f = activeFigures[activeIndex];
+    const img = activeBox.querySelector('img')!;
+    img.src = f.dataset.large ?? '';
+    img.alt = f.dataset.caption ?? '';
+    activeBox.querySelector('.cap .text')!.textContent = f.dataset.caption ?? '';
+    activeBox.querySelector('.cap .who')!.textContent = '© ' + (f.dataset.photographer ?? '');
+    const ref = activeBox.querySelector('.cap .ref')!;
+    ref.replaceChildren();
+    const code = document.createElement('span');
+    code.textContent = f.dataset.publicId ?? '';
+    const link = document.createElement('a');
+    link.href = f.dataset.detail ?? '';
+    link.textContent = '影像详情 →';
+    ref.append(code, link);
+  }
+  function openBox(box: HTMLElement, figures: HTMLElement[], i: number) {
+    activeBox = box;
+    activeFigures = figures;
+    show(i);
+    box.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    box.querySelector('.close')?.focus();
+  }
+  function closeBox() {
+    if (!activeBox) return;
+    activeBox.classList.remove('open');
+    document.body.style.overflow = '';
+    activeBox = null;
+  }
+
+  document.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement;
+    if (activeBox) {
+      if (t.closest('.lightbox .close') || e.target === activeBox) return closeBox();
+      if (t.closest('.lightbox .prev')) return show(activeIndex - 1);
+      if (t.closest('.lightbox .next')) return show(activeIndex + 1);
+      return;
+    }
+    const fig = t.closest<HTMLElement>('figure[data-large]');
+    const gallery = fig?.closest<HTMLElement>('.media-archive');
+    const box = gallery?.parentElement?.querySelector<HTMLElement>('.lightbox');
+    if (fig && box) {
+      const figures = Array.from(gallery.querySelectorAll('figure'));
+      openBox(box, figures, Number(fig.dataset.index));
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!activeBox) return;
+    if (e.key === 'Escape') closeBox();
+    else if (e.key === 'ArrowLeft') show(activeIndex - 1);
+    else if (e.key === 'ArrowRight') show(activeIndex + 1);
+  });
+
+  function initGalleries() {
+    document.querySelectorAll<HTMLElement>('.media-archive').forEach((archive) => {
+      if (archive.dataset.galleryInit === '1') return;
+      archive.dataset.galleryInit = '1';
+      const showAllBtn = archive.querySelector<HTMLButtonElement>('.show-all');
+      showAllBtn?.addEventListener('click', () => {
         archive.classList.add('show-all-enabled');
         showAllBtn.remove();
       });
-    }
-    if (!lightbox) continue;
-    const img = lightbox.querySelector('img')!;
-    const textEl = lightbox.querySelector('.cap .text')!;
-    const whoEl = lightbox.querySelector('.cap .who')!;
-    const refEl = lightbox.querySelector('.cap .ref')!;
-    let index = 0;
-
-    const show = (i: number) => {
-      index = (i + figures.length) % figures.length;
-      const f = figures[index];
-      img.src = f.dataset.large ?? '';
-      img.alt = f.dataset.caption ?? '';
-      textEl.textContent = f.dataset.caption ?? '';
-      whoEl.textContent = `© ${f.dataset.photographer ?? ''}`;
-      const pid = f.dataset.publicId ?? '';
-      const detail = f.dataset.detail ?? '';
-      refEl.replaceChildren();
-      const code = document.createElement('span');
-      code.textContent = pid;
-      const link = document.createElement('a');
-      link.href = detail;
-      link.textContent = '影像详情 →';
-      refEl.append(code, link);
-    };
-    const open = (i: number) => {
-      show(i);
-      lightbox.classList.add('open');
-      document.body.style.overflow = 'hidden';
-      lightbox.querySelector('.close')?.focus();
-    };
-    const close = () => {
-      lightbox.classList.remove('open');
-      document.body.style.overflow = '';
-    };
-
-    figures.forEach((f, i) => {
-      f.addEventListener('click', () => open(i));
-      f.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          open(i);
-        }
+      archive.querySelectorAll<HTMLElement>('figure').forEach((f) => {
+        f.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            f.click();
+          }
+        });
       });
     });
-    lightbox.querySelector('.close')?.addEventListener('click', close);
-    lightbox.querySelector('.prev')?.addEventListener('click', () => show(index - 1));
-    lightbox.querySelector('.next')?.addEventListener('click', () => show(index + 1));
-    lightbox.addEventListener('click', (e) => {
-      if (e.target === lightbox) close();
-    });
-    document.addEventListener('keydown', (e) => {
-      if (!lightbox.classList.contains('open')) return;
-      if (e.key === 'Escape') close();
-      else if (e.key === 'ArrowLeft') show(index - 1);
-      else if (e.key === 'ArrowRight') show(index + 1);
-    });
   }
+  document.addEventListener('astro:page-load', initGalleries);
 </script>
 
 <style>

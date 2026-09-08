@@ -133,20 +133,26 @@ const tree = getTaxonomyBrowse();
 </Base>
 
 <script>
-  const buttons = document.querySelectorAll<HTMLButtonElement>('.browse-toggle button');
-  const photoView = document.getElementById('view-photo')!;
-  const taxView = document.getElementById('view-taxonomy')!;
-  for (const b of buttons) {
-    b.addEventListener('click', () => {
-      for (const x of buttons) {
-        x.classList.toggle('active', x === b);
-        x.setAttribute('aria-pressed', String(x === b));
-      }
-      const isPhoto = b.dataset.view === 'photo';
-      photoView.hidden = !isPhoto;
-      taxView.hidden = isPhoto;
+  function initBrowseToggle() {
+    const buttons = document.querySelectorAll<HTMLButtonElement>('.browse-toggle button');
+    const photoView = document.getElementById('view-photo');
+    const taxView = document.getElementById('view-taxonomy');
+    if (!buttons.length || !photoView || !taxView) return;
+    buttons.forEach((b) => {
+      if (b.dataset.toggleInit === '1') return;
+      b.dataset.toggleInit = '1';
+      b.addEventListener('click', () => {
+        buttons.forEach((x) => {
+          x.classList.toggle('active', x === b);
+          x.setAttribute('aria-pressed', String(x === b));
+        });
+        const isPhoto = b.dataset.view === 'photo';
+        photoView.hidden = !isPhoto;
+        taxView.hidden = isPhoto;
+      });
     });
   }
+  document.addEventListener('astro:page-load', initBrowseToggle);
 </script>
 
 <style>

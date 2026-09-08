@@ -182,31 +182,33 @@ const related = allPublicObservations
 </Base>
 
 <script>
-  const openBtn = document.getElementById('hero-open');
-  const box = document.getElementById('hero-lightbox');
-  if (openBtn && box) {
-    const close = () => {
-      box.classList.remove('open');
-      document.body.style.overflow = '';
-    };
-    const open = () => {
-      box.classList.add('open');
-      document.body.style.overflow = 'hidden';
-      box.querySelector('.close')?.focus();
-    };
-    openBtn.addEventListener('click', open);
-    openBtn.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        open();
-      }
-    });
-    box.querySelector('.close')?.addEventListener('click', close);
-    box.addEventListener('click', (e) => {
-      if (e.target === box) close();
-    });
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') close();
-    });
+  // Hero Lightbox：astro:page-load 生命周期（客户端导航后自动重连）
+  let heroBox: HTMLElement | null = null;
+
+  function openHero() {
+    heroBox = document.getElementById('hero-lightbox');
+    if (!heroBox) return;
+    heroBox.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    heroBox.querySelector('.close')?.focus();
   }
+  function closeHero() {
+    if (!heroBox) return;
+    heroBox.classList.remove('open');
+    document.body.style.overflow = '';
+    heroBox = null;
+  }
+
+  document.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement;
+    if (heroBox) {
+      if (t.closest('#hero-lightbox .close') || e.target === heroBox) return closeHero();
+      return;
+    }
+    if (t.closest('#hero-open')) openHero();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!heroBox) return;
+    if (e.key === 'Escape') closeHero();
+  });
 </script>
