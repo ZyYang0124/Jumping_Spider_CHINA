@@ -90,7 +90,7 @@ export interface PublicObservation {
   trip: { slug: string; title: string } | null;
 }
 
-const BASE = '/Jumping_Spider_CHINA';
+const BASE = '/Salticid_Notes';
 
 export function withBase(path: string): string {
   return `${BASE}${path}`;

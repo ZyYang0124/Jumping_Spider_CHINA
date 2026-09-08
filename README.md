@@ -11,7 +11,7 @@
 
 纯静态实现（Astro + TypeScript + 构建期数据管线），部署于 GitHub Pages：
 
-**https://zyyang0124.github.io/Jumping_Spider_CHINA/**
+**https://zyyang0124.github.io/Salticid_Notes/**
 
 站点内容为开发阶段示例数据（基于 `examples/` 示例照片构建），用于展示数据模型与版式，并非正式发表的科学记录。
 
@@ -19,7 +19,7 @@
 
 ```bash
 npm install          # 安装依赖
-npm run dev          # 开发服务器（http://localhost:4321/Jumping_Spider_CHINA/）
+npm run dev          # 开发服务器（http://localhost:4321/Salticid_Notes/）
 npm run media        # 生成 Web 派生图（缩略图/中图/大图，剥离 EXIF）
 npm run build        # 媒体管线 + 静态构建到 dist/
 npm run preview      # 预览构建产物

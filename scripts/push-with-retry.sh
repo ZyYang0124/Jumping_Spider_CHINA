@@ -1,7 +1,7 @@
 #!/bin/bash
 # 网络恢复后自动推送 main 与 gh-pages（对 github.com 连接抖动的重试循环）
-REPO="https://github.com/ZyYang0124/Jumping_Spider_CHINA.git"
-MAIN_DIR="C:/Research/01_Active_Projects/Jumping_Spider_CHINA"
+REPO="https://github.com/ZyYang0124/Salticid_Notes.git"
+MAIN_DIR="C:/Research/01_Active_Projects/Salticid_Notes"
 GHP_DIR="/tmp/csfn-ghp"
 
 for i in $(seq 1 40); do
