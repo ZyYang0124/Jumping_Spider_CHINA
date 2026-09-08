@@ -1,0 +1,30 @@
+name: deploy-studio
+# Field Studio 远程版：push 触发自动部署（AGENTS 规则 7：部署必须由 GitHub push/merge 触发）
+# 首次使用前需在仓库 Settings → Secrets 配置：
+#   CLOUDFLARE_API_TOKEN  —— 权限：Workers Scripts:Edit、D1:Edit、R2:Edit、Zone→Workers Routes:Edit
+#   CLOUDFLARE_ACCOUNT_ID —— Cloudflare 账户 ID
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'studio-remote/**'
+      - '.github/workflows/studio-deploy.yml'
+  workflow_dispatch:
+
+env:
+  CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  deploy:
+    # 未配置 secrets 时静默跳过（配置后自动生效）
+    if: ${{ env.CF_TOKEN != '' }}
+    runs-on: ubuntu-latest
+    concurrency: studio-deploy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: studio-remote
+          command: deploy

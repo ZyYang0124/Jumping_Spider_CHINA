@@ -1,0 +1,29 @@
+{
+  "name": "salticid-notes-studio-remote",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Field Studio 远程版：Cloudflare Workers + D1 + R2（与本地 studio/ 同一套业务规则）",
+  "scripts": {
+    "dev": "wrangler dev --port 4333",
+    "deploy": "wrangler deploy",
+    "migrate:local": "wrangler d1 migrations apply salticid-studio --local",
+    "migrate:remote": "wrangler d1 migrations apply salticid-studio --remote",
+    "typecheck": "tsc --noEmit",
+    "e2e": "tsx scripts/e2e-remote.mts"
+  },
+  "dependencies": {
+    "exif-reader": "^2.0.3",
+    "fflate": "^0.8.2",
+    "hono": "^4",
+    "marked": "^18",
+    "sanitize-html": "^2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4",
+    "@types/sanitize-html": "^2",
+    "tsx": "^4.23.13",
+    "typescript": "^5.5",
+    "wrangler": "^4.129.1"
+  }
+}

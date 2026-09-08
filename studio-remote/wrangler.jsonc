@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "salticid-notes-studio",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "account_id": "PLACEHOLDER_ACCOUNT_ID",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "salticid-studio",
+      "database_id": "PLACEHOLDER_D1_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "salticid-studio-media"
+    }
+  ],
+  "routes": [
+    { "pattern": "studio.salticidnotes.cn", "custom_domain": true }
+  ],
+  "observability": { "enabled": true }
+}

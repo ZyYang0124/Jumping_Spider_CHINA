@@ -21,3 +21,7 @@ studio/storage/
 .DS_Store
 Thumbs.db
 .wrangler/
+
+# Field Studio 远程版本地变量
+studio-remote/.dev.vars
+studio-remote/.e2e-manifest.json
