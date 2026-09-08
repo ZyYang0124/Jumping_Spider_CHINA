@@ -11,6 +11,11 @@
   --accent: #566246;
   --accent-deep: #40492f;
   --terra: #a4552f;
+  --motion-fast: 160ms;
+  --motion-normal: 280ms;
+  --motion-slow: 480ms;
+  --ease-standard: cubic-bezier(.2, .8, .2, 1);
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
   --serif: Georgia, "Times New Roman", "Songti SC", "Noto Serif SC", SimSun, serif;
   --sans: -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 
@@ -89,7 +94,7 @@ a:hover { color: var(--terra); }
 
 .btn {
   display: inline-block; padding: 10px 22px; font-size: 14px; letter-spacing: 0.08em;
-  border: 1px solid rgba(245, 242, 234, 0.65); color: #f5f2ea; transition: all 0.2s ease;
+  border: 1px solid rgba(245, 242, 234, 0.65); color: #f5f2ea; transition: color var(--motion-fast) ease, background-color var(--motion-fast) ease, border-color var(--motion-fast) ease;
 }
 .btn:hover { background: rgba(245, 242, 234, 0.14); color: #fff; }
 .btn.solid { background: #f5f2ea; color: var(--ink); border-color: #f5f2ea; }
@@ -115,7 +120,7 @@ a:hover { color: var(--terra); }
 
 .ed-card { display: block; }
 .ed-card .frame { overflow: hidden; background: var(--paper-deep); }
-.ed-card img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
+.ed-card img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--motion-slow) var(--ease-out); }
 .ed-card:hover img { transform: scale(1.03); }
 .ed-card .meta { padding: 12px 2px 0; }
 .ed-card .name { font-size: 17px; }
@@ -137,7 +142,7 @@ a:hover { color: var(--terra); }
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 30px 22px; }
 .obs-card { display: block; }
 .obs-card .frame { aspect-ratio: 4 / 3.4; overflow: hidden; background: var(--paper-deep); }
-.obs-card img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
+.obs-card img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--motion-slow) var(--ease-out); }
 .obs-card:hover img { transform: scale(1.035); }
 .obs-card .meta { padding: 10px 2px 0; }
 .obs-card .name { font-size: 16px; }
@@ -154,7 +159,7 @@ a:hover { color: var(--terra); }
 }
 .obs-hero img {
   width: 100%; aspect-ratio: 21 / 9; object-fit: cover;
-  transition: opacity 0.3s ease;
+  transition: opacity var(--motion-normal) ease;
 }
 .obs-hero .frame:hover img { opacity: 0.94; }
 @media (max-width: 720px) { .obs-hero img { aspect-ratio: 4 / 3; } }
@@ -205,7 +210,7 @@ a:hover { color: var(--terra); }
 
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; padding: 8px 0 24px; }
 .gallery figure { margin: 0; position: relative; background: var(--paper-deep); cursor: zoom-in; overflow: hidden; }
-.gallery img { width: 100%; height: 210px; object-fit: cover; transition: transform 0.4s ease; }
+.gallery img { width: 100%; height: 210px; object-fit: cover; transition: transform var(--motion-normal) var(--ease-out); }
 .gallery figure:hover img { transform: scale(1.03); }
 .gallery figcaption { font-size: 12.5px; color: var(--muted); padding: 8px 10px 10px; }
 .gallery .vt { position: absolute; top: 8px; left: 8px; font-size: 11px; padding: 1px 8px; background: rgba(20,17,12,0.55); color: #f0ede5; letter-spacing: 0.08em; border-radius: 2px; }
@@ -250,7 +255,7 @@ a:hover { color: var(--terra); }
 .species-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 34px 24px; padding: 34px 0 30px; }
 .species-card { display: block; }
 .species-card .frame { aspect-ratio: 4 / 3; overflow: hidden; background: var(--paper-deep); }
-.species-card img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
+.species-card img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--motion-slow) var(--ease-out); }
 .species-card:hover img { transform: scale(1.035); }
 .species-card .name { font-size: 17px; margin-top: 12px; }
 .species-card .name i { font-family: var(--serif); }
@@ -269,7 +274,7 @@ a:hover { color: var(--terra); }
 .trip-card { display: block; }
 .trip-card .cover { aspect-ratio: 21 / 9; overflow: hidden; background: var(--paper-deep); }
 @media (max-width: 720px) { .trip-card .cover { aspect-ratio: 16 / 10; } }
-.trip-card .cover img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s ease; }
+.trip-card .cover img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--motion-slow) var(--ease-out); }
 .trip-card:hover .cover img { transform: scale(1.025); }
 .trip-card h2 { font-family: var(--serif); font-size: 26px; margin: 18px 0 2px; }
 .trip-card .sub-title { font-size: 14px; color: var(--muted); margin-bottom: 8px; }
@@ -292,7 +297,7 @@ a:hover { color: var(--terra); }
 .trip-day .day-date { font-size: 12.5px; color: var(--faint); margin-bottom: 14px; }
 .trip-day p { font-size: 16.5px; line-height: 2.05; margin: 0 0 1.2em; text-align: justify; }
 .trip-day .day-media { margin: 6px 0 14px; }
-.trip-day .day-media img { width: 100%; transition: transform 0.5s ease; }
+.trip-day .day-media img { width: 100%; transition: transform var(--motion-slow) var(--ease-out); }
 .trip-day .day-media .m-landscape img { aspect-ratio: 3 / 2; object-fit: cover; }
 .trip-day .day-media .m-portrait img { max-width: 68%; margin: 0 auto; }
 .trip-day .day-media figcaption { font-size: 12.5px; color: var(--faint); padding-top: 8px; }
@@ -307,7 +312,7 @@ a:hover { color: var(--terra); }
 .place-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 30px 24px; }
 .place-card { display: block; }
 .place-card .frame { aspect-ratio: 4 / 2.7; overflow: hidden; background: var(--paper-deep); }
-.place-card img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
+.place-card img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--motion-slow) var(--ease-out); }
 .place-card:hover img { transform: scale(1.035); }
 .place-card .name { font-size: 17px; margin-top: 12px; font-family: var(--serif); }
 .place-card .meta { font-size: 12.5px; color: var(--faint); margin-top: 4px; letter-spacing: 0.03em; }
@@ -317,7 +322,7 @@ a:hover { color: var(--terra); }
 /* ---------- 伙伴（人文化，仅留很淡的容器） ---------- */
 
 .contributor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 30px 26px; padding: 38px 0 40px; }
-.contributor-card { display: block; background: #fbfaf7; border: 1px solid var(--line); padding: 0 0 20px; transition: border-color 0.2s ease; }
+.contributor-card { display: block; background: #fbfaf7; border: 1px solid var(--line); padding: 0 0 20px; transition: border-color var(--motion-fast) ease, color var(--motion-fast) ease; }
 .contributor-card:hover { border-color: var(--faint); }
 .contributor-card .cover { aspect-ratio: 16 / 9; overflow: hidden; background: var(--paper-deep); }
 .contributor-card .cover img { width: 100%; height: 100%; object-fit: cover; }
@@ -370,3 +375,50 @@ a:hover { color: var(--terra); }
 .notfound .mark { display: flex; justify-content: center; margin-bottom: 26px; opacity: 0.8; }
 .notfound h1 { font-family: var(--serif); font-size: 50px; margin: 0 0 10px; font-weight: 400; }
 .notfound p { color: var(--muted); }
+
+/* ---------- Fluidity：卡片微交互（仅精确指针设备，避免移动端 sticky hover） ---------- */
+
+.obs-card, .ed-card, .species-card, .place-card, .trip-card { transition: transform var(--motion-slow) var(--ease-out); }
+
+@media (hover: hover) and (pointer: fine) {
+  .obs-card:hover, .ed-card:hover, .place-card:hover { transform: translateY(-3px); }
+  .species-card:hover, .trip-card:hover { transform: translateY(-2px); }
+  .obs-card:hover img, .ed-card:hover img, .species-card:hover img,
+  .place-card:hover img, .trip-card:hover .cover img { transform: scale(1.02); }
+  .gallery figure:hover img { transform: scale(1.015); }
+}
+
+/* ---------- Scroll Reveal：进入视口一次，安静上浮 ---------- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity var(--motion-slow) ease, transform var(--motion-slow) var(--ease-out);
+}
+.reveal.is-visible { opacity: 1; transform: none; }
+
+/* ---------- View Transition：轻柔 crossfade（~200ms） ---------- */
+
+::view-transition-old(root) { animation: sn-fade-out var(--motion-fast) ease both; }
+::view-transition-new(root) { animation: sn-fade-in var(--motion-normal) ease both; }
+@keyframes sn-fade-out { to { opacity: 0; } }
+@keyframes sn-fade-in { from { opacity: 0; } }
+
+/* 共享元素（Observation 封面）位移用统一缓出 */
+::view-transition-group(*) { animation-duration: var(--motion-normal); animation-timing-function: var(--ease-out); }
+
+/* ---------- Sticky Header：移动端关闭 blur（滚动性能优先，视觉几乎不变） ---------- */
+
+@media (max-width: 720px) {
+  .site-header { backdrop-filter: none; background: var(--paper); }
+}
+
+/* ---------- Reduced Motion：关闭一切动效，保持可用 ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  ::view-transition-old(*), ::view-transition-new(*), ::view-transition-group(*) { animation: none !important; }
+  .obs-card:hover img, .ed-card:hover img, .species-card:hover img,
+  .place-card:hover img, .trip-card:hover .cover img, .gallery figure:hover img { transform: none; }
+  .obs-card:hover, .ed-card:hover, .place-card:hover, .species-card:hover, .trip-card:hover { transform: none; }
+}

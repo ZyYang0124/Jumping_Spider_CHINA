@@ -5,6 +5,7 @@ import { getSpeciesGroups, getUnidentifiedObservations, getTaxonomyBrowse, speci
 import { withBase } from '../../lib/privacy';
 import { sciNameHtml } from '../../lib/format';
 import ObsCard from '../../components/ObsCard.astro';
+import PictureImage from '../../components/PictureImage.astro';
 import { RANK_ZH } from '../../lib/labels';
 
 const groups = getSpeciesGroups();
@@ -32,10 +33,10 @@ const tree = getTaxonomyBrowse();
           <a class="species-card" href={withBase(`/species/${speciesSlug(g)}/`)}>
             <div class="frame">
               {g.observations.find((o) => o.cover) && (
-                <img
-                  src={g.observations.find((o) => o.cover)!.cover!.medium}
+                <PictureImage
+                  media={g.observations.find((o) => o.cover)!.cover!}
+                  sizes="(max-width: 900px) 92vw, 30vw"
                   alt={`${g.display} 代表照片`}
-                  loading="lazy"
                 />
               )}
             </div>

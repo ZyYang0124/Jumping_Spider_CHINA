@@ -1,5 +1,6 @@
-// 媒体管线：上传校验 → 原图保存（不可变）→ sharp 派生（thumb/medium/large，剥离全部 EXIF）
-// → 稳定编号 CSFN-M-NNNNNN。与静态站管线同一口径（规则 2/3、prompt.md §16/§17）。
+// 媒体管线（Studio 上传侧）：上传校验 → 原图存档（不可变）→ sharp 派生
+// （多宽度 × AVIF/WebP/JPEG + thumb/medium/large，剥离全部 EXIF）
+// → 稳定编号 SFN-M-NNNNNN。与 scripts/process-media.mjs 同一口径（规则 2/3/20/21）。
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,10 +10,12 @@ import type { Database } from 'better-sqlite3';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const ORIGINALS_DIR = join(ROOT, 'studio', 'storage', 'originals');
 export const DERIVATIVES_DIR = join(ROOT, 'public', 'media', 'derivatives');
-const MANIFEST_PATH = join(DERIVATIVES_DIR, 'manifest.json');
+const MANIFEST_OUT = resolve(ROOT, 'src', 'data', 'generated', 'media-manifest.json');
+const LEGACY_MANIFEST = join(DERIVATIVES_DIR, 'manifest.json');
 
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png']);
 const MAX_SIZE = 30 * 1024 * 1024;
+const WIDTHS = [480, 768, 1280, 1920];
 
 export function validateUpload(file: { mimetype: string; size: number }): string | null {
   if (!ALLOWED_MIME.has(file.mimetype)) return '仅支持 JPG / PNG 图片。';
@@ -54,16 +57,33 @@ export interface SavedMedia {
   height: number;
 }
 
-/** 保存一张上传图：原图不动地存档，派生图重编码并剥离全部 EXIF */
+function readManifest(): Record<string, { width: number; height: number; variants: number[] }> {
+  try {
+    return JSON.parse(readFileSync(MANIFEST_OUT, 'utf-8'));
+  } catch {
+    return {};
+  }
+}
+
+function writeManifest(manifest: unknown): void {
+  mkdirSync(dirname(MANIFEST_OUT), { recursive: true });
+  writeFileSync(MANIFEST_OUT, JSON.stringify(manifest, null, 2));
+  try {
+    writeFileSync(LEGACY_MANIFEST, JSON.stringify(manifest, null, 2));
+  } catch {}
+}
+
+/** 保存一张上传图：原图按字节存档（不修改），派生图重编码并剥离全部 EXIF */
 export async function saveUploadedPhoto(
   db: Database,
   file: { buffer: Buffer; originalname: string },
 ): Promise<SavedMedia> {
   mkdirSync(ORIGINALS_DIR, { recursive: true });
   mkdirSync(DERIVATIVES_DIR, { recursive: true });
+  mkdirSync(dirname(MANIFEST_OUT), { recursive: true });
 
   const publicId = nextMediaId(db);
-  const fileStem = publicId; // 文件名只承载编号，不含学名/地名（规则 7 同源原则）
+  const fileStem = publicId; // 文件名只承载编号，不含学名/地名
   const originalPath = join(ORIGINALS_DIR, `${fileStem}${extOf(file.originalname)}`);
 
   // 原图按上传字节原样存档（不做任何修改）
@@ -72,33 +92,55 @@ export async function saveUploadedPhoto(
   // 派生图：rotate 归一 + 重新编码，不保留任何元数据（EXIF/GPS 全部剥离）
   const pipeline = sharp(file.buffer).rotate();
   const meta = await pipeline.metadata();
-  const sizes: [string, number][] = [
+  const intrinsicW = meta.width ?? 0;
+
+  const widths = WIDTHS.filter((w) => w <= intrinsicW);
+  if (widths.length === 0) widths.push(WIDTHS[0]);
+
+  let dims = { width: intrinsicW, height: meta.height ?? 0 };
+  for (const w of widths) {
+    const info = await pipeline
+      .clone()
+      .resize({ width: w, withoutEnlargement: true })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toFile(join(DERIVATIVES_DIR, `${fileStem}-${w}.jpg`));
+    if (w === widths[0]) dims = { width: info.width, height: info.height };
+    const avif = await pipeline
+      .clone()
+      .resize({ width: w, withoutEnlargement: true })
+      .avif({ quality: 45 })
+      .toBuffer();
+    writeFileSync(join(DERIVATIVES_DIR, `${fileStem}-${w}.avif`), avif);
+    const webp = await pipeline
+      .clone()
+      .resize({ width: w, withoutEnlargement: true })
+      .webp({ quality: 72 })
+      .toBuffer();
+    writeFileSync(join(DERIVATIVES_DIR, `${fileStem}-${w}.webp`), webp);
+  }
+
+  // 兼容旧引用：thumb/medium/large JPG
+  for (const [suffix, width] of [
     ['thumb', 400],
     ['medium', 1200],
     ['large', 2000],
-  ];
-  let dims = { width: meta.width ?? 0, height: meta.height ?? 0 };
-  for (const [suffix, width] of sizes) {
-    const info = await pipeline
+  ] as const) {
+    await pipeline
       .clone()
       .resize({ width, withoutEnlargement: true })
       .jpeg({ quality: suffix === 'thumb' ? 78 : 84, mozjpeg: true })
       .toFile(join(DERIVATIVES_DIR, `${fileStem}_${suffix}.jpg`));
-    if (suffix === 'medium') dims = { width: info.width, height: info.height };
   }
-  updateManifest(fileStem, dims.width, dims.height);
-  return { publicId, fileStem, width: dims.width, height: dims.height };
-}
 
-function updateManifest(stem: string, width: number, height: number): void {
-  let manifest: Record<string, { width: number; height: number }> = {};
-  try {
-    manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf-8'));
-  } catch {
-    /* 首次生成 */
-  }
-  manifest[stem] = { width, height };
-  writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
+  const manifest = readManifest();
+  manifest[fileStem] = {
+    width: intrinsicW,
+    height: meta.height ?? 0,
+    variants: widths,
+  };
+  writeManifest(manifest);
+
+  return { publicId, fileStem, width: dims.width, height: dims.height };
 }
 
 function extOf(name: string): string {

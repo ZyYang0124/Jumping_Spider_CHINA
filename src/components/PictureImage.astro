@@ -1,0 +1,39 @@
+---
+// 响应式图片：AVIF → WebP → JPEG fallback，srcset/sizes 按上下文传入。
+// 占位：width/height（真实宽高）+ CSS 容器 aspect-ratio 保证加载前后零位移（Fluidity §16）。
+import type { PublicMedia } from '../lib/privacy';
+
+interface Props {
+  media: PublicMedia;
+  sizes: string;
+  alt?: string;
+  eager?: boolean;
+  fetchpriority?: 'high' | 'low' | 'auto';
+  class?: string;
+  transitionName?: string;
+}
+
+const { media, sizes, alt, eager = false, fetchpriority = 'auto', class: className = '', transitionName } = Astro.props;
+
+const jpgSrcset = media.srcset.jpg;
+const fallback = media.medium;
+const altText = alt ?? media.caption ?? media.public_id;
+---
+
+<picture>
+  <source type="image/avif" srcset={media.srcset.avif} sizes={sizes} />
+  <source type="image/webp" srcset={media.srcset.webp} sizes={sizes} />
+  <img
+    src={fallback}
+    srcset={jpgSrcset}
+    sizes={sizes}
+    alt={altText}
+    width={media.width}
+    height={media.height}
+    loading={eager ? 'eager' : 'lazy'}
+    decoding="async"
+    fetchpriority={fetchpriority}
+    class={className}
+    transition:name={transitionName}
+  />
+</picture>

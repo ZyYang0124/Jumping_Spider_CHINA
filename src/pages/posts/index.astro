@@ -2,6 +2,7 @@
 export const prerender = true;
 import Base from '../../layouts/Base.astro';
 import { getPublishedPosts } from '../../lib/queries';
+import PictureImage from '../../components/PictureImage.astro';
 import { formatDate } from '../../lib/format';
 import { withBase } from '../../lib/privacy';
 
@@ -21,7 +22,7 @@ const posts = getPublishedPosts();
       <div class="post-list" style="padding: 30px 0 70px;">
         {posts.map((p) => (
           <a class="post-card" href={withBase(`/posts/${p.slug}/`)}>
-            {p.cover && <div class="cover"><img src={p.cover.medium} alt={p.title} loading="lazy" /></div>}
+            {p.cover && <div class="cover"><PictureImage media={p.cover} sizes="(max-width: 700px) 92vw, 280px" alt={p.title} /></div>}
             <div class="body">
               <h2>{p.title}</h2>
               <div class="meta">{formatDate(p.created_at.slice(0, 10), 'day')} · {p.author}</div>

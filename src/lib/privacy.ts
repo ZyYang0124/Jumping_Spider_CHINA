@@ -19,7 +19,14 @@ import {
   taxonById,
   tripById,
 } from './store';
-import type { Evidence, LocationVisibility, MediaViewType, TaxonRank } from './types';
+import mediaManifestJson from '../data/generated/media-manifest.json';
+import type { Evidence, LocationVisibility, MediaRecord, MediaViewType, TaxonRank } from './types';
+
+// 媒体尺寸清单（scripts/process-media.mjs 与 Studio 上传管线生成，构建期静态导入）
+const MEDIA_MANIFEST = mediaManifestJson as Record<
+  string,
+  { width: number; height: number; variants: number[] }
+>;
 
 export interface PublicLocation {
   country_code: string;
@@ -37,11 +44,18 @@ export interface PublicLocation {
 
 export interface PublicMedia {
   id: string;
-  /** 稳定公开编号 CSFN-M-NNNNNN */
+  /** 稳定公开编号 CSFN-M/SFN-M-NNNNNN */
   public_id: string;
   thumb: string;
   medium: string;
   large: string;
+  /** 响应式源集（AVIF/WebP/JPEG × 多宽度），供 <picture>/srcset 使用 */
+  srcset: {
+    avif: string;
+    webp: string;
+    jpg: string;
+  };
+  /** 原始显示宽高（用于 width/height 属性与 aspect-ratio 占位） */
   width: number;
   height: number;
   view_type: MediaViewType;
@@ -173,30 +187,38 @@ function publicIdentification(idn: {
 
 // ---------- 公开媒体（只含公开媒体；路径指向构建期生成的脱敏派生图） ----------
 
+/** 从媒体记录构建完整公开媒体对象（含响应式源集与真实宽高）——单一出口，全站复用 */
+export function publicMediaFromRecord(m: MediaRecord): PublicMedia {
+  const photographer = displayNameOf(m.photographer_profile_id) ?? m.photographer_name ?? '未知';
+  const mm = MEDIA_MANIFEST[m.id];
+  const widths = mm?.variants ?? [];
+  const srcsetFor = (ext: string) =>
+    widths.map((w) => `${withBase(`/media/derivatives/${m.id}-${w}.${ext}`)} ${w}w`).join(', ');
+  return {
+    id: m.id,
+    public_id: m.public_id,
+    thumb: withBase(`/media/derivatives/${m.id}_thumb.jpg`),
+    medium: withBase(`/media/derivatives/${m.id}_medium.jpg`),
+    large: withBase(`/media/derivatives/${m.id}_large.jpg`),
+    srcset: {
+      avif: srcsetFor('avif'),
+      webp: srcsetFor('webp'),
+      jpg: srcsetFor('jpg'),
+    },
+    width: mm?.width ?? 0,
+    height: mm?.height ?? 0,
+    view_type: m.view_type,
+    caption: m.caption,
+    photographer,
+    license: m.license,
+    is_cover: m.is_cover,
+    detail_url: withBase(`/media/${m.public_id}/`),
+  };
+}
+
 function publicMedia(observationId: string): PublicMedia[] {
   const list = mediaByObservation.get(observationId) ?? [];
-  return list
-    .filter((m) => m.visibility === 'public')
-    .map((m) => {
-      const photographer =
-        displayNameOf(m.photographer_profile_id) ?? m.photographer_name ?? '未知';
-      return {
-        id: m.id,
-        public_id: m.public_id,
-        thumb: withBase(`/media/derivatives/${m.id}_thumb.jpg`),
-        medium: withBase(`/media/derivatives/${m.id}_medium.jpg`),
-        large: withBase(`/media/derivatives/${m.id}_large.jpg`),
-        // width/height 由媒体管线写入的 manifest 提供，构建时合并
-        width: 0,
-        height: 0,
-        view_type: m.view_type,
-        caption: m.caption,
-        photographer,
-        license: m.license,
-        is_cover: m.is_cover,
-        detail_url: withBase(`/media/${m.public_id}/`),
-      };
-    });
+  return list.filter((m) => m.visibility === 'public').map((m) => publicMediaFromRecord(m));
 }
 
 export function toPublicObservation(o: Observation): PublicObservation {

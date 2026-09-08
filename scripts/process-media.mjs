@@ -1,8 +1,8 @@
-// 媒体派生脚本：从 media/originals/ 生成 Web 派生图（thumb 400 / medium 1200 / large 2000）。
-// 铁律（DEVELOPMENT.md 规则 3、prompt.md §16/§17）：
-//   - 原图只读，永不修改；
-//   - 派生图一律重新编码并剥离 EXIF（含 GPS），公开输出不携带拍摄位置信息。
-// 产物：media/derivatives/{media_id}_{thumb|medium|large}.jpg + manifest.json（宽高）。
+// 媒体派生管线 v2（SOP Fluidity §5/§63/§64）：
+//   - 每张公开图生成多宽度（480/768/1280/1920，≤ 原图）× AVIF/WebP/JPEG
+//   - 保留传统 thumb/medium/large JPG（旧引用兼容 + 灯箱大图）
+//   - 全部重编码剥离 EXIF（规则 21），原图只读永不修改（规则 20）
+// 产物：public/media/derivatives/*  +  src/data/generated/media-manifest.json（构建期导入）
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -10,13 +10,17 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-// 生成到 public/ 下，Astro 构建时会原样拷贝进 dist（原图永不出现在公开输出）
+// 生成到 public/ 下，Astro 构建时原样拷贝进 dist（原图永不出现在公开输出）
 const DERIV_DIR = resolve(ROOT, 'public/media/derivatives');
+const MANIFEST_OUT = resolve(ROOT, 'src/data/generated/media-manifest.json');
+const LEGACY_MANIFEST = resolve(DERIV_DIR, 'manifest.json');
 
-const SIZES = [
-  { suffix: 'thumb', width: 400 },
-  { suffix: 'medium', width: 1200 },
-  { suffix: 'large', width: 2000 },
+const WIDTHS = [480, 768, 1280, 1920];
+
+const FORMATS = [
+  { ext: 'avif', fn: () => sharp().avif({ quality: 45 }) },
+  { ext: 'webp', fn: () => sharp().webp({ quality: 72 }) },
+  { ext: 'jpg', fn: () => sharp().jpeg({ quality: 82, mozjpeg: true }) },
 ];
 
 async function main() {
@@ -24,8 +28,7 @@ async function main() {
   const observations = JSON.parse(readFileSync(resolve(ROOT, 'src/data/observations.json'), 'utf-8'));
   mkdirSync(DERIV_DIR, { recursive: true });
 
-  // 只为「已发布且公开」观察的公开媒体生成派生图：
-  // 非公开媒体的任何衍生文件都不允许出现在公开输出目录（prompt.md §42）。
+  // 只为「已发布且公开」观察的公开媒体生成派生图（prompt.md §42）
   const publishedObs = new Set(
     observations.filter((o) => o.status === 'published' && o.visibility === 'public').map((o) => o.id),
   );
@@ -33,36 +36,59 @@ async function main() {
 
   const manifest = {};
   let count = 0;
+  mkdirSync(dirname(MANIFEST_OUT), { recursive: true });
 
   for (const m of publicMedia) {
     const src = resolve(ROOT, m.source_original);
-    // 重新编码 + 旋转归一 + 剥离全部元数据（不调用 keepMetadata/withMetadata）
+    // rotate() 归一方向；重编码不保留任何元数据（EXIF/GPS 全部剥离）
     const pipeline = sharp(src).rotate();
-    const meta = await pipeline.metadata();
+    const rotated = await pipeline.metadata();
+    const intrinsicW = rotated.width ?? 0;
 
-    for (const { suffix, width } of SIZES) {
-      const out = resolve(DERIV_DIR, `${m.id}_${suffix}.jpg`);
-      const info = await pipeline
+    // 该图可用的宽度档位（不超过原始显示宽度；至少保留最小档）
+    const widths = WIDTHS.filter((w) => w <= intrinsicW);
+    if (widths.length === 0) widths.push(WIDTHS[0]);
+
+    const variants = [];
+    for (const w of widths) {
+      for (const { ext, fn } of FORMATS) {
+        const out = resolve(DERIV_DIR, `${m.id}-${w}.${ext}`);
+        await pipeline.clone().resize({ width: w, withoutEnlargement: true }).toFormat(ext.split('.')[0], ext === 'avif' ? { quality: 45 } : ext === 'webp' ? { quality: 72 } : { quality: 82, mozjpeg: true }).toFile(out);
+        count += 1;
+      }
+      variants.push(w);
+    }
+
+    // 兼容旧引用：thumb/medium/large JPG（灯箱大图、旧模板兜底）
+    for (const [suffix, width] of [
+      ['thumb', 400],
+      ['medium', 1200],
+      ['large', 2000],
+    ]) {
+      await pipeline
         .clone()
         .resize({ width, withoutEnlargement: true })
         .jpeg({ quality: suffix === 'thumb' ? 78 : 84, mozjpeg: true })
-        .toFile(out);
-      count += 1;
-      if (suffix === 'medium' || !manifest[m.id]) {
-        manifest[m.id] = { width: info.width, height: info.height };
-      }
+        .toFile(resolve(DERIV_DIR, `${m.id}_${suffix}.jpg`));
     }
 
-    const finalMeta = await sharp(resolve(DERIV_DIR, `${m.id}_thumb.jpg`)).metadata();
-    if (finalMeta.exif) {
-      throw new Error(`派生图 ${m.id} 仍含 EXIF——隐私检查失败`);
-    }
-    void meta;
+    manifest[m.id] = {
+      width: intrinsicW,
+      height: rotated.height ?? 0,
+      variants,
+    };
+
+    // 隐私断言：派生图不含 EXIF
+    const check = await sharp(resolve(DERIV_DIR, `${m.id}_thumb.jpg`)).metadata();
+    if (check.exif) throw new Error(`派生图 ${m.id} 仍含 EXIF——隐私检查失败`);
   }
 
-  writeFileSync(resolve(DERIV_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2));
+  // v2 清单（构建期由 src/lib 静态导入；Worker 运行时零文件系统依赖）
+  writeFileSync(MANIFEST_OUT, JSON.stringify(manifest, null, 2));
+  // 旧清单（兼容 /media/derivatives/manifest.json 引用者）
+  writeFileSync(LEGACY_MANIFEST, JSON.stringify(manifest, null, 2));
   console.log(
-    `已生成 ${count} 张脱敏派生图（${Object.keys(manifest).length}/${media.length} 个媒体，其余为非公开记录）。原图未做任何修改。`,
+    `已生成 ${count} 张多格式派生图（${Object.keys(manifest).length}/${media.length} 个媒体，其余为非公开记录）。原图未做任何修改。`,
   );
 }
 

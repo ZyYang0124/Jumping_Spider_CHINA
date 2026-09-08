@@ -2,6 +2,7 @@
 export const prerender = true;
 import Base from '../../layouts/Base.astro';
 import { getAllPublicMedia } from '../../lib/queries';
+import PictureImage from '../../components/PictureImage.astro';
 import { withBase } from '../../lib/privacy';
 import { sciNameHtml } from '../../lib/format';
 import { VIEW_TYPE_ZH } from '../../lib/labels';
@@ -22,7 +23,7 @@ const archive = getAllPublicMedia();
       {archive.map(({ media, observationUrl, observationPublicId, display }) => (
         <a class="archive-card" href={media.detail_url}>
           <div class="frame">
-            <img src={media.thumb} alt={media.caption ?? media.public_id} loading="lazy" width={media.width} height={media.height} />
+            <PictureImage media={media} sizes="(max-width: 700px) 44vw, 200px" alt={media.caption ?? media.public_id} />
           </div>
           <div class="meta">
             <div class="pid">{media.public_id}</div>

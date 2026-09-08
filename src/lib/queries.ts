@@ -1,14 +1,11 @@
 // 公开查询层：物种聚合、调查、地点、贡献者、媒体档案与搜索索引。
 // 物种页面永远从「已发布观察 + 当前鉴定」推导，不手工维护物种条目（prompt.md §44）。
 
-import { readFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   getPublicObservations,
+  publicMediaFromRecord,
   toPublicObservation,
   withBase,
-  type PublicMedia,
   type PublicObservation,
 } from './privacy';
 import {
@@ -25,36 +22,17 @@ import {
 import type { Taxon, TaxonRank } from './types';
 import { shortRegion } from './format';
 
-// 媒体尺寸清单：构建期（Node/静态）从磁盘读取；Worker 运行时无文件系统，
-// 惰性安全加载并降级为空表（仅影响 width/height 元数据，不影响内容渲染）。
-let _manifest: Record<string, { width: number; height: number }> | null = null;
-function mediaManifest(): Record<string, { width: number; height: number }> {
-  if (_manifest) return _manifest;
-  try {
-    if (import.meta.url) {
-      const p = resolve(
-        dirname(fileURLToPath(import.meta.url)),
-        '../../public/media/derivatives/manifest.json',
-      );
-      _manifest = JSON.parse(readFileSync(p, 'utf-8'));
-    }
-  } catch {
-    _manifest = {};
-  }
-  return _manifest ?? {};
-}
-
-const manifest = mediaManifest();
 const publishedObservationIds = new Set(
   observations.filter((o) => o.status === 'published' && o.visibility === 'public').map((o) => o.id),
 );
 
+/** 已公开媒体的派生宽高（来自媒体清单），供灯箱/旅行插图的横竖比判断 */
+export const MEDIA_DIMS = new Map<string, { width: number; height: number }>();
+for (const o of getPublicObservations()) {
+  for (const m of o.media) MEDIA_DIMS.set(m.id, { width: m.width, height: m.height });
+}
+
 export const allPublicObservations: PublicObservation[] = getPublicObservations().map((o) => {
-  o.media = o.media.map((m) => ({
-    ...m,
-    width: manifest[m.id]?.width ?? 0,
-    height: manifest[m.id]?.height ?? 0,
-  }));
   if (o.cover) {
     o.cover = o.media.find((m) => m.id === o.cover!.id) ?? o.cover;
   }
@@ -65,11 +43,6 @@ export function getObservation(publicId: string): PublicObservation | undefined 
   const found = observations.find((o) => o.public_id === publicId);
   if (!found || found.status !== 'published' || found.visibility !== 'public') return undefined;
   const o = toPublicObservation(found);
-  o.media = o.media.map((m) => ({
-    ...m,
-    width: manifest[m.id]?.width ?? 0,
-    height: manifest[m.id]?.height ?? 0,
-  }));
   if (o.cover) o.cover = o.media.find((m) => m.id === o.cover!.id) ?? o.cover;
   return o;
 }
@@ -167,10 +140,6 @@ export interface PublicMediaDetail {
   license: string;
 }
 
-function fillDims(m: PublicMedia): PublicMedia {
-  return { ...m, width: manifest[m.id]?.width ?? 0, height: manifest[m.id]?.height ?? 0 };
-}
-
 export function getPublicMediaDetail(publicMediaId: string): PublicMediaDetail | undefined {
   const record = media.find((m) => m.public_id === publicMediaId);
   if (!record || record.visibility !== 'public') return undefined;
@@ -180,7 +149,7 @@ export function getPublicMediaDetail(publicMediaId: string): PublicMediaDetail |
   if (!mediaDto) return undefined;
   const loc = obs.location;
   return {
-    media: fillDims(mediaDto),
+    media: mediaDto,
     observation: {
       public_id: obs.public_id,
       url: obs.url,
@@ -217,7 +186,7 @@ export function getAllPublicMedia(): { media: PublicMedia; observationPublicId: 
     const dto = obs.media.find((m) => m.id === record.id);
     if (!dto) continue;
     out.push({
-      media: fillDims(dto),
+      media: dto,
       observationPublicId: obs.public_id,
       observationUrl: obs.url,
       display: obs.identification?.display ?? null,
@@ -263,19 +232,13 @@ function safeTripMedia(mediaIds: string[]) {
         !!m && m.visibility === 'public' && publishedObservationIds.has(m.observation_id),
     )
     .map((m) => {
-      const dim = manifest[m.id];
-      const ratio = dim && dim.width && dim.height
-        ? dim.width / dim.height > 1.15
-          ? 'landscape'
-          : dim.width / dim.height < 0.87
-            ? 'portrait'
-            : 'square'
-        : 'landscape';
+      const pm = publicMediaFromRecord(m);
+      const ratio = pm.width / pm.height > 1.15 ? 'landscape' : pm.width / pm.height < 0.87 ? 'portrait' : 'square';
       return {
-        medium: withBase(`/media/derivatives/${m.id}_medium.jpg`),
-        large: withBase(`/media/derivatives/${m.id}_large.jpg`),
-        caption: m.caption,
-        photographer: displayNameOf(m.photographer_profile_id) ?? m.photographer_name ?? '未知',
+        medium: pm.medium,
+        large: pm.large,
+        caption: pm.caption,
+        photographer: pm.photographer,
         ratio: ratio as 'landscape' | 'portrait' | 'square',
       };
     });
@@ -294,12 +257,7 @@ export function getPublicTrips(): PublicTrip[] {
         end_date: t.end_date,
         region: t.region,
         summary: t.summary,
-        cover: cover
-          ? {
-              medium: withBase(`/media/derivatives/${cover.id}_medium.jpg`),
-              large: withBase(`/media/derivatives/${cover.id}_large.jpg`),
-            }
-          : null,
+        cover: cover ? publicMediaFromRecord(cover) : null,
         days: t.days.map((d) => ({
           label: d.label,
           title: d.title,
@@ -393,11 +351,7 @@ export function getPublicContributors(): PublicContributor[] {
         favoriteMedia &&
         favoriteMedia.visibility === 'public' &&
         publishedObservationIds.has(favoriteMedia.observation_id)
-          ? {
-              thumb: withBase(`/media/derivatives/${favoriteMedia.id}_thumb.jpg`),
-              medium: withBase(`/media/derivatives/${favoriteMedia.id}_medium.jpg`),
-              large: withBase(`/media/derivatives/${favoriteMedia.id}_large.jpg`),
-            }
+          ? publicMediaFromRecord(favoriteMedia)
           : null;
       const coverThumbs = observedBy
         .filter((o) => o.cover)
@@ -488,11 +442,7 @@ function postCover(mediaPublicId: string | null) {
   if (!mediaPublicId) return null;
   const record = media.find((m) => m.public_id === mediaPublicId && m.visibility === 'public');
   if (!record || !publishedObservationIds.has(record.observation_id)) return null;
-  return {
-    thumb: withBase(`/media/derivatives/${record.id}_thumb.jpg`),
-    medium: withBase(`/media/derivatives/${record.id}_medium.jpg`),
-    large: withBase(`/media/derivatives/${record.id}_large.jpg`),
-  };
+  return publicMediaFromRecord(record);
 }
 
 export function getPublishedPosts(): PublicPost[] {

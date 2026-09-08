@@ -1,6 +1,7 @@
 ---
 export const prerender = true;
 import Base from '../../layouts/Base.astro';
+import PictureImage from '../../components/PictureImage.astro';
 import SciName from '../../components/SciName.astro';
 import EvidenceBadge from '../../components/EvidenceBadge.astro';
 import MediaGallery from '../../components/MediaGallery.astro';
@@ -41,7 +42,16 @@ const related = allPublicObservations
 <Base title={`${obs.identification?.display ?? '未鉴定的跳蛛'} · ${obs.public_id}`} description={obs.field_note.slice(0, 80)}>
   <figure class="obs-hero">
     <div class="frame" id="hero-open" role="button" tabindex="0" aria-label="查看完整原始照片">
-      {obs.cover && <img src={obs.cover.large} alt={obs.cover.caption ?? obs.public_id} fetchpriority="high" />}
+      {obs.cover && (
+        <PictureImage
+          media={obs.cover}
+          sizes="(max-width: 1320px) 100vw, 1320px"
+          alt={obs.cover.caption ?? obs.public_id}
+          eager={true}
+          fetchpriority="high"
+          transitionName={`obs-${obs.public_id}`}
+        />
+      )}
     </div>
     {obs.cover && <figcaption class="hint">点击查看完整原始照片 · {coordLabel(loc) ?? ''}</figcaption>}
   </figure>

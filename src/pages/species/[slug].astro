@@ -3,6 +3,7 @@ export const prerender = true;
 import Base from '../../layouts/Base.astro';
 import ObsCard from '../../components/ObsCard.astro';
 import MediaGallery from '../../components/MediaGallery.astro';
+import PictureImage from '../../components/PictureImage.astro';
 import { getSpeciesGroup, getSpeciesGroups, getMediaOfObservations, speciesSlug } from '../../lib/queries';
 import { shortRegion } from '../../lib/format';
 import { withBase } from '../../lib/privacy';
@@ -52,14 +53,14 @@ const speciesMedia = getMediaOfObservations(group.observations);
 
   <div class="container-wide">
     {group.personal_note && (
-      <div class="personal-note">
+      <div class="personal-note reveal">
         <div class="label">从 野 外 笔 记 看</div>
         <p>{group.personal_note}</p>
       </div>
     )}
 
     <section class="section" style="padding-top: 10px;">
-      <div class="section-head"><h2>来自观察记录</h2></div>
+      <div class="section-head reveal"><h2>来自观察记录</h2></div>
       <div class="card-grid">
         {group.observations.map((o) => <ObsCard obs={o} />)}
       </div>

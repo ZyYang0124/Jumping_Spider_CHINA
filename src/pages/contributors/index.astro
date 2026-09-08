@@ -2,6 +2,7 @@
 export const prerender = true;
 import Base from '../../layouts/Base.astro';
 import { getPublicContributors } from '../../lib/queries';
+import PictureImage from '../../components/PictureImage.astro';
 import { withBase } from '../../lib/privacy';
 
 const contributors = getPublicContributors();
@@ -18,7 +19,7 @@ const contributors = getPublicContributors();
     <div class="contributor-grid" style="padding-bottom: 70px;">
       {contributors.map((c) => (
         <a class="contributor-card" href={withBase(`/contributors/${c.slug}/`)}>
-          <div class="cover">{c.favorite && <img src={c.favorite.medium} alt={`${c.name} 喜欢的一张照片`} loading="lazy" />}</div>
+          <div class="cover">{c.favorite && <PictureImage media={c.favorite} sizes="(max-width: 700px) 92vw, 320px" alt={`${c.name} 代表照片`} />}</div>
           <div class="body">
             <h2>{c.name}</h2>
             {c.title && <div class="title">{c.title}</div>}

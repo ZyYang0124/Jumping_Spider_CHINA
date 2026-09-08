@@ -2,6 +2,7 @@
 // 观察卡片：照片优先，依次是鉴定、地点、日期
 import type { PublicObservation } from '../lib/privacy';
 import { formatDate, shortRegion } from '../lib/format';
+import PictureImage from './PictureImage.astro';
 import SciName from './SciName.astro';
 
 interface Props {
@@ -14,12 +15,11 @@ const { obs } = Astro.props;
 <a class="obs-card" href={obs.url}>
   <div class="frame">
     {obs.cover ? (
-      <img
-        src={obs.cover.thumb}
+      <PictureImage
+        media={obs.cover}
+        sizes="(max-width: 900px) 92vw, 30vw"
         alt={obs.cover.caption ?? `${obs.public_id} 的封面照片`}
-        loading="lazy"
-        width={obs.cover.width}
-        height={obs.cover.height}
+        transitionName={`obs-${obs.public_id}`}
       />
     ) : (
       <div class="frame-empty" />

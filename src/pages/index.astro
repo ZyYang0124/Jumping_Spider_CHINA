@@ -1,6 +1,7 @@
 ---
 export const prerender = true;
 import Base from '../layouts/Base.astro';
+import PictureImage from '../components/PictureImage.astro';
 import ObsCard from '../components/ObsCard.astro';
 import { allPublicObservations, getPublicTrips, getLocalityCards, getSpeciesGroups, speciesSlug } from '../lib/queries';
 import { withBase } from '../lib/privacy';
@@ -9,6 +10,15 @@ import { sciNameHtml, formatDate, shortRegion } from '../lib/format';
 import { LOCATION_VISIBILITY_ZH } from '../lib/labels';
 
 const hero = allPublicObservations.find((o) => o.cover?.id === 'm-3047463f')?.cover ?? allPublicObservations[0]?.cover ?? null;
+const heroPreload = hero
+  ? {
+      href: hero.medium,
+      imagesrcset: [hero.srcset.avif, hero.srcset.webp, hero.srcset.jpg]
+        .map((ss) => ss)
+        .join(', '),
+      imagesizes: '100vw',
+    }
+  : undefined;
 const [lead, ...rest] = allPublicObservations;
 const featuredSide = rest.slice(0, 2);
 const grid = rest.slice(2, 7);
@@ -20,7 +30,7 @@ const years = allPublicObservations.length > 0
   : '';
 ---
 
-<Base>
+<Base preload={heroPreload ?? undefined}>
   <section class="hero">
     {hero && <img class="hero-photo" src={hero.large} alt="封面照片：求偶中的雄性翠蛛" fetchpriority="high" />}
     <div class="veil"></div>
@@ -37,7 +47,7 @@ const years = allPublicObservations.length > 0
   </section>
 
   <div class="container-wide">
-    <section class="section">
+    <section class="section reveal">
       <div class="section-head">
         <h2>最近的野外笔记</h2>
         <a class="more" href={withBase('/observations/')}>全部记录 →</a>
@@ -48,7 +58,16 @@ const years = allPublicObservations.length > 0
         {lead && (
           <a class="ed-card ed-lead" href={lead.url}>
             <div class="frame">
-              {lead.cover && <img src={lead.cover.large} alt={lead.cover.caption ?? lead.public_id} fetchpriority="high" />}
+              {lead.cover && (
+                <PictureImage
+                  media={lead.cover}
+                  sizes="(max-width: 820px) 92vw, 58vw"
+                  alt={lead.cover.caption ?? lead.public_id}
+                  eager={true}
+                  fetchpriority="high"
+                  transitionName={`obs-${lead.public_id}`}
+                />
+              )}
             </div>
             <div class="meta">
               <div class="name">
@@ -68,7 +87,14 @@ const years = allPublicObservations.length > 0
         {featuredSide.map((o) => (
           <a class="ed-card ed-side" href={o.url}>
             <div class="frame">
-              {o.cover && <img src={o.cover.medium} alt={o.cover.caption ?? o.public_id} loading="lazy" />}
+              {o.cover && (
+                <PictureImage
+                  media={o.cover}
+                  sizes="(max-width: 820px) 92vw, 34vw"
+                  alt={o.cover.caption ?? o.public_id}
+                  transitionName={`obs-${o.public_id}`}
+                />
+              )}
             </div>
             <div class="meta">
               <div class="name">
@@ -91,7 +117,7 @@ const years = allPublicObservations.length > 0
       </div>
     </section>
 
-    <section class="section">
+    <section class="section reveal">
       <div class="section-head">
         <h2>来自野外</h2>
         <a class="more" href={withBase('/trips/')}>全部调查 →</a>
@@ -109,7 +135,7 @@ const years = allPublicObservations.length > 0
       </div>
     </section>
 
-    <section class="section">
+    <section class="section reveal">
       <div class="section-head">
         <h2>相遇的物种</h2>
         <a class="more" href={withBase('/species/')}>全部物种 →</a>
@@ -120,10 +146,10 @@ const years = allPublicObservations.length > 0
           <a class="species-card" href={withBase(`/species/${speciesSlug(g)}/`)}>
             <div class="frame">
               {g.observations.find((o) => o.cover) && (
-                <img
-                  src={g.observations.find((o) => o.cover)!.cover!.medium}
+                <PictureImage
+                  media={g.observations.find((o) => o.cover)!.cover!}
+                  sizes="(max-width: 900px) 92vw, 30vw"
                   alt={`${g.display} 的代表照片`}
-                  loading="lazy"
                 />
               )}
             </div>
@@ -134,7 +160,7 @@ const years = allPublicObservations.length > 0
       </div>
     </section>
 
-    <section class="section" style="padding-bottom: 70px;">
+    <section class="section reveal" style="padding-bottom: 70px;">
       <div class="section-head">
         <h2>地点</h2>
         <a class="more" href={withBase('/places/')}>全部地点 →</a>

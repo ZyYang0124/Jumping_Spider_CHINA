@@ -20,3 +20,4 @@ studio/storage/
 .DS_Store
 Thumbs.db
 .wrangler/
+src/data/generated/
