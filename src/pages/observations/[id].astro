@@ -144,7 +144,7 @@ const related = allPublicObservations
           <div class="side-footnote">
             {loc.elevation_m != null && <>海拔约 {loc.elevation_m} m<br /></>}
             {loc.latitude != null && loc.longitude != null ? (
-              <>{loc.latitude.toFixed(2)}, {loc.longitude.toFixed(2)}<br />{coordLabel(loc)}</>
+              <>{loc.visibility === 'exact' ? loc.latitude.toFixed(5) + ', ' + loc.longitude.toFixed(5) : loc.latitude.toFixed(2) + ', ' + loc.longitude.toFixed(2)}<br />{coordLabel(loc)}</>
             ) : (
               LOCATION_VISIBILITY_ZH[loc.visibility]
             )}

@@ -21,6 +21,7 @@ import {
   type StudioUser,
 } from './auth.js';
 import { nextObservationId, nextPostSlugSeq, saveUploadedPhoto, validateUpload } from './media.js';
+import { parseExif } from './exif.js';
 import { exportForStaticSite } from './export.js';
 import type { Database } from 'better-sqlite3';
 
@@ -326,6 +327,19 @@ app.get('/studio', (req, res) => {
   );
 });
 
+/** EXIF 预读：客户端选完照片后立即调用，返回拍摄日期与 GPS 建议（不落盘，须人工确认） */
+app.post('/studio/exif-preview', upload.array('photos', 20), async (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return;
+  const files = (req.files as Express.Multer.File[]) ?? [];
+  const results = [];
+  for (const f of files.slice(0, 5)) {
+    const s = await parseExif(f.buffer);
+    results.push({ filename: f.originalname, date: s.date ?? null, gps: s.gps ?? null });
+  }
+  res.type('application/json').json({ results });
+});
+
 app.get('/studio/observations/new', (req, res) => {
   const user = requireUser(db, req, res);
   if (!user) return;
@@ -346,7 +360,12 @@ app.get('/studio/observations/new', (req, res) => {
       <form method="post" action="/studio/observations" enctype="multipart/form-data">
         <div class="step"><div class="st">STEP 1 · 照 片</div>
           <label>照片（可多选，JPG/PNG，按上传顺序排列）</label>
-          <input type="file" name="photos" multiple accept="image/jpeg,image/png" required />
+          <input type="file" name="photos" id="photo-input" multiple accept="image/jpeg,image/png" required />
+          <div id="exif-suggestion" class="msg" style="display:none"></div>
+          <label style="display:none" id="exif-gps-row">
+            <input type="checkbox" name="use_exif_gps" value="1" style="width:auto;margin-right:8px">
+            使用照片 GPS 作为精确坐标并<b>公开（exact）</b>——跳蛛类记录通常不敏感；勾选即确认公开该坐标
+          </label>
           <label>图片说明（每行一条，与照片顺序对应，可留空）</label>
           <textarea name="photo_captions" placeholder="第一行对应第一张照片…"></textarea>
           <label>授权</label>
@@ -357,8 +376,8 @@ app.get('/studio/observations/new', (req, res) => {
           </select>
         </div>
         <div class="step"><div class="st">STEP 2 · 时 间 与 地 点</div>
-          <label>观察日期（若留空，将尝试读取照片 EXIF 拍摄日期作为建议）</label>
-          <input type="date" name="observed_at" />
+          <label>观察日期 *（选择照片后自动读取 EXIF 拍摄日期作为建议，可修改）</label>
+          <input type="date" name="observed_at" id="observed-at" />
           <div class="grid2">
             <div><label>省份 *</label><input type="text" name="state_province" required placeholder="广东省" /></div>
             <div><label>市 / 县</label><input type="text" name="county" placeholder="龙门县" /></div>
@@ -371,7 +390,7 @@ app.get('/studio/observations/new', (req, res) => {
               <select name="location_visibility">
                 <option value="locality_only" selected>仅公开地名（默认，推荐）</option>
                 <option value="blurred">坐标模糊化（需填公开坐标）</option>
-                <option value="exact">精确坐标公开（仅限城市常见种 / 公共绿地）</option>
+                <option value="exact">精确坐标公开（跳蛛类记录通常不敏感；亦可勾选上方「使用照片 GPS」）</option>
                 <option value="hidden">完全保密</option>
               </select>
             </div>
@@ -408,7 +427,48 @@ app.get('/studio/observations/new', (req, res) => {
           <select name="submit_mode"><option value="draft">保存为草稿</option><option value="submitted">提交审核</option></select>
           <div style="margin-top:20px"><button type="submit">保存</button></div>
         </div>
-      </form>`,
+      </form>
+      <script>
+        (function () {
+          var input = document.getElementById('photo-input');
+          var box = document.getElementById('exif-suggestion');
+          var gpsRow = document.getElementById('exif-gps-row');
+          var gpsBox = gpsRow ? gpsRow.querySelector('input') : null;
+          var dateInput = document.getElementById('observed-at');
+          var currentGps = null;
+          input.addEventListener('change', async function () {
+            if (!input.files || input.files.length === 0) return;
+            box.style.display = 'block';
+            box.textContent = '正在读取照片 EXIF…';
+            var fd = new FormData();
+            for (var i = 0; i < input.files.length && i < 5; i++) fd.append('photos', input.files[i]);
+            try {
+              var r = await fetch('/studio/exif-preview', { method: 'POST', body: fd });
+              var data = await r.json();
+              var withDate = data.results.find(function (x) { return x.date; });
+              var withGps = data.results.find(function (x) { return x.gps; });
+              currentGps = withGps ? withGps.gps : null;
+              var parts = [];
+              if (withDate) {
+                parts.push('拍摄日期：' + withDate.date + '（已填入，可修改）');
+                if (!dateInput.value) dateInput.value = withDate.date;
+              }
+              if (currentGps) {
+                parts.push('GPS：' + currentGps.lat + ', ' + currentGps.lng);
+                gpsRow.style.display = 'block';
+                gpsBox.checked = true;
+              } else {
+                gpsRow.style.display = 'none';
+                if (gpsBox) gpsBox.checked = false;
+              }
+              box.style.display = parts.length ? 'block' : 'none';
+              box.textContent = parts.length ? '从照片 EXIF 读取到 → ' + parts.join('　·　') : '照片未包含 EXIF 日期或 GPS。';
+            } catch (e) {
+              box.style.display = 'none';
+            }
+          });
+        })();
+      </script>`,
       user,
     ),
   );
@@ -429,25 +489,29 @@ app.post('/studio/observations', upload.array('photos', 20), async (req, res) =>
   }
   if (b.agree !== '1') return res.status(400).send('需要确认投稿条款。');
 
-  // EXIF 拍摄日期仅作为建议：用户留空日期时才采用；GPS 从不读取（规则 2 / prompt.md §17）
+  // EXIF 建议：拍摄日期在留空时采用；GPS 只有在用户勾选「公开精确坐标」时才写入 exact。
+  // 两者都在表单中展示并经人工确认（prompt.md §17：绝不静默发布）。
+  const useExifGps = b.use_exif_gps === '1';
   let observedAt = (b.observed_at ?? '').trim();
-  let exifSuggested: string | null = null;
-  if (!observedAt && files.length > 0) {
-    try {
-      const meta = await (await import('sharp')).default(files[0].buffer).metadata();
-      const raw = meta.exif ? String((meta.exif as Buffer).toString('latin1')) : '';
-      const m = /(\d{4})[:\-](\d{2})[:\-](\d{2})/.exec(raw);
-      if (m) exifSuggested = `${m[1]}-${m[2]}-${m[3]}`;
-      if (exifSuggested) observedAt = exifSuggested;
-    } catch {
-      /* 无 EXIF 日期则必须手填 */
-    }
+  let exifSuggestedDate: string | null = null;
+  let exifGps: { lat: number; lng: number } | null = null;
+  if (files.length > 0 && (useExifGps || !observedAt)) {
+    const suggestion = await parseExif(files[0].buffer);
+    exifSuggestedDate = suggestion.date ?? null;
+    exifGps = suggestion.gps ?? null;
+    if (!observedAt && exifSuggestedDate) observedAt = exifSuggestedDate;
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(observedAt)) return res.status(400).send('无法确定观察日期，请手动填写。');
+  if (useExifGps && !exifGps) {
+    return res.status(400).send('照片未包含 GPS 信息，无法使用「EXIF 精确坐标公开」。可改用其他位置级别。');
+  }
 
-  const visibility = ['exact', 'blurred', 'locality_only', 'hidden'].includes(String(b.location_visibility))
-    ? String(b.location_visibility)
-    : 'locality_only';
+  const visibility =
+    useExifGps && exifGps
+      ? 'exact'
+      : ['exact', 'blurred', 'locality_only', 'hidden'].includes(String(b.location_visibility))
+        ? String(b.location_visibility)
+        : 'locality_only';
   const num = (v: string | undefined): number | null => {
     const n = Number(v);
     return Number.isFinite(n) && v ? n : null;
@@ -456,7 +520,13 @@ app.post('/studio/observations', upload.array('photos', 20), async (req, res) =>
   let exactLng = num(b.exact_longitude);
   let publicLat = num(b.public_latitude);
   let publicLng = num(b.public_longitude);
-  if (visibility === 'exact') {
+  if (useExifGps && exifGps) {
+    // 用户确认使用照片 GPS：以服务端解析的 EXIF 坐标为准（不信任客户端改写的数值）
+    exactLat = exifGps.lat;
+    exactLng = exifGps.lng;
+    publicLat = exactLat;
+    publicLng = exactLng;
+  } else if (visibility === 'exact') {
     if (exactLat == null || exactLng == null) return res.status(400).send('exact 级别需要精确坐标。');
     publicLat = exactLat;
     publicLng = exactLng;
@@ -509,7 +579,8 @@ app.post('/studio/observations', upload.array('photos', 20), async (req, res) =>
   }
 
   audit(db, user.display_name, 'observation', publicId, status === 'submitted' ? 'create-submit' : 'create-draft', {
-    exifSuggested,
+    exifSuggestedDate,
+    exifGpsUsed: Boolean(useExifGps && exifGps),
     photos: files.length,
   });
   res.redirect(`/studio/observations/${publicId}`);
