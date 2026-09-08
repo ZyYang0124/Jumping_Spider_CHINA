@@ -43,7 +43,7 @@ const tree = getTaxonomyBrowse();
               {g.taxon_status === 'provisional' && <span class="status-tag">暂定</span>}
             </div>
             <div class="sub">
-              {g.observations.length} 次相遇 · {g.provinces.join('、')}
+              {g.observations.length} 次相遇 · {g.regions.join('、')}
               {g.chinese_name ? <><br />{g.chinese_name}</> : null}
             </div>
           </a>

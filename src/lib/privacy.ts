@@ -22,11 +22,12 @@ import {
 import type { Evidence, LocationVisibility, MediaViewType, TaxonRank } from './types';
 
 export interface PublicLocation {
-  country: string;
-  state_province: string;
-  city: string | null;
-  county: string | null;
+  country_code: string;
+  country_name: string;
+  admin1: string;
+  admin2: string | null;
   locality: string | null;
+  site_name: string | null;
   elevation_m: number | null;
   visibility: LocationVisibility;
   latitude: number | null;
@@ -102,11 +103,12 @@ function publicLocation(locationId: string): PublicLocation {
   const l = locationById.get(locationId);
   if (!l) throw new Error(`location ${locationId} 不存在`);
   const out: PublicLocation = {
-    country: l.country,
-    state_province: l.state_province,
-    city: null,
-    county: null,
+    country_code: l.country_code,
+    country_name: l.country_name,
+    admin1: l.admin1,
+    admin2: null,
     locality: null,
+    site_name: null,
     elevation_m: l.elevation_m,
     visibility: l.location_visibility,
     latitude: null,
@@ -115,28 +117,28 @@ function publicLocation(locationId: string): PublicLocation {
   };
   switch (l.location_visibility) {
     case 'exact':
-      out.city = l.city;
-      out.county = l.county;
+      out.admin2 = l.admin2;
       out.locality = l.locality;
+      out.site_name = l.site_name;
       out.latitude = l.public_latitude;
       out.longitude = l.public_longitude;
       out.coordinate_uncertainty_m = l.coordinate_uncertainty_m;
       break;
     case 'blurred':
-      out.city = l.city;
-      out.county = l.county;
+      out.admin2 = l.admin2;
       out.locality = l.locality;
+      out.site_name = l.site_name;
       out.latitude = l.public_latitude;
       out.longitude = l.public_longitude;
       out.coordinate_uncertainty_m = l.coordinate_uncertainty_m;
       break;
     case 'locality_only':
-      out.city = l.city;
-      out.county = l.county;
+      out.admin2 = l.admin2;
       out.locality = l.locality;
+      out.site_name = l.site_name;
       break;
     case 'hidden':
-      // 不公开坐标，也不公开敏感地名细节
+      // 不公开坐标，也不公开敏感地点细节（SOP §52）
       break;
   }
   return out;

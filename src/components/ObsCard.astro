@@ -1,7 +1,7 @@
 ---
 // 观察卡片：照片优先，依次是鉴定、地点、日期
 import type { PublicObservation } from '../lib/privacy';
-import { formatDate } from '../lib/format';
+import { formatDate, shortRegion } from '../lib/format';
 import SciName from './SciName.astro';
 
 interface Props {
@@ -34,8 +34,7 @@ const { obs } = Astro.props;
       )}
     </div>
     <div class="sub">
-      {formatDate(obs.observed_at, obs.observed_at_precision)} · {obs.location.state_province}
-      {obs.location.county ? ` ${obs.location.county}` : ''}
+      {formatDate(obs.observed_at, obs.observed_at_precision)} · {shortRegion(obs.location)}
     </div>
   </div>
 </a>

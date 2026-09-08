@@ -77,11 +77,17 @@ export interface Taxon {
 /** 私有源数据：包含精确坐标。任何 exact_ 字段都绝不进入公开输出。 */
 export interface LocationRecord {
   id: string;
-  country: string;
-  state_province: string;
-  city: string;
-  county: string;
-  locality: string;
+  /** ISO 3166-1 alpha-2，如 CN / MY；地理模型全球适用（SOP §47） */
+  country_code: string;
+  country_name: string;
+  /** 一级行政区（省/州/邦/大区…） */
+  admin1: string;
+  /** 二级行政区（县/市/省辖…，可空） */
+  admin2: string | null;
+  /** 地方描述 */
+  locality: string | null;
+  /** 具体地点名（可空） */
+  site_name: string | null;
   exact_latitude: number | null;
   exact_longitude: number | null;
   public_latitude: number | null;

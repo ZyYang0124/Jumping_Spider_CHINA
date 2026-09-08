@@ -3,6 +3,7 @@ import Base from '../../layouts/Base.astro';
 import ObsCard from '../../components/ObsCard.astro';
 import MediaGallery from '../../components/MediaGallery.astro';
 import { getSpeciesGroup, getSpeciesGroups, getMediaOfObservations, speciesSlug } from '../../lib/queries';
+import { shortRegion } from '../../lib/format';
 import { withBase } from '../../lib/privacy';
 import { sciNameHtml } from '../../lib/format';
 import { RANK_ZH } from '../../lib/labels';
@@ -20,8 +21,8 @@ const monthSet = [...new Set(group.observations.map((o) => o.observed_at.slice(5
   .sort((a, b) => Number(a) - Number(b));
 const placeSet = new Map<string, string[]>();
 for (const o of group.observations) {
-  const key = o.location.state_province;
-  const nameParts = [o.location.county, o.location.locality].filter(Boolean) as string[];
+  const key = shortRegion(o.location);
+  const nameParts = [o.location.admin2, o.location.locality ?? o.location.site_name].filter(Boolean) as string[];
   const list = placeSet.get(key) ?? [];
   for (const part of nameParts) {
     if (!list.includes(part)) list.push(part);
@@ -42,7 +43,7 @@ const speciesMedia = getMediaOfObservations(group.observations);
       {group.chinese_name && <div class="zh-name">{group.chinese_name}</div>}
       <div class="counts">
         {group.observations.length} 次相遇
-        {group.provinces.length > 0 && <> · {group.provinces.join('、')}</>}
+        {group.regions.length > 0 && <> · {group.regions.join('、')}</>}
         {monthSet.length > 0 && <> · 相遇于 {monthSet.join('、')} 月</>}
       </div>
     </div>

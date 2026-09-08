@@ -108,17 +108,18 @@ export function exportForStaticSite(db: Database): { observations: number; media
   // 内联私有 location 记录（精确坐标只存在于私有源数据层，构建后不会出现在产物中）
   const locationsOut = observations.map((o) => ({
     id: `loc-studio-${o.id}`,
-    country: o.country,
-    state_province: o.state_province,
-    city: o.city,
-    county: o.county,
+    country_code: o.country_code,
+    country_name: o.country_name,
+    admin1: o.admin1,
+    admin2: o.admin2,
     locality: o.locality,
+    site_name: o.site_name,
     exact_latitude: o.exact_latitude,
     exact_longitude: o.exact_longitude,
     public_latitude: o.public_latitude,
     public_longitude: o.public_longitude,
     coordinate_uncertainty_m: o.coordinate_uncertainty_m,
-    elevation_m: null,
+    elevation_m: o.elevation_m,
     location_visibility: o.location_visibility,
   }));
 

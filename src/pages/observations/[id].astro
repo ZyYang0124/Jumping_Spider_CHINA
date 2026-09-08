@@ -32,7 +32,7 @@ const related = allPublicObservations
       o.public_id !== obs.public_id &&
       (o.identification?.display === obs.identification?.display ||
         o.trip?.slug === obs.trip?.slug ||
-        o.location.state_province === obs.location.state_province),
+        o.location.admin1 === obs.location.admin1 && o.location.country_code === obs.location.country_code),
   )
   .slice(0, 3);
 ---
@@ -65,7 +65,7 @@ const related = allPublicObservations
         )}
       </h1>
       <div class="byline">
-        {formatDate(obs.observed_at, obs.observed_at_precision)} · {locationLine(loc)}
+        {locationLine(loc)} · {formatDate(obs.observed_at, obs.observed_at_precision)}
         <br />
         观察者 {obs.observer_name}
       </div>
@@ -139,8 +139,8 @@ const related = allPublicObservations
       <aside>
         <section class="side-block" style="border-top: none; padding-top: 0;">
           <h3 class="side-kicker">地 点</h3>
-          <div class="side-primary">{loc.locality ?? loc.county ?? loc.state_province}</div>
-          <div class="side-secondary">{[loc.state_province, loc.county].filter(Boolean).join(' · ')}</div>
+          <div class="side-primary">{loc.locality ?? loc.site_name ?? loc.admin2 ?? loc.admin1}</div>
+          <div class="side-secondary">{[loc.country_name, loc.admin1].filter(Boolean).join(' · ')}</div>
           <div class="side-footnote">
             {loc.elevation_m != null && <>海拔约 {loc.elevation_m} m<br /></>}
             {loc.latitude != null && loc.longitude != null ? (

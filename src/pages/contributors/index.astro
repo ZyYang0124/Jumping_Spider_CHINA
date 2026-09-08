@@ -24,7 +24,7 @@ const contributors = getPublicContributors();
             {c.bio && <p class="bio">{c.bio}</p>}
             <div class="stats">
               {c.observationCount} 次观察
-              {c.provinces.length > 0 && <span class="pv"> · {c.provinces.join(' · ')}</span>}
+              {c.regions.length > 0 && <span class="pv"> · {c.regions.join(' · ')}</span>}
             </div>
           </div>
         </a>

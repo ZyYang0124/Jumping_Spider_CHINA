@@ -51,11 +51,17 @@ export function formatMonthRange(start: string, end: string): string {
 }
 
 export function locationLine(loc: {
-  state_province: string;
-  county: string | null;
+  country_name: string;
+  admin1: string;
+  admin2: string | null;
   locality: string | null;
 }): string {
-  return [loc.state_province, loc.county, loc.locality].filter(Boolean).join(' · ');
+  return [loc.country_name, loc.admin1, loc.admin2, loc.locality].filter(Boolean).join(' · ');
+}
+
+/** 列表卡片用的简短区域：国内显示一级行政区，国外显示 国家 · 一级行政区 */
+export function shortRegion(loc: { country_name: string; admin1: string }): string {
+  return loc.country_name === '中国' ? loc.admin1 : `${loc.country_name} · ${loc.admin1}`;
 }
 
 export function coordLabel(loc: {

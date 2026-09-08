@@ -1,6 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { getPublicContributor, getPublicContributors, allPublicObservations } from '../../lib/queries';
+import { shortRegion } from '../../lib/format';
 import { withBase } from '../../lib/privacy';
 
 export function getStaticPaths() {
@@ -32,7 +33,7 @@ const identified = allPublicObservations.filter((o) => o.identification?.identif
           {observed.map((o) => (
             <div class="place-row">
               <span class="loc-name"><a href={o.url}>{o.public_id}</a> · {o.identification?.display ?? '未鉴定'}</span>
-              <span class="loc-meta">{o.observed_at} · {o.location.state_province}</span>
+              <span class="loc-meta">{o.observed_at} · {shortRegion(o.location)}</span>
             </div>
           ))}
         </div>

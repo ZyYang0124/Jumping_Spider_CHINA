@@ -24,7 +24,7 @@ const timeline = [...trip.observations].sort((a, b) => a.observed_at.localeCompa
     {trip.cover && <img src={trip.cover.large} alt={`${trip.title} 封面照片`} fetchpriority="high" />}
     <div class="veil"></div>
     <div class="inner">
-      <div class="kicker">Field Trip · {trip.province}</div>
+      <div class="kicker">Field Trip · {trip.region}</div>
       <h1>{trip.title}</h1>
       {trip.subtitle && <div class="sub">{trip.subtitle}</div>}
       <div class="dates">{trip.start_date} — {trip.end_date}</div>

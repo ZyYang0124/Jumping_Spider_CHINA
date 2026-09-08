@@ -4,15 +4,18 @@ import { getLocalityCards } from '../lib/queries';
 import { LOCATION_VISIBILITY_ZH } from '../lib/labels';
 
 const cards = getLocalityCards();
-const byProvince = new Map<string, typeof cards>();
+// 全球地理：顶层按国家分组，其下按一级行政区（SOP §104）
+const byCountry = new Map<string, Map<string, typeof cards>>();
 for (const c of cards) {
-  const list = byProvince.get(c.province) ?? [];
+  const byAdmin1 = byCountry.get(c.country_name) ?? new Map<string, typeof cards>();
+  const list = byAdmin1.get(c.admin1) ?? [];
   list.push(c);
-  byProvince.set(c.province, list);
+  byAdmin1.set(c.admin1, list);
+  byCountry.set(c.country_name, byAdmin1);
 }
 ---
 
-<Base title="地点" description="按省份与地点浏览观察记录。敏感情形只公开到地名，甚至完全保密。">
+<Base title="地点" description="按国家与地点浏览观察记录。敏感情形只公开到地名，甚至完全保密。">
   <div class="container-wide">
     <div class="page-title" style="padding: 44px 0 6px;">
       <h1 style="font-family: var(--serif); font-weight: 400; font-size: clamp(28px, 4vw, 40px); margin: 0;">地点</h1>
@@ -22,16 +25,19 @@ for (const c of cards) {
     </div>
 
     <div class="place-groups">
-      {[...byProvince.entries()].map(([province, list]) => (
+      {[...byCountry.entries()].map(([country, byAdmin1]) => (
         <section class="place-group">
-          <h2>{province}<span class="n">{list.reduce((n, c) => n + c.count, 0)} 次相遇</span></h2>
-          <div class="place-cards">
+          <h2>{country}<span class="n">{[...byAdmin1.values()].flat().reduce((n, c) => n + c.count, 0)} 次相遇</span></h2>
+          {[...byAdmin1.entries()].map(([admin1, list]) => (
+          <div style="margin-bottom: 30px;">
+            <div class="kicker on-paper" style="margin-bottom: 12px;">{admin1}</div>
+            <div class="place-cards">
             {list.map((c) => (
               <div class="place-card">
                 <div class="frame">{c.cover && <img src={c.cover.medium} alt={c.name} loading="lazy" />}</div>
-                <div class="name">{c.locality ?? c.county ?? province}</div>
+                <div class="name">{c.name}</div>
                 <div class="meta">
-                  {c.county ?? province}
+                  {c.admin1}
                   {c.elevation != null && ` · 海拔约 ${c.elevation} m`}
                   {` · ${c.count} 次相遇`}
                   {` · ${LOCATION_VISIBILITY_ZH[c.visibilityLabel as keyof typeof LOCATION_VISIBILITY_ZH]}`}
@@ -39,7 +45,9 @@ for (const c of cards) {
                 {c.habitats.length > 0 && <div class="habitats">{c.habitats.join(' / ')}</div>}
               </div>
             ))}
+            </div>
           </div>
+          ))}
         </section>
       ))}
       <p class="place-legend">

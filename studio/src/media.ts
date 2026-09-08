@@ -21,22 +21,23 @@ export function validateUpload(file: { mimetype: string; size: number }): string
 }
 
 function nextMediaId(db: Database): string {
-  const row = db.prepare("SELECT value FROM counters WHERE name = 'media'").get() as { value: number };
+  // SFN-M-NNNNNN（SOP §56）；历史 CSFN-M-* 已公开编号不受影响（§33 共存）
+  const row = db.prepare("SELECT value FROM counters WHERE name = 'sfn-media'").get() as { value: number };
   const next = row.value + 1;
-  db.prepare("UPDATE counters SET value = ? WHERE name = 'media'").run(next);
-  return `CSFN-M-${String(next).padStart(6, '0')}`;
+  db.prepare("UPDATE counters SET value = ? WHERE name = 'sfn-media'").run(next);
+  return `SFN-M-${String(next).padStart(6, '0')}`;
 }
 
 function nextObservationId(db: Database, year: number): string {
-  const name = `observation-${year}`;
+  const name = `sfn-observation-${year}`;
   const row = db.prepare('SELECT value FROM counters WHERE name = ?').get(name) as { value: number } | undefined;
   if (!row) {
     db.prepare('INSERT INTO counters (name, value) VALUES (?, 0)').run(name);
-    return `${'CSFN'}-${year}-000001`;
+    return `SFN-${year}-000001`;
   }
   const next = row.value + 1;
   db.prepare('UPDATE counters SET value = ? WHERE name = ?').run(next, name);
-  return `CSFN-${year}-${String(next).padStart(6, '0')}`;
+  return `SFN-${year}-${String(next).padStart(6, '0')}`;
 }
 
 function nextPostSlugSeq(db: Database): number {

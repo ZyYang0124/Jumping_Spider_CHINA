@@ -1,8 +1,7 @@
-// Field Studio — 轻量私有后端：微信登录（受邀白名单）+ 观察投稿 + 观察博文。
-// 规则 4/16：发布与状态转移只由服务端裁决；规则 9：无公开注册。
+// Field Studio — 轻量私有后端：受邀邮箱 OTP（白名单）+ 观察直接发布 + 观察博文。
+// 规则 9/11/12/13：无公开注册、邮箱 OTP、伙伴直接发布；发布与状态转移只由服务端裁决。
 import express from 'express';
 import multer from 'multer';
-import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,13 +10,15 @@ import {
   audit,
   createSession,
   currentUser,
+  deliverOtp,
   destroySession,
+  findOrCreateUserByEmail,
+  isInvited,
+  issueOtp,
   requireOwner,
   requireUser,
   sameOriginGuard,
-  signPendingOpenid,
-  verifyPendingOpenid,
-  wechatConfigured,
+  verifyOtp,
   type StudioUser,
 } from './auth.js';
 import { nextObservationId, nextPostSlugSeq, saveUploadedPhoto, validateUpload } from './media.js';
@@ -117,128 +118,76 @@ function page(title: string, body: string, user: StudioUser | null = null): stri
 </header><main>${body}</main></body></html>`;
 }
 
-// ---------- 登录 ----------
+// ---------- 登录（受邀邮箱 OTP，SOP §18-20；无公开注册） ----------
 
 app.get('/studio/login', (req, res) => {
   const user = currentUser(db, req);
   if (user) return res.redirect('/studio');
   const error = String((req.query as Record<string, string>).error ?? '');
-  const bind = String((req.query as Record<string, string>).bind ?? '');
+  const email = String((req.query as Record<string, string>).email ?? '');
+  const devNotice = process.env.SMTP_HOST
+    ? ''
+    : '<p class="msg">开发模式：未配置 SMTP，验证码输出到服务器控制台。</p>';
   res.send(
     page(
       '登录',
       `<h1>登录 Field Studio</h1>
-      ${error === 'wechat' ? '<div class="msg">微信登录尚未配置（缺少 WECHAT_APP_ID / WECHAT_SECRET / 回向域名），请使用邀请码登录。</div>' : ''}
-      ${error === 'invite' ? '<div class="msg error">邀请码无效或已被使用。</div>' : ''}
-      ${error === 'user' ? '<div class="msg error">用户名不在受邀名单中。</div>' : ''}
-      <div class="card">
-        <h2 style="margin-top:0">微信登录</h2>
-        ${wechatConfigured()
-          ? `<a class="btn" href="/studio/auth/wechat">使用微信扫码登录</a>`
-          : '<p class="msg">未配置微信凭据（开发模式）。配置 WECHAT_APP_ID / WECHAT_SECRET / WECHAT_REDIRECT_ORIGIN 后可用。</p>'}
-      </div>
-      <div class="card">
-        <h2 style="margin-top:0">邀请码登录（受邀伙伴）</h2>
-        <form method="post" action="/studio/login/dev">
-          <label>用户名（受邀名单内）</label>
-          <input type="text" name="username" required />
-          <label>邀请码</label>
-          <input type="password" name="code" required />
-          <div style="margin-top:18px"><button type="submit">登录</button></div>
-        </form>
-      </div>
+      <p><small>仅供受邀伙伴使用 · 没有公开注册</small></p>
+      ${error === 'otp' ? '<div class="msg error">验证码无效或已过期，请重新发送。</div>' : ''}
+      ${error === 'invite' ? '<div class="msg error">该邮箱不在受邀名单中。</div>' : ''}
       ${
-        bind
-          ? `<div class="card"><h2 style="margin-top:0">绑定微信账号</h2>
-             <form method="post" action="/studio/auth/wechat/bind">
-               <input type="hidden" name="bind" value="${esc(bind)}" />
-               <label>显示名称</label><input type="text" name="display_name" required />
-               <label>邀请码</label><input type="password" name="code" required />
-               <div style="margin-top:18px"><button type="submit">绑定并登录</button></div>
-             </form></div>`
-          : ''
+        email
+          ? `<div class="card">
+            <h2 style="margin-top:0">输入验证码</h2>
+            <p><small>验证码已发送至 ${esc(email)}（10 分钟内有效）</small></p>
+            <form method="post" action="/studio/login/verify">
+              <input type="hidden" name="email" value="${esc(email)}" />
+              <label>6 位验证码</label>
+              <input type="text" name="code" required maxlength="6" inputmode="numeric" autocomplete="one-time-code" />
+              <div style="margin-top:18px"><button type="submit">登录</button></div>
+            </form>
+            <p style="margin-top:12px"><a href="/studio/login">重新发送 →</a></p>
+          </div>`
+          : `<div class="card">
+            <h2 style="margin-top:0">邮箱登录</h2>
+            ${devNotice}
+            <form method="post" action="/studio/login/otp">
+              <label>邮箱（受邀时登记的邮箱）</label>
+              <input type="email" name="email" required />
+              <div style="margin-top:18px"><button type="submit">发送验证码</button></div>
+            </form>
+          </div>`
       }`,
       user,
     ),
   );
 });
 
-app.post('/studio/login/dev', (req, res) => {
+app.post('/studio/login/otp', async (req, res) => {
   if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
-  const { username, code } = req.body as Record<string, string>;
-  const user = db.prepare('SELECT * FROM users WHERE dev_username = ?').get(String(username ?? '')) as
-    | { id: number; display_name: string }
-    | undefined;
-  const invitation = code
-    ? (db.prepare('SELECT * FROM invitations WHERE code = ?').get(String(code).trim()) as
-        | { id: number; code: string; claimed_by: number | null }
-        | undefined)
-    : undefined;
-  if (!user || !invitation) return res.redirect('/studio/login?error=invite');
-  if (invitation.claimed_by && invitation.claimed_by !== user.id) {
+  const email = String((req.body as Record<string, string>).email ?? '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.redirect('/studio/login');
+  if (!isInvited(db, email)) {
+    audit(db, email, 'session', null, 'otp-denied-not-invited');
     return res.redirect('/studio/login?error=invite');
   }
-  if (!invitation.claimed_by) {
-    db.prepare('UPDATE invitations SET claimed_by = ? WHERE id = ?').run(user.id, invitation.id);
-    audit(db, user.display_name, 'invitation', invitation.code, 'claim');
-  }
-  createSession(db, res, user.id);
-  audit(db, user.display_name, 'session', user.id, 'login-dev');
-  res.redirect('/studio');
+  const code = issueOtp(db, email);
+  await deliverOtp(email, code);
+  res.redirect(`/studio/login?email=${encodeURIComponent(email)}`);
 });
 
-app.get('/studio/auth/wechat', (req, res) => {
-  if (!wechatConfigured()) return res.redirect('/studio/login?error=wechat');
-  const state = randomBytes(16).toString('hex');
-  res.cookie('studio_oauth_state', state, { httpOnly: true, sameSite: 'lax', maxAge: 600_000 });
-  const redirect = encodeURIComponent(`${process.env.WECHAT_REDIRECT_ORIGIN}/studio/auth/wechat/callback`);
-  const url = `https://open.weixin.qq.com/connect/qrconnect?appid=${process.env.WECHAT_APP_ID}&redirect_uri=${redirect}&response_type=code&scope=snsapi_login&state=${state}#wechat_redirect`;
-  res.redirect(url);
-});
-
-app.get('/studio/auth/wechat/callback', async (req, res) => {
-  const q = req.query as Record<string, string>;
-  const stateCookie = cookies(req).studio_oauth_state;
-  if (!q.code || !q.state || q.state !== stateCookie) return res.redirect('/studio/login?error=wechat');
-  try {
-    const tokenUrl =
-      `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${process.env.WECHAT_APP_ID}` +
-      `&secret=${process.env.WECHAT_SECRET}&code=${encodeURIComponent(q.code)}&grant_type=authorization_code`;
-    const tokenRes = (await (await fetch(tokenUrl)).json()) as { openid?: string; errcode?: number };
-    if (!tokenRes.openid) return res.redirect('/studio/login?error=wechat');
-    const openid = tokenRes.openid;
-    const existing = db.prepare('SELECT * FROM users WHERE openid = ?').get(openid) as
-      | { id: number; display_name: string }
-      | undefined;
-    if (existing) {
-      createSession(db, res, existing.id);
-      audit(db, existing.display_name, 'session', existing.id, 'login-wechat');
-      return res.redirect('/studio');
-    }
-    // 新微信：进入邀请绑定流程（openid 经签名携带，防伪造）
-    return res.redirect(`/studio/login?bind=${encodeURIComponent(signPendingOpenid(openid))}`);
-  } catch {
-    return res.redirect('/studio/login?error=wechat');
-  }
-});
-
-app.post('/studio/auth/wechat/bind', (req, res) => {
+app.post('/studio/login/verify', (req, res) => {
   if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
-  const { bind, code, display_name } = req.body as Record<string, string>;
-  const openid = verifyPendingOpenid(String(bind ?? ''));
-  const invitation = code
-    ? (db.prepare('SELECT * FROM invitations WHERE code = ? AND claimed_by IS NULL').get(String(code).trim()) as
-        | { id: number; label: string }
-        | undefined)
-    : undefined;
-  if (!openid || !invitation || !display_name) return res.redirect('/studio/login?error=invite');
-  const isOwner = process.env.OWNER_OPENID && process.env.OWNER_OPENID === openid;
-  const info = db
-    .prepare('INSERT INTO users (openid, display_name, role) VALUES (?, ?, ?)')
-    .run(openid, String(display_name).slice(0, 40), isOwner ? 'owner' : 'contributor');
-  db.prepare('UPDATE invitations SET claimed_by = ? WHERE id = ?').run(info.lastInsertRowid as number, invitation.id);
-  createSession(db, res, info.lastInsertRowid as number);
-  audit(db, String(display_name), 'user', info.lastInsertRowid as number, 'bind-wechat');
+  const { email, code } = req.body as Record<string, string>;
+  if (!verifyOtp(db, String(email ?? ''), String(code ?? ''))) {
+    return res.redirect('/studio/login?error=otp');
+  }
+  const user = findOrCreateUserByEmail(db, String(email));
+  db.prepare(
+    'UPDATE invitations SET claimed_by = ? WHERE lower(email) = lower(?) AND claimed_by IS NULL',
+  ).run(user.id, String(email));
+  createSession(db, res, user.id);
+  audit(db, user.display_name, 'session', user.id, 'login-otp');
   res.redirect('/studio');
 });
 
@@ -248,19 +197,16 @@ app.post('/studio/logout', (req, res) => {
   res.redirect('/studio/login');
 });
 
+
 // ---------- 状态机（服务端唯一裁决） ----------
 
-const TRANSITIONS: Record<string, Record<string, { to: string; ownerOnly?: boolean; needMessage?: boolean }>> = {
-  draft: { submit: { to: 'submitted' } },
-  submitted: { 'start-review': { to: 'review', ownerOnly: true } },
-  review: {
-    'request-revision': { to: 'revision_requested', ownerOnly: true, needMessage: true },
-    approve: { to: 'approved', ownerOnly: true },
-    reject: { to: 'rejected', ownerOnly: true },
-  },
-  revision_requested: { submit: { to: 'submitted' } },
-  approved: { publish: { to: 'published', ownerOnly: true } },
-  published: { archive: { to: 'archived', ownerOnly: true } },
+// ---------- 状态机（服务端唯一裁决；SOP §26/§27：直接发布，无审核流程） ----------
+
+const TRANSITIONS: Record<string, Record<string, { to: string; needMessage?: boolean }>> = {
+  draft: { publish: { to: 'published' }, 'set-private': { to: 'private' } },
+  private: { publish: { to: 'published' }, archive: { to: 'archived' } },
+  published: { 'set-private': { to: 'private' }, archive: { to: 'archived' } },
+  archived: {},
 };
 
 type ObsRow = Record<string, unknown> & { id: number; public_id: string; status: string; created_by: number };
@@ -271,7 +217,7 @@ function getObsByPublicId(publicId: string): ObsRow | undefined {
 
 function canEdit(user: StudioUser, obs: ObsRow): boolean {
   if (user.role === 'owner') return true;
-  return obs.created_by === user.id && ['draft', 'revision_requested'].includes(obs.status);
+  return obs.created_by === user.id;
 }
 
 // ---------- 观察投稿 ----------
@@ -285,15 +231,14 @@ app.get('/studio', (req, res) => {
   const queue =
     user.role === 'owner'
       ? (db
-          .prepare("SELECT public_id, observer_name, observed_at, status FROM observations WHERE status IN ('submitted','review','approved') ORDER BY id DESC")
+          .prepare('SELECT public_id, observer_name, observed_at, status FROM observations ORDER BY id DESC LIMIT 20')
           .all() as { public_id: string; observer_name: string; observed_at: string; status: string }[])
       : [];
   const myPosts = db
     .prepare('SELECT slug, title, status, created_at FROM posts WHERE author_id = ? ORDER BY id DESC')
     .all(user.id) as { slug: string; title: string; status: string; created_at: string }[];
   const statusZh: Record<string, string> = {
-    draft: '草稿', submitted: '待审核', review: '审核中', revision_requested: '需修改',
-    approved: '已通过', published: '已发布', rejected: '未通过', archived: '已归档',
+    draft: '草稿', private: '私密', published: '已发布', archived: '已归档',
   };
   res.send(
     page(
@@ -379,13 +324,16 @@ app.get('/studio/observations/new', (req, res) => {
           <label>观察日期 *（选择照片后自动读取 EXIF 拍摄日期作为建议，可修改）</label>
           <input type="date" name="observed_at" id="observed-at" />
           <div class="grid2">
-            <div><label>省份 *</label><input type="text" name="state_province" required placeholder="广东省" /></div>
-            <div><label>市 / 县</label><input type="text" name="county" placeholder="龙门县" /></div>
+            <div><label>国家 *</label><input type="text" name="country_name" required value="中国" placeholder="中国 / 马来西亚…" /></div>
+            <div><label>海拔（米，可留空）</label><input type="number" name="elevation_m" min="0" max="9000" /></div>
+          </div>
+          <div class="grid2">
+            <div><label>一级行政区 *（省 / 州 / 邦…）</label><input type="text" name="admin1" required placeholder="广东省 / 沙巴…" /></div>
+            <div><label>二级行政区（县 / 市…，可留空）</label><input type="text" name="admin2" placeholder="龙门县" /></div>
           </div>
           <label>地点描述</label>
           <input type="text" name="locality" placeholder="南昆山林缘灌丛" />
           <div class="grid2">
-            <div><label>海拔（米，可留空）</label><input type="number" name="elevation_m" min="0" max="9000" /></div>
             <div><label>位置公开级别 *</label>
               <select name="location_visibility">
                 <option value="locality_only" selected>仅公开地名（默认，推荐）</option>
@@ -424,7 +372,7 @@ app.get('/studio/observations/new', (req, res) => {
           <label><input type="checkbox" name="agree" value="1" required style="width:auto;margin-right:8px">
           我拥有或获授权上传这些照片；允许网站展示照片与观察信息；版权仍归摄影者；敏感情形下地点可能被泛化或隐藏；提交后由站长审核，不保证发布。</label>
           <label>提交为</label>
-          <select name="submit_mode"><option value="draft">保存为草稿</option><option value="submitted">提交审核</option></select>
+          <select name="submit_mode"><option value="draft">保存为草稿</option><option value="published">直接发布</option><option value="private">设为私密</option></select>
           <div style="margin-top:20px"><button type="submit">保存</button></div>
         </div>
       </form>
@@ -537,28 +485,37 @@ app.post('/studio/observations', upload.array('photos', 20), async (req, res) =>
     publicLng = null;
   }
 
+  const countryName = String(b.country_name ?? '中国').trim() || '中国';
+  const ISO_MAP: Record<string, string> = {
+    中国: 'CN', 马来西亚: 'MY', 泰国: 'TH', 越南: 'VN', 日本: 'JP', 韩国: 'KR',
+    印度尼西亚: 'ID', 菲律宾: 'PH', 印度: 'IN', 澳大利亚: 'AU', 新加坡: 'SG', 美国: 'US',
+  };
+  const countryCode = ISO_MAP[countryName] ?? 'XX';
   const year = Number(observedAt.slice(0, 4));
   const publicId = nextObservationId(db, year);
-  const status = b.submit_mode === 'submitted' ? 'submitted' : 'draft';
+  const submitMode = ['draft', 'published', 'private'].includes(String(b.submit_mode)) ? String(b.submit_mode) : 'draft';
+  const status = submitMode;
 
   const info = db
     .prepare(
       `INSERT INTO observations
        (public_id, created_by, observer_name, observed_at, observed_at_precision, state_province, county, locality,
+        country_code, country_name, admin1, admin2, site_name,
         exact_latitude, exact_longitude, public_latitude, public_longitude, coordinate_uncertainty_m, elevation_m,
         location_visibility, sex, life_stage, habitat, microhabitat, behavior, contributor_guess, field_note,
         status, visibility)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     )
     .run(
       publicId, user.id, user.display_name, observedAt, 'day',
-      String(b.state_province ?? '').trim(), b.county ?? null, b.locality ?? null,
+      String(b.admin1 ?? '').trim(), b.admin2 ?? null, b.locality ?? null,
+      countryCode, countryName, String(b.admin1 ?? '').trim(), b.admin2 ?? null, null,
       exactLat, exactLng, publicLat, publicLng,
       visibility === 'blurred' ? 3000 : visibility === 'exact' ? 50 : null,
       num(b.elevation_m), visibility,
       b.sex ?? 'unknown', b.life_stage ?? 'unknown', b.habitat ?? null, b.microhabitat ?? null,
       b.behavior ?? null, b.taxon_slug ? String(b.taxon_slug) : null,
-      String(b.field_note ?? '').trim(), status, 'private',
+      String(b.field_note ?? '').trim(), status, status === 'published' ? 'public' : 'private',
     );
   const obsId = info.lastInsertRowid as number;
 
@@ -578,7 +535,7 @@ app.post('/studio/observations', upload.array('photos', 20), async (req, res) =>
     );
   }
 
-  audit(db, user.display_name, 'observation', publicId, status === 'submitted' ? 'create-submit' : 'create-draft', {
+  audit(db, user.display_name, 'observation', publicId, 'create-' + status, {
     exifSuggestedDate,
     exifGpsUsed: Boolean(useExifGps && exifGps),
     photos: files.length,
@@ -601,12 +558,11 @@ app.get('/studio/observations/:publicId', (req, res) => {
     rank: string;
   }[];
   const statusZh: Record<string, string> = {
-    draft: '草稿', submitted: '待审核', review: '审核中', revision_requested: '需修改',
-    approved: '已通过', published: '已发布', rejected: '未通过', archived: '已归档',
+    draft: '草稿', private: '私密', published: '已发布', archived: '已归档',
   };
   const actions = TRANSITIONS[obs.status] ?? {};
   const actionButtons = Object.entries(actions)
-    .filter(([, t]) => !t.ownerOnly || user.role === 'owner')
+    .filter(([, t]) => true)
     .map(
       ([action, t]) => `<form method="post" action="/studio/observations/${obs.public_id}/action" style="display:inline;margin-right:8px">
         <input type="hidden" name="action" value="${action}" />
@@ -624,8 +580,7 @@ app.get('/studio/observations/:publicId', (req, res) => {
     page(
       obs.public_id,
       `<h1>${obs.public_id} <span class="status">${statusZh[obs.status] ?? obs.status}</span></h1>
-      <p><small>${obs.observed_at} · ${esc(String(obs.state_province))}${obs.county ? ` ${esc(String(obs.county))}` : ''} · 观察 ${esc(String(obs.observer_name))} · 位置级别 ${esc(String(obs.location_visibility))}</small></p>
-      ${obs.status === 'revision_requested' ? '<div class="msg">站长请求修改——请更新内容后重新提交。</div>' : ''}
+      <p><small>${esc(String(obs.country_name))} · ${esc(String(obs.admin1 ?? ''))}${obs.admin2 ? ` · ${esc(String(obs.admin2))}` : ''} · ${obs.observed_at} · 观察 ${esc(String(obs.observer_name))} · 位置级别 ${esc(String(obs.location_visibility))}</small></p>
       <div class="thumbs">${mediaRows.map((m) => `<img src="/media/derivatives/${m.file_stem}_thumb.jpg" alt="">`).join('')}</div>
       <h2>野 外 笔 记</h2>
       <div class="card">${esc(String(obs.field_note))}</div>
@@ -695,8 +650,7 @@ app.post('/studio/observations/:publicId/action', (req, res) => {
   const transition = (TRANSITIONS[obs.status] ?? {})[action];
   if (!transition) return res.status(400).send(`当前状态（${obs.status}）不允许该操作。`);
   const isAuthor = obs.created_by === user.id;
-  if (transition.ownerOnly && user.role !== 'owner') return res.status(403).send('只有站长可以执行该操作。');
-  if (!transition.ownerOnly && !isAuthor && user.role !== 'owner') return res.status(403).send('只能操作自己的记录。');
+  if (!isAuthor && user.role !== 'owner') return res.status(403).send('只能操作自己的记录。');
   if (transition.needMessage && !message) return res.status(400).send('该操作必须附上说明。');
 
   db.prepare('UPDATE observations SET status = ?, updated_at = datetime(\'now\') WHERE id = ?').run(transition.to, obs.id);
@@ -705,16 +659,22 @@ app.post('/studio/observations/:publicId/action', (req, res) => {
     db.prepare("UPDATE observations SET visibility = 'public' WHERE id = ?").run(obs.id);
     db.prepare("UPDATE media SET visibility = 'public' WHERE observation_id = ?").run(obs.id);
   }
+  if (transition.to === 'private') {
+    db.prepare("UPDATE observations SET visibility = 'private' WHERE id = ?").run(obs.id);
+    db.prepare("UPDATE media SET visibility = 'private' WHERE observation_id = ?").run(obs.id);
+  }
   audit(db, user.display_name, 'observation', obs.public_id, `${obs.status}→${transition.to}`, message || undefined);
   res.redirect(`/studio/observations/${obs.public_id}`);
 });
 
 app.post('/studio/observations/:publicId/identify', (req, res) => {
-  const user = requireOwner(db, req, res);
+  // §24：Collaborator 可以为自己（或 Owner 对任意）记录进行/修改鉴定
+  const user = requireUser(db, req, res);
   if (!user) return;
   if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
   const obs = getObsByPublicId(req.params.publicId);
   if (!obs) return res.status(404).send('未找到该观察。');
+  if (user.role !== 'owner' && obs.created_by !== user.id) return res.status(403).send('只能鉴定自己的记录。');
   const b = req.body as Record<string, string>;
   const taxa = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'taxa.json'), 'utf-8')) as {
     slug: string;
@@ -787,7 +747,7 @@ app.get('/studio/posts/:slug', (req, res) => {
   const post = db.prepare('SELECT * FROM posts WHERE slug = ?').get(req.params.slug) as Record<string, unknown> | undefined;
   if (!post) return res.status(404).send('未找到该博文。');
   if (user.role !== 'owner' && post.author_id !== user.id) return res.status(403).send('无权查看。');
-  const statusZh: Record<string, string> = { draft: '草稿', submitted: '待审核', review: '审核中', approved: '已通过', published: '已发布', rejected: '未通过', archived: '已归档' };
+  const statusZh: Record<string, string> = { draft: '草稿', private: '私密', published: '已发布', archived: '已归档' };
   res.send(
     page(
       String(post.title),
@@ -843,5 +803,5 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Field Studio 运行于 http://localhost:${PORT}/studio`);
-  console.log(`微信登录：${wechatConfigured() ? '已配置' : '未配置（使用邀请码开发模式登录）'}`);
+  console.log(`OTP 邮件投递：${process.env.SMTP_HOST ? 'SMTP' : '开发模式（服务器控制台）'}`);
 });

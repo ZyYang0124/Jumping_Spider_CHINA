@@ -23,6 +23,7 @@ import {
   trips,
 } from './store';
 import type { Taxon, TaxonRank } from './types';
+import { shortRegion } from './format';
 
 const MEDIA_MANIFEST_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -77,7 +78,8 @@ export interface SpeciesGroup {
   taxon: Taxon;
   chinese_name: string | null;
   observations: PublicObservation[];
-  provinces: string[];
+  /** 出现区域（shortRegion：国内为省，国外为国家 · 一级行政区） */
+  regions: string[];
   personal_note: string | null;
   taxon_status: Taxon['status'] | null;
 }
@@ -103,15 +105,15 @@ export function getSpeciesGroups(): SpeciesGroup[] {
         taxon,
         chinese_name: taxon.chinese_name ?? null,
         observations: [],
-        provinces: [],
+        regions: [],
         personal_note: taxon.personal_note ?? null,
         taxon_status: taxon.status,
       };
       groups.set(taxon.id, g);
     }
     g.observations.push(o);
-    const p = o.location.state_province;
-    if (!g.provinces.includes(p)) g.provinces.push(p);
+    const r = shortRegion(o.location);
+    if (!g.regions.includes(r)) g.regions.push(r);
   }
   for (const g of groups.values()) {
     g.observations.sort((a, b) => b.observed_at.localeCompare(a.observed_at));
@@ -184,7 +186,7 @@ export function getPublicMediaDetail(publicMediaId: string): PublicMediaDetail |
       evidence: obs.identification?.evidence ?? null,
       sex: obs.sex,
       life_stage: obs.life_stage,
-      place_line: [loc.state_province, loc.county, loc.locality].filter(Boolean).join(' · '),
+      place_line: [loc.country_name, loc.admin1, loc.admin2, loc.locality].filter(Boolean).join(' · '),
       place_visibility: loc.visibility,
       elevation_m: loc.elevation_m,
     },
@@ -239,7 +241,7 @@ export interface PublicTrip {
   subtitle: string | null;
   start_date: string;
   end_date: string;
-  province: string;
+  region: string;
   summary: string;
   cover: { medium: string; large: string } | null;
   days: PublicTripDay[];
@@ -284,7 +286,7 @@ export function getPublicTrips(): PublicTrip[] {
         subtitle: t.subtitle,
         start_date: t.start_date,
         end_date: t.end_date,
-        province: t.province,
+        region: t.region,
         summary: t.summary,
         cover: cover
           ? {
@@ -312,10 +314,10 @@ export function getPublicTrip(slug: string): PublicTrip | undefined {
 // ---------- 地点（面向访客的地点视觉卡；观测 ID 留在详情页） ----------
 
 export interface LocalityCard {
-  province: string;
+  country_code: string;
+  country_name: string;
+  admin1: string;
   name: string;
-  county: string | null;
-  locality: string | null;
   elevation: number | null;
   visibilityLabel: string;
   count: number;
@@ -327,15 +329,15 @@ export function getLocalityCards(): LocalityCard[] {
   const byLocality = new Map<string, LocalityCard>();
   for (const o of allPublicObservations) {
     const loc = o.location;
-    const nameParts = [loc.county, loc.locality].filter(Boolean) as string[];
-    const key = `${loc.state_province}|${nameParts.join('·')}`;
+    const nameParts = [loc.admin2, loc.locality ?? loc.site_name].filter(Boolean) as string[];
+    const key = `${loc.country_code}|${loc.admin1}|${nameParts.join('·')}`;
     let card = byLocality.get(key);
     if (!card) {
       card = {
-        province: loc.state_province,
-        name: nameParts.join(' · ') || loc.state_province,
-        county: loc.county,
-        locality: loc.locality,
+        country_code: loc.country_code,
+        country_name: loc.country_name,
+        admin1: loc.admin1,
+        name: nameParts.join(' · ') || loc.admin1,
         elevation: loc.elevation_m,
         visibilityLabel: loc.visibility,
         count: 0,
@@ -362,7 +364,7 @@ export interface PublicContributor {
   title: string | null;
   bio: string | null;
   observationCount: number;
-  provinces: string[];
+  regions: string[];
   favorite: { thumb: string; medium: string; large: string } | null;
   coverThumbs: { thumb: string; url: string; alt: string }[];
 }
@@ -375,11 +377,10 @@ export function getPublicContributors(): PublicContributor[] {
         (o) => o.observer_name === p.display_name || o.identification?.identified_by === p.display_name,
       );
       const observedBy = allPublicObservations.filter((o) => o.observer_name === p.display_name);
-      const provinces: string[] = [];
+      const regions: string[] = [];
       for (const o of observedBy) {
-        if (!provinces.includes(o.location.state_province)) {
-          provinces.push(o.location.state_province);
-        }
+        const r = shortRegion(o.location);
+        if (!regions.includes(r)) regions.push(r);
       }
       const favoriteMedia = p.favorite_media_id ? mediaById.get(p.favorite_media_id) : undefined;
       const favorite =
@@ -407,7 +408,7 @@ export function getPublicContributors(): PublicContributor[] {
         title: p.title,
         bio: p.bio,
         observationCount: own.length,
-        provinces,
+        regions,
         favorite,
         coverThumbs,
       };
@@ -517,7 +518,7 @@ export function buildSearchIndex() {
     id: o.public_id,
     url: o.url,
     title: o.identification?.display ?? '未鉴定的跳蛛',
-    meta: `${o.observed_at} · ${o.location.state_province}`,
+    meta: `${o.observed_at} · ${shortRegion(o.location)}`,
     text: [o.location.locality, o.habitat, o.microhabitat, o.behavior, o.field_note]
       .filter(Boolean)
       .join(' '),
@@ -528,7 +529,7 @@ export function buildSearchIndex() {
     id: speciesSlug(g),
     url: withBase(`/species/${speciesSlug(g)}/`),
     title: g.display,
-    meta: `${g.observations.length} 次相遇 · ${g.provinces.join('、')}`,
+    meta: `${g.observations.length} 次相遇 · ${g.regions.join('、')}`,
     text: [g.chinese_name ?? '', g.personal_note ?? ''].join(' '),
     thumb: g.observations.find((o) => o.cover)?.cover?.thumb ?? null,
   }));
@@ -537,7 +538,7 @@ export function buildSearchIndex() {
     id: t.slug,
     url: withBase(`/trips/${t.slug}/`),
     title: t.title,
-    meta: `${t.start_date.slice(0, 7)} · ${t.province}`,
+    meta: `${t.start_date.slice(0, 7)} · ${t.region}`,
     text: [t.subtitle ?? '', t.summary].join(' '),
     thumb: null,
   }));
