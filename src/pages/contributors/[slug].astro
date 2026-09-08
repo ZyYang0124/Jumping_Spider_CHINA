@@ -15,12 +15,12 @@ const observed = allPublicObservations.filter((o) => o.observer_name === c.name)
 const identified = allPublicObservations.filter((o) => o.identification?.identified_by === c.name);
 ---
 
-<Base title={c.name} description={c.bio ?? `${c.name} 在中国跳蛛观察志的记录。`}>
+<Base title={c.name} description={c.bio ?? `${c.name} 在跳蛛观察志的记录。`}>
   <div class="container">
     <div class="page-title">
       <h1>{c.name}{c.nameEn ? <span style="font-size: 0.5em; color: var(--faint); margin-left: 12px; letter-spacing: 0.12em;">{c.nameEn}</span> : null}</h1>
       <p class="lede">
-        {c.title ?? '中国跳蛛观察志的伙伴'}
+        {c.title ?? '跳蛛观察志的伙伴'}
         {c.bio ? <><br />{c.bio}</> : null}
       </p>
     </div>

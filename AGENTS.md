@@ -2,26 +2,65 @@
 
 任何 AI 或开发者在本仓库工作前必须遵守。优先级高于任何口头要求。
 
-1. Never change the database schema without a migration.（数据模型的任何变更必须以迁移/版本化方式记录。）
-2. Never expose protected exact coordinates through public queries, APIs, metadata, image EXIF, logs, or client-side state.（公开输出只允许 `privacy.ts` 管线生成的 DTO；每次改动后运行 `npm run test:privacy`。）
-3. Never modify original uploaded images.（`media/originals/` 与 `examples/` 只读；一切裁切/压缩生成 derivative。）
-4. Never allow contributors to publish directly.（只有 `status === 'published'` 的记录才进入公开输出。）
-5. Never hard-code authoritative scientific names into observation records.（观察记录只引用 identification → taxon。）
-6. Every authoritative identification must reference a taxon record.
-7. Observation identity and URLs must remain valid when taxonomy changes.（public_id `CSFN-YYYY-NNNNNN` 永不变。）
-8. Unknown or uncertain identifications are valid records.（无鉴定/科级/属级/cf./形态种都是一等公民。）
-9. Do not add public registration.
-10. Do not add comments, likes, follows, leaderboards, forums, or social-network features unless explicitly requested.
-11. Prioritize photography and field-note readability over database-style UI.（自然历史摄影杂志 + 野外笔记本，不是数据库后台。）
-12. Do not turn this project into a complete Chinese Salticidae database.
-13. Do not bulk-import national/global taxonomic catalogs unless explicitly requested.
-14. Public species maps/pages show only records from this project and never imply complete distributions.（物种页与调查页必须保留免责声明。）
-15. Privacy and biological locality protection override visual convenience.
-16. Every significant mutation must enforce authorization server-side.（静态阶段等价物：一切公开内容必须经由构建期隐私管线。）
-17. Do not expose secrets or service-role credentials to the client.
-18. New features must include loading, empty, success, and error states.
-19. Avoid speculative architecture for hypothetical massive scale.
-20. Build only the feature currently required, while preserving the documented domain model.
+1. 本项目为 Salticid Notes / 跳蛛观察志。
+
+2. 网站不限于中国，核心数据结构不得引入中国专属假设。
+
+3. 网站公开界面只使用中文，不建立英文版或 i18n。
+
+4. salticidnotes.cn 是唯一正式 canonical domain。
+
+5. GitHub 是唯一源码真源。
+
+6. Cloudflare 负责自动构建与生产部署。
+
+7. 正常部署必须由 GitHub push/merge 触发。
+
+8. Observation 是核心实体。
+
+9. Species 页面是 Observation 聚合，不是百科数据库。
+
+10. 用户只有 visitor / collaborator / owner 三类。
+
+11. Collaborator 由 Owner 邀请，禁止公众注册。
+
+12. 登录使用邮箱 OTP，不使用微信或密码。
+
+13. 专业伙伴可以直接发布，不存在审核工作流。
+
+14. 不得重新添加 submitted/review/approved 等状态。
+
+15. Observation 的权威分类身份必须通过 Identification → Taxon。
+
+16. Unknown、cf.、aff.、working taxa 都是合法状态。
+
+17. Identification history 必须保留。
+
+18. 已公开 Stable Observation ID 永久不变。
+
+19. 已公开 Stable Media ID 永久不变。
+
+20. 原始上传图片永远不可覆盖。
+
+21. 公开 derivative 不得泄露 GPS EXIF。
+
+22. 隐藏 exact GPS 不得出现在 HTML、JSON、JS、地图数据或 metadata 中。
+
+23. 所有 schema 修改必须有 migration。
+
+24. 所有重要修改必须考虑 Audit Log。
+
+25. 不得把项目扩展成完整 Salticidae 数据库。
+
+26. 不得添加 public upload、评论、点赞、关注、论坛、排行等社区功能。
+
+27. 公开页面优先照片、相遇和野外笔记，metadata 次级。
+
+28. Cloudflare secrets 和 Supabase service key 永不得进入 Git。
+
+29. 保持旧公开 URL 和永久 ID 的兼容性。
+
+30. 每个功能完成前必须通过 build、privacy 和真实流程检查。
 
 ## 发布前检查
 
@@ -29,3 +68,4 @@
 - [ ] `npm run test:privacy` 通过（精确坐标/未发布记录/非公开媒体/EXIF）
 - [ ] 敏感记录的位置可见性经过复核
 - [ ] 摄影者署名与许可信息完整
+- [ ] 无新增 China-only 假设；公开 UI 全中文

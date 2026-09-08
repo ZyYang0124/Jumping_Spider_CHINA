@@ -112,7 +112,7 @@ function page(title: string, body: string, user: StudioUser | null = null): stri
 <meta name="robots" content="noindex,nofollow">
 <title>${esc(title)} · Field Studio</title><link rel="stylesheet" href="/studio.css"></head>
 <body><header>
-<a class="brand" href="/studio">Field Studio · 中国跳蛛观察志</a>
+<a class="brand" href="/studio">Field Studio · 跳蛛观察志</a>
 <nav>${user ? `${esc(user.display_name)}（${user.role === 'owner' ? '站长' : '受邀伙伴'}） · <a href="/studio/observations/new">新观察</a> · <a href="/studio/posts/new">新博文</a> · <a href="/studio/logout">退出</a>` : `<a href="/studio/login">登录</a>`}</nav>
 </header><main>${body}</main></body></html>`;
 }
