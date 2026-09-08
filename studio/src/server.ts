@@ -354,8 +354,16 @@ app.get('/studio/observations/new', (req, res) => {
           </div>
         </div>
         <div class="step"><div class="st">STEP 3 · 你 看 到 了 什 么</div>
-          <label>初步印象（选填；只是建议，最终鉴定由站长完成）</label>
-          <select name="taxon_slug"><option value="">—— 暂时不做初步判断 ——</option>${taxonOptions}</select>
+          <label>鉴定（选填；从类群记录中选择，留空则记为未鉴定）</label>
+          <select name="taxon_slug"><option value="">—— 未鉴定 ——</option>${taxonOptions}</select>
+          <label>证据等级</label>
+          <select name="evidence">
+            <option value="field">野外判断</option>
+            <option value="photo_based" selected>照片鉴定</option>
+            <option value="specimen_examined">标本检视</option>
+            <option value="genitalia_confirmed">外生殖器确认</option>
+            <option value="molecularly_supported">分子数据支持</option>
+          </select>
           <div class="grid2">
             <div><label>性别</label><select name="sex"><option value="unknown">不明</option><option value="male">雄性</option><option value="female">雌性</option><option value="mixed">雌雄同记</option></select></div>
             <div><label>龄期</label><select name="life_stage"><option value="unknown">未知</option><option value="adult">成体</option><option value="subadult">亚成体</option><option value="juvenile">幼体</option></select></div>
