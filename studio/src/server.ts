@@ -1,8 +1,9 @@
-// Field Studio — 轻量私有后端：受邀邮箱 OTP（白名单）+ 观察直接发布 + 观察博文。
-// 规则 9/11/12/13：无公开注册、邮箱 OTP、伙伴直接发布；发布与状态转移只由服务端裁决。
+// Field Studio v1 — 内容创作系统
+// 受邀邮箱 OTP + 观察编辑器（autosave/直接发布）+ 札记编辑器（Article Renderer）+ 媒体管理。
+// 规则：无公开注册（§9/§11）；邮箱 OTP（§12）；伙伴直接发布（§13）；坐标全量精确公开（§7）。
 import express from 'express';
 import multer from 'multer';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, unlinkSync, readdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, migrate } from './db.js';
@@ -21,12 +22,15 @@ import {
   verifyOtp,
   type StudioUser,
 } from './auth.js';
-import { nextObservationId, nextPostSlugSeq, saveUploadedPhoto, validateUpload } from './media.js';
+import { saveUploadedPhoto, validateUpload } from './media.js';
 import { parseExif } from './exif.js';
+import { renderArticle, type MediaRef } from './article.js';
+import { observationEmbedResolver } from './embeds.js';
 import { exportForStaticSite } from './export.js';
 import type { Database } from 'better-sqlite3';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const DERIVATIVES_DIR = join(ROOT, 'public', 'media', 'derivatives');
 const PORT = Number(process.env.STUDIO_PORT ?? 4322);
 
 migrate();
@@ -34,12 +38,13 @@ const db: Database = openDb();
 const app = express();
 
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(express.json({ limit: '4mb' }));
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { files: 20, fileSize: 30 * 1024 * 1024 },
 });
 
-// ---------- 小工具 ----------
+// ---------- 工具 ----------
 
 const esc = (s: unknown): string =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -57,55 +62,457 @@ app.use((req, _res, next) => {
   next();
 });
 
-// 上传限速：每 IP 每小时最多 12 次投稿请求
 const uploadHits = new Map<string, number[]>();
 function rateLimited(ip: string): boolean {
   const now = Date.now();
   const hits = (uploadHits.get(ip) ?? []).filter((t) => now - t < 3600_000);
   hits.push(now);
   uploadHits.set(ip, hits);
-  return hits.length > 12;
+  return hits.length > 30;
 }
 
 const STYLES = `
-  :root { --paper:#f7f5f0; --ink:#26221c; --muted:#6f675c; --faint:#948b7d; --line:#e0dacc; --accent:#566246; --terra:#a4552f; }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.75 -apple-system,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; }
-  a { color:inherit; }
-  header { border-bottom:1px solid var(--line); padding:14px 24px; display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:10px; }
-  header .brand { font-family:Georgia,"Songti SC",serif; font-weight:700; letter-spacing:.06em; }
-  main { max-width:920px; margin:0 auto; padding:28px 24px 80px; }
-  h1 { font-family:Georgia,"Songti SC",serif; font-weight:400; font-size:30px; margin:.2em 0 .6em; }
-  h2 { font-size:13px; letter-spacing:.28em; color:var(--faint); margin:38px 0 14px; font-weight:600; }
-  h2:first-of-type { margin-top:10px; }
-  table { border-collapse:collapse; width:100%; font-size:14px; }
-  td, th { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
-  th { color:var(--faint); font-weight:600; }
-  .card { border:1px solid var(--line); background:#fbfaf7; padding:20px 24px; margin-bottom:22px; }
-  label { display:block; font-size:12.5px; color:var(--muted); margin:14px 0 4px; }
-  input[type=text], input[type=password], input[type=date], input[type=number], select, textarea {
-    width:100%; padding:9px 12px; border:1px solid var(--line); background:#fff; font:inherit; color:var(--ink);
-  }
-  textarea { min-height:120px; }
-  input:focus, select:focus, textarea:focus { outline:2px solid var(--accent); outline-offset:0; border-color:var(--accent); }
-  button, .btn { display:inline-block; background:var(--ink); color:var(--paper); border:none; padding:10px 22px; font:inherit; font-size:14px; cursor:pointer; letter-spacing:.06em; text-decoration:none; }
-  button:hover, .btn:hover { background:#3d362e; }
-  .btn-quiet { background:none; border:1px solid var(--line); color:var(--muted); }
-  .btn-quiet:hover { background:none; color:var(--ink); border-color:var(--faint); }
-  .msg { border:1px solid var(--line); background:#fff; padding:12px 16px; margin:16px 0; font-size:14px; }
-  .msg.error { border-color:var(--terra); color:var(--terra); }
-  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 20px; }
-  @media (max-width:700px) { .grid2 { grid-template-columns:1fr; } }
-  .thumbs img { width:96px; height:72px; object-fit:cover; margin:4px 6px 0 0; border:1px solid var(--line); }
-  .status { display:inline-block; font-size:12px; border:1px solid var(--line); border-radius:999px; padding:1px 10px; color:var(--muted); }
-  .step { border-top:1px solid var(--line); padding-top:18px; margin-top:18px; }
-  .step > .st { font-size:11.5px; letter-spacing:.3em; color:var(--faint); }
-  small { color:var(--faint); }
+:root {
+  --paper:#f7f5f0; --paper-deep:#efece4; --ink:#26221c; --muted:#6f675c; --faint:#948b7d;
+  --line:#e0dacc; --accent:#566246; --terra:#a4552f;
+  --serif: Georgia,"Times New Roman","Songti SC","Noto Serif SC",SimSun,serif;
+  --sans: -apple-system,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --motion-fast:160ms; --motion-normal:280ms; --ease-out:cubic-bezier(.22,1,.36,1);
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.75 var(--sans); -webkit-font-smoothing:antialiased; }
+a { color:inherit; }
+header { border-bottom:1px solid var(--line); padding:14px 24px; display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:10px; }
+header .brand { font-family:var(--serif); font-weight:700; letter-spacing:.06em; text-decoration:none; }
+header nav a { color:var(--muted); margin-left:16px; font-size:14px; text-decoration:none; transition:color var(--motion-fast) ease; }
+header nav a:hover { color:var(--terra); }
+main { max-width:920px; margin:0 auto; padding:34px 24px 90px; }
+h1 { font-family:var(--serif); font-weight:400; font-size:32px; margin:.2em 0 .5em; }
+h2 { font-size:12.5px; letter-spacing:.28em; color:var(--faint); margin:40px 0 14px; font-weight:600; }
+.hello { font-family:var(--serif); font-size:34px; line-height:1.5; margin:40px 0 8px; }
+.hello-sub { color:var(--muted); margin:0 0 34px; }
+.cards { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:44px; }
+@media (max-width:700px) { .cards { grid-template-columns:1fr; } }
+.big-card { border:1px solid var(--line); background:#fbfaf7; padding:26px 28px; text-decoration:none; display:block; transition:border-color var(--motion-fast) ease; }
+.big-card:hover { border-color:var(--faint); }
+.big-card .t { font-family:var(--serif); font-size:21px; margin-bottom:4px; }
+.big-card .d { color:var(--muted); font-size:14px; }
+table { border-collapse:collapse; width:100%; font-size:14px; }
+td, th { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { color:var(--faint); font-weight:600; }
+.card { border:1px solid var(--line); background:#fbfaf7; padding:22px 26px; margin-bottom:22px; }
+label { display:block; font-size:12.5px; color:var(--muted); margin:14px 0 4px; }
+input[type=text], input[type=email], input[type=date], input[type=number], select, textarea {
+  width:100%; padding:9px 12px; border:1px solid var(--line); background:#fff; font:inherit; color:var(--ink);
+}
+textarea { min-height:110px; }
+input:focus, select:focus, textarea:focus { outline:2px solid var(--accent); outline-offset:0; border-color:var(--accent); }
+button, .btn { display:inline-block; background:var(--ink); color:var(--paper); border:none; padding:10px 22px; font:inherit; font-size:14px; cursor:pointer; letter-spacing:.06em; text-decoration:none; transition:opacity var(--motion-fast) ease; }
+button:hover, .btn:hover { opacity:.85; }
+.btn-quiet { background:none; border:1px solid var(--line); color:var(--muted); }
+.btn-quiet:hover { background:none; color:var(--ink); border-color:var(--faint); }
+.msg { border:1px solid var(--line); background:#fff; padding:12px 16px; margin:16px 0; font-size:14px; }
+.msg.error { border-color:var(--terra); color:var(--terra); }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 20px; }
+.grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 16px; }
+@media (max-width:700px) { .grid2, .grid3 { grid-template-columns:1fr; } }
+.thumbs { display:flex; flex-wrap:wrap; gap:12px; }
+.thumb { width:132px; }
+.thumb .box { position:relative; aspect-ratio:4/3; overflow:hidden; background:var(--paper-deep); border:1px solid var(--line); }
+.thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.thumb .tools { display:flex; gap:4px; margin-top:4px; font-size:12px; }
+.thumb .tools button { padding:2px 8px; font-size:12px; background:none; border:1px solid var(--line); color:var(--muted); cursor:pointer; }
+.thumb .tools button.on { border-color:var(--accent); color:var(--accent); }
+.status { font-size:12.5px; color:var(--faint); margin:8px 0; min-height:18px; }
+.dropzone { border:1.5px dashed var(--line); background:#fff; padding:34px; text-align:center; color:var(--muted); cursor:pointer; }
+.dropzone:hover { border-color:var(--faint); }
+details { border-top:1px solid var(--line); padding:12px 0; }
+details summary { cursor:pointer; color:var(--muted); font-size:14px; }
+.step { border-top:1px solid var(--line); padding-top:18px; margin-top:18px; }
+.step > .st { font-size:11.5px; letter-spacing:.3em; color:var(--faint); }
+.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+/* ---- 文章预览（与公开站 Article Renderer 同一套布局语义） ---- */
+.article-body { font-family:var(--serif); font-size:17px; line-height:1.9; }
+.article-body h2 { font-family:var(--serif); font-size:24px; letter-spacing:.02em; color:var(--ink); margin:44px 0 14px; }
+.article-body h3 { font-family:var(--serif); font-size:19px; color:var(--ink); margin:32px 0 10px; }
+.article-body img { width:100%; height:auto; display:block; }
+.article-body figure { margin:26px 0; }
+.article-body figcaption { font:12.5px/1.6 var(--sans); color:var(--muted); margin-top:8px; }
+.article-body .am-portrait { max-width:60%; margin-left:auto; margin-right:auto; }
+.article-body .am-panorama { max-width:none; }
+.article-media-group { display:grid; gap:12px; margin:26px 0; }
+.amg-pair { grid-template-columns:1fr 1fr; }
+.amg-triptych { grid-template-columns:1fr 1fr 1fr; }
+.amg-grid4 { grid-template-columns:1fr 1fr; }
+.amg-grid { grid-template-columns:1fr 1fr; }
+.article-media-group .am { margin:0; }
+.article-embed { border:1px solid var(--line); background:#fff; padding:14px 18px; margin:20px 0; font-family:var(--sans); font-size:14px; }
+.article-embed.is-missing { color:var(--terra); }
+.article-embed a { text-decoration:none; display:flex; gap:14px; align-items:center; }
+.article-embed img { width:84px; height:84px; object-fit:cover; }
+.embed-id { color:var(--faint); font-size:12px; display:block; }
 `;
 
-app.get('/studio.css', (_req, res) => {
-  res.type('text/css').send(STYLES);
-});
+app.get('/studio.css', (_req, res) => res.type('text/css').send(STYLES));
+
+// ---------- 编辑器客户端脚本（观察 / 札记） ----------
+// 说明：客户端 JS 内不使用模板字符串，避免与外层 TS 模板字面量冲突。
+
+const OBS_EDITOR_JS = `
+(function () {
+  var boot = window.__EDITOR_BOOT || {};
+  function $(s) { return document.querySelector(s); }
+  function $all(s) { return Array.prototype.slice.call(document.querySelectorAll(s)); }
+  var statusEl = $('#save-status');
+  var publicId = boot.publicId || null;
+  var LS_KEY = 'sfn-obs-' + (boot.publicId || 'new');
+  var saveTimer = null;
+  var saving = false;
+
+  function fields() {
+    var o = {};
+    $all('[data-field]').forEach(function (el) { o[el.getAttribute('data-field')] = el.value; });
+    return o;
+  }
+  function taxonSlug() {
+    var el = $('#species-search');
+    if (!el) return '';
+    var name = String(el.value || '').split('（')[0].trim();
+    if (!name || name === 'Salticidae sp.') return '';
+    var list = boot.taxa || [];
+    for (var i = 0; i < list.length; i++) if (list[i].name === name) return list[i].slug;
+    return '';
+  }
+  function setStatus(s) { if (statusEl) statusEl.textContent = s; }
+  function lsSave() { try { localStorage.setItem(LS_KEY, JSON.stringify(fields())); } catch (e) {} }
+  function lsClear() { try { localStorage.removeItem(LS_KEY); } catch (e) {} }
+
+  function create() {
+    return fetch('/studio/api/observations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j.public_id) {
+          publicId = j.public_id;
+          history.replaceState(null, '', '/studio/observations/' + publicId + '/edit');
+        }
+        return publicId;
+      });
+  }
+
+  function saveNow() {
+    if (saving) return Promise.resolve();
+    saving = true;
+    var ensure = publicId ? Promise.resolve(publicId) : create();
+    return ensure.then(function (pid) {
+      if (!pid) { saving = false; return; }
+      var payload = fields();
+      payload.species_taxon_slug = taxonSlug();
+      return fetch('/studio/api/observations/' + pid, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j.ok) { setStatus('已保存 ' + (j.saved_at || '')); lsClear(); }
+          else setStatus('保存失败：' + (j.error || ''));
+        })
+        .catch(function () { setStatus('保存失败（网络）'); })
+        .then(function () { saving = false; });
+    });
+  }
+
+  function scheduleSave() {
+    setStatus('正在保存…');
+    lsSave();
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNow, 1500);
+  }
+
+  // 启动：填充已保存数据
+  var d = boot.data || {};
+  $all('[data-field]').forEach(function (el) {
+    var k = el.getAttribute('data-field');
+    var v = d[k];
+    if (el.tagName === 'SELECT') { if (v) el.value = v; }
+    else if (v !== null && v !== undefined && v !== '') el.value = v;
+  });
+  if (d.species_taxon_slug) {
+    var hit = (boot.taxa || []).filter(function (t) { return t.slug === d.species_taxon_slug; })[0];
+    if (hit) { var sp = $('#species-search'); if (sp) sp.value = hit.name; }
+  }
+  // 恢复未保存的本地草稿（仅新建页）
+  if (!boot.publicId) {
+    try {
+      var saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+      if (saved) {
+        Object.keys(saved).forEach(function (k) {
+          var el = document.querySelector('[data-field="' + k + '"]');
+          if (el && saved[k]) el.value = saved[k];
+        });
+        setStatus('已恢复上次未保存的内容');
+      }
+    } catch (e) {}
+  }
+  $all('[data-field]').forEach(function (el) { el.addEventListener('input', scheduleSave); });
+  var sp = $('#species-search');
+  if (sp) sp.addEventListener('input', scheduleSave);
+
+  // 照片：选择 / 拖拽 / EXIF 预读 / 上传
+  var dz = $('#dropzone'), pi = $('#photo-input'), grid = $('#photo-grid');
+  function handleFiles(files) {
+    files = Array.prototype.slice.call(files || []).filter(function (f) { return /image\\/(jpeg|png)/.test(f.type); });
+    if (!files.length) return;
+    var ensure = publicId ? Promise.resolve(publicId) : create();
+    ensure.then(function (pid) {
+      if (!pid) { setStatus('创建记录失败'); return; }
+      var first = files[0];
+      var fd0 = new FormData();
+      fd0.append('photo', first);
+      setStatus('读取 EXIF…');
+      return fetch('/studio/api/exif-preview', { method: 'POST', body: fd0 })
+        .then(function (r) { return r.json(); })
+        .then(function (xj) {
+          var x = xj.results && xj.results[0];
+          if (x) {
+            var dateEl = document.querySelector('[data-field="observed_at"]');
+            if (x.date && dateEl && !dateEl.value) dateEl.value = x.date;
+            if (x.gps) {
+              var la = document.querySelector('[data-field="latitude"]');
+              var lo = document.querySelector('[data-field="longitude"]');
+              if (la && !la.value) la.value = x.gps.lat;
+              if (lo && !lo.value) lo.value = x.gps.lng;
+            }
+          }
+        })
+        .catch(function () {})
+        .then(function () {
+          setStatus('上传照片（' + files.length + ' 张）…');
+          var fd = new FormData();
+          files.forEach(function (f) { fd.append('photos', f); });
+          return fetch('/studio/observations/' + pid + '/photos', { method: 'POST', body: fd });
+        })
+        .then(function (r) {
+          if (r.ok) { lsClear(); location.reload(); }
+          else r.text().then(function (t) { setStatus('上传失败：' + t); });
+        })
+        .catch(function () { setStatus('上传失败（网络）'); });
+    });
+  }
+  if (dz && pi) {
+    dz.addEventListener('click', function () { pi.click(); });
+    dz.addEventListener('dragover', function (e) { e.preventDefault(); });
+    dz.addEventListener('drop', function (e) { e.preventDefault(); handleFiles(e.dataTransfer.files); });
+    pi.addEventListener('change', function () { handleFiles(pi.files); pi.value = ''; });
+  }
+
+  // 已上传照片：封面 / 删除 / 图注 / 拖拽排序（事件委托）
+  function orderPids() {
+    return $all('#photo-grid .thumb').map(function (n) { return n.getAttribute('data-pid'); });
+  }
+  if (grid && publicId) {
+    grid.addEventListener('click', function (e) {
+      var t = e.target.closest ? e.target.closest('button[data-act]') : null;
+      if (!t) return;
+      var pid = t.getAttribute('data-pid');
+      if (t.getAttribute('data-act') === 'cover') {
+        var rest = orderPids().filter(function (x) { return x !== pid; });
+        fetch('/studio/api/observations/' + publicId + '/photos/order', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order: [pid].concat(rest) }),
+        }).then(function () { location.reload(); });
+      } else if (t.getAttribute('data-act') === 'delete') {
+        fetch('/studio/api/media/' + pid, { method: 'DELETE' }).then(function (r) {
+          if (r.ok) { var n = grid.querySelector('.thumb[data-pid="' + pid + '"]'); if (n) n.remove(); setStatus('已删除 ' + pid); }
+        });
+      }
+    });
+    grid.addEventListener('change', function (e) {
+      var el = e.target;
+      if (!el.getAttribute || !el.getAttribute('data-caption-pid')) return;
+      fetch('/studio/api/media/' + el.getAttribute('data-caption-pid') + '/caption', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caption: el.value }),
+      }).then(function (r) { if (r.ok) setStatus('图注已保存'); });
+    });
+    var dragPid = null;
+    grid.addEventListener('dragstart', function (e) {
+      var n = e.target.closest ? e.target.closest('.thumb') : null;
+      if (n) { dragPid = n.getAttribute('data-pid'); e.dataTransfer.setData('text/plain', dragPid); }
+    });
+    grid.addEventListener('dragover', function (e) { e.preventDefault(); });
+    grid.addEventListener('drop', function (e) {
+      e.preventDefault();
+      var n = e.target.closest ? e.target.closest('.thumb') : null;
+      if (!n || !dragPid || n.getAttribute('data-pid') === dragPid) return;
+      var moved = grid.querySelector('.thumb[data-pid="' + dragPid + '"]');
+      grid.insertBefore(moved, n);
+      dragPid = null;
+      fetch('/studio/api/observations/' + publicId + '/photos/order', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: orderPids() }),
+      }).then(function (r) { if (r.ok) setStatus('顺序已保存'); });
+    });
+    $all('#photo-grid .thumb').forEach(function (n) { n.setAttribute('draggable', 'true'); });
+  }
+
+  // 发布 / 私密
+  var bp = $('#btn-publish');
+  if (bp) bp.addEventListener('click', function () {
+    setStatus('保存并发布…');
+    saveNow().then(function () {
+      return fetch('/studio/api/observations/' + publicId + '/publish', { method: 'POST' }).then(function (r) { return r.json(); });
+    }).then(function (j) {
+      if (j && j.ok) { setStatus('已发布 ✓ 公开页：' + j.public_url + '（导出并构建后上线）'); lsClear(); }
+      else setStatus('无法发布：' + ((j && j.error) || ''));
+    });
+  });
+  var bv = $('#btn-private');
+  if (bv) bv.addEventListener('click', function () {
+    saveNow().then(function () {
+      return fetch('/studio/api/observations/' + publicId + '/private', { method: 'POST' });
+    }).then(function (r) { if (r.ok) setStatus('已设为私密（公开站不可见）'); });
+  });
+})();
+`;
+
+app.get('/studio-editor.js', (_req, res) => res.type('text/javascript').send(OBS_EDITOR_JS));
+
+const NOTE_EDITOR_JS = `
+(function () {
+  function $(s) { return document.querySelector(s); }
+  var statusEl = $('#save-status');
+  var title = $('#n-title'), sub = $('#n-subtitle'), body = $('#n-body');
+  var slug = ($('#n-slug') && $('#n-slug').value) || null;
+  var LS_KEY = 'sfn-note-' + (slug || 'new');
+  var timer = null;
+
+  function setStatus(s) { statusEl.textContent = s; }
+  function payload() { return { title: title.value, subtitle: sub.value, body_md: body.value }; }
+  function lsSave() { try { localStorage.setItem(LS_KEY, JSON.stringify(payload())); } catch (e) {} }
+  function lsClear() { try { localStorage.removeItem(LS_KEY); } catch (e) {} }
+
+  function create() {
+    return fetch('/studio/api/notes', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload()),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j.slug) {
+          slug = j.slug;
+          $('#n-slug').value = slug;
+          history.replaceState(null, '', '/studio/notes/' + slug + '/edit');
+        }
+        return slug;
+      });
+  }
+  function saveNow() {
+    var ensure = slug ? Promise.resolve(slug) : create();
+    return ensure.then(function (s) {
+      if (!s) { setStatus('创建失败'); return; }
+      return fetch('/studio/api/notes/' + s, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload()),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (j.ok) { setStatus('已保存 ' + (j.saved_at || '')); lsClear(); } else setStatus('保存失败'); });
+    });
+  }
+  function schedule() { setStatus('正在保存…'); lsSave(); clearTimeout(timer); timer = setTimeout(saveNow, 1500); }
+
+  if (!slug) {
+    try {
+      var saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+      if (saved) {
+        title.value = saved.title || ''; sub.value = saved.subtitle || ''; body.value = saved.body || '';
+        setStatus('已恢复上次未保存的内容');
+      }
+    } catch (e) {}
+  }
+  [title, sub, body].forEach(function (el) { el.addEventListener('input', schedule); });
+
+  // 工具栏：包裹选区或行首插入
+  Array.prototype.slice.call(document.querySelectorAll('[data-md]')).forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var md = btn.getAttribute('data-md');
+      var st = body.selectionStart, en = body.selectionEnd;
+      var sel = body.value.slice(st, en);
+      var ins;
+      if (md === '**' || md === '*') ins = md + (sel || '文字') + md;
+      else if (md === '---') ins = '\\n\\n---\\n\\n';
+      else ins = md + sel;
+      body.value = body.value.slice(0, st) + ins + body.value.slice(en);
+      body.focus();
+      body.selectionStart = body.selectionEnd = st + ins.length;
+      schedule();
+    });
+  });
+
+  function insertAt(text) {
+    var st = body.selectionStart;
+    body.value = body.value.slice(0, st) + text + body.value.slice(body.selectionEnd);
+    body.focus();
+    body.selectionStart = body.selectionEnd = st + text.length;
+    schedule();
+  }
+
+  var imgBtn = $('#btn-note-image'), imgInput = $('#note-image-input');
+  if (imgBtn) imgBtn.addEventListener('click', function () { imgInput.click(); });
+  if (imgInput) imgInput.addEventListener('change', function () {
+    var f = imgInput.files[0];
+    if (!f) return;
+    setStatus('上传图片…');
+    var fd = new FormData();
+    fd.append('photo', f);
+    fetch('/studio/api/media/upload', { method: 'POST', body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j.ok) {
+          var cap = window.prompt('图注（可留空）', '') || '';
+          insertAt('\\n\\n![' + cap + '](media:' + j.public_id + ')\\n\\n');
+          setStatus('已插入 ' + j.public_id);
+        } else setStatus('上传失败：' + (j.error || ''));
+      });
+    imgInput.value = '';
+  });
+  var obsBtn = $('#btn-note-obs');
+  if (obsBtn) obsBtn.addEventListener('click', function () {
+    var id = window.prompt('观察编号（如 SFN-2026-000001）', '');
+    if (id && id.trim()) insertAt('\\n\\n{{observation:' + id.trim() + '}}\\n\\n');
+  });
+  var tripBtn = $('#btn-note-trip');
+  if (tripBtn) tripBtn.addEventListener('click', function () {
+    var s = window.prompt('调查 slug（见公开站 /trips/…）', '');
+    if (s && s.trim()) insertAt('\\n\\n{{trip:' + s.trim() + '}}\\n\\n');
+  });
+
+  var pvBtn = $('#btn-preview');
+  if (pvBtn) pvBtn.addEventListener('click', function () {
+    setStatus('生成预览…');
+    fetch('/studio/api/notes/preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body_md: body.value }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var pv = $('#note-preview');
+        pv.innerHTML = '<div class="article-body">' + j.html + '</div>';
+        pv.style.display = 'block';
+        pv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setStatus('预览已生成');
+      });
+  });
+
+  var pubBtn = $('#btn-publish-note');
+  if (pubBtn) pubBtn.addEventListener('click', function () {
+    setStatus('保存并发布…');
+    saveNow().then(function () {
+      return fetch('/studio/api/notes/' + slug + '/publish', { method: 'POST' }).then(function (r) { return r.json(); });
+    }).then(function (j) {
+      if (j && j.ok) { setStatus('已发布 ✓ 公开页：' + j.public_url + '（导出并构建后上线）'); lsClear(); }
+      else setStatus('无法发布：' + ((j && j.error) || ''));
+    });
+  });
+})();
+`;
+
+app.get('/studio-note-editor.js', (_req, res) => res.type('text/javascript').send(NOTE_EDITOR_JS));
 
 function page(title: string, body: string, user: StudioUser | null = null): string {
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
@@ -114,53 +521,31 @@ function page(title: string, body: string, user: StudioUser | null = null): stri
 <title>${esc(title)} · Field Studio</title><link rel="stylesheet" href="/studio.css"></head>
 <body><header>
 <a class="brand" href="/studio">Field Studio · 跳蛛观察志</a>
-<nav>${user ? `${esc(user.display_name)}（${user.role === 'owner' ? '站长' : '受邀伙伴'}） · <a href="/studio/observations/new">新观察</a> · <a href="/studio/posts/new">新博文</a> · <a href="/studio/logout">退出</a>` : `<a href="/studio/login">登录</a>`}</nav>
+<nav>${user ? `${esc(user.display_name)} · <a href="/studio/observations/new">记录相遇</a> · <a href="/studio/notes/new">写札记</a> · <a href="/studio/media">影像</a> · <a href="/studio">工作台</a> · <a href="/studio/logout">退出</a>` : `<a href="/studio/login">登录</a>`}</nav>
 </header><main>${body}</main></body></html>`;
 }
 
-// ---------- 登录（受邀邮箱 OTP，SOP §18-20；无公开注册） ----------
+// ---------- 登录（受邀邮箱 OTP） ----------
 
 app.get('/studio/login', (req, res) => {
-  const user = currentUser(db, req);
-  if (user) return res.redirect('/studio');
+  if (currentUser(db, req)) return res.redirect('/studio');
   const error = String((req.query as Record<string, string>).error ?? '');
   const email = String((req.query as Record<string, string>).email ?? '');
-  const devNotice = process.env.SMTP_HOST
-    ? ''
-    : '<p class="msg">开发模式：未配置 SMTP，验证码输出到服务器控制台。</p>';
-  res.send(
-    page(
-      '登录',
-      `<h1>登录 Field Studio</h1>
-      <p><small>仅供受邀伙伴使用 · 没有公开注册</small></p>
-      ${error === 'otp' ? '<div class="msg error">验证码无效或已过期，请重新发送。</div>' : ''}
-      ${error === 'invite' ? '<div class="msg error">该邮箱不在受邀名单中。</div>' : ''}
-      ${
-        email
-          ? `<div class="card">
-            <h2 style="margin-top:0">输入验证码</h2>
-            <p><small>验证码已发送至 ${esc(email)}（10 分钟内有效）</small></p>
-            <form method="post" action="/studio/login/verify">
-              <input type="hidden" name="email" value="${esc(email)}" />
-              <label>6 位验证码</label>
-              <input type="text" name="code" required maxlength="6" inputmode="numeric" autocomplete="one-time-code" />
-              <div style="margin-top:18px"><button type="submit">登录</button></div>
-            </form>
-            <p style="margin-top:12px"><a href="/studio/login">重新发送 →</a></p>
-          </div>`
-          : `<div class="card">
-            <h2 style="margin-top:0">邮箱登录</h2>
-            ${devNotice}
-            <form method="post" action="/studio/login/otp">
-              <label>邮箱（受邀时登记的邮箱）</label>
-              <input type="email" name="email" required />
-              <div style="margin-top:18px"><button type="submit">发送验证码</button></div>
-            </form>
-          </div>`
-      }`,
-      user,
-    ),
-  );
+  const devNotice = process.env.SMTP_HOST ? '' : '<p class="msg">开发模式：未配置 SMTP，验证码输出到服务器控制台。</p>';
+  res.send(page('登录', `<h1>登录 Field Studio</h1>
+    <p><small>仅供受邀伙伴使用 · 没有公开注册</small></p>
+    ${error === 'otp' ? '<div class="msg error">验证码无效或已过期，请重新发送。</div>' : ''}
+    ${error === 'invite' ? '<div class="msg error">该邮箱不在受邀名单中。</div>' : ''}
+    ${email
+      ? `<div class="card"><h2 style="margin-top:0">输入验证码</h2>
+        <p><small>验证码已发送至 ${esc(email)}（10 分钟内有效）</small></p>
+        <form method="post" action="/studio/login/verify"><input type="hidden" name="email" value="${esc(email)}" />
+        <label>6 位验证码</label><input type="text" name="code" required maxlength="6" inputmode="numeric" autocomplete="one-time-code" />
+        <div style="margin-top:16px"><button type="submit">登录</button></div></form>
+        <p style="margin-top:12px"><a href="/studio/login">重新发送 →</a></p></div>`
+      : `<div class="card"><h2 style="margin-top:0">邮箱登录</h2>${devNotice}
+        <form method="post" action="/studio/login/otp"><label>邮箱（受邀时登记的邮箱）</label>
+        <input type="email" name="email" required /><div style="margin-top:16px"><button type="submit">发送验证码</button></div></form></div>`}`));
 });
 
 app.post('/studio/login/otp', async (req, res) => {
@@ -179,13 +564,9 @@ app.post('/studio/login/otp', async (req, res) => {
 app.post('/studio/login/verify', (req, res) => {
   if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
   const { email, code } = req.body as Record<string, string>;
-  if (!verifyOtp(db, String(email ?? ''), String(code ?? ''))) {
-    return res.redirect('/studio/login?error=otp');
-  }
+  if (!verifyOtp(db, String(email ?? ''), String(code ?? ''))) return res.redirect('/studio/login?error=otp');
   const user = findOrCreateUserByEmail(db, String(email));
-  db.prepare(
-    'UPDATE invitations SET claimed_by = ? WHERE lower(email) = lower(?) AND claimed_by IS NULL',
-  ).run(user.id, String(email));
+  db.prepare('UPDATE invitations SET claimed_by = ? WHERE lower(email) = lower(?) AND claimed_by IS NULL').run(user.id, String(email));
   createSession(db, res, user.id);
   audit(db, user.display_name, 'session', user.id, 'login-otp');
   res.redirect('/studio');
@@ -197,339 +578,180 @@ app.post('/studio/logout', (req, res) => {
   res.redirect('/studio/login');
 });
 
+// ---------- 编号与鉴定辅助 ----------
 
-// ---------- 状态机（服务端唯一裁决） ----------
-
-// ---------- 状态机（服务端唯一裁决；SOP §26/§27：直接发布，无审核流程） ----------
-
-const TRANSITIONS: Record<string, Record<string, { to: string; needMessage?: boolean }>> = {
-  draft: { publish: { to: 'published' }, 'set-private': { to: 'private' } },
-  private: { publish: { to: 'published' }, archive: { to: 'archived' } },
-  published: { 'set-private': { to: 'private' }, archive: { to: 'archived' } },
-  archived: {},
-};
-
-type ObsRow = Record<string, unknown> & { id: number; public_id: string; status: string; created_by: number };
-
-function getObsByPublicId(publicId: string): ObsRow | undefined {
-  return db.prepare('SELECT * FROM observations WHERE public_id = ?').get(publicId) as ObsRow | undefined;
+function nextObservationId(db: Database, year: number): string {
+  const name = `sfn-observation-${year}`;
+  const row = db.prepare('SELECT value FROM counters WHERE name = ?').get(name) as { value: number } | undefined;
+  if (!row) {
+    db.prepare('INSERT INTO counters (name, value) VALUES (?, 0)').run(name);
+    return `SFN-${year}-000001`;
+  }
+  const next = row.value + 1;
+  db.prepare('UPDATE counters SET value = ? WHERE name = ?').run(next, name);
+  return `SFN-${year}-${String(next).padStart(6, '0')}`;
 }
 
-function canEdit(user: StudioUser, obs: ObsRow): boolean {
-  if (user.role === 'owner') return true;
-  return obs.created_by === user.id;
+function nextPostSlugSeq(db: Database): number {
+  const row = db.prepare("SELECT value FROM counters WHERE name = 'post'").get() as { value: number };
+  const next = row.value + 1;
+  db.prepare("UPDATE counters SET value = ? WHERE name = 'post'").run(next);
+  return next;
 }
 
-// ---------- 观察投稿 ----------
+function upsertIdentification(db: Database, obsRowId: number, obsPublicId: string, slug: string, displayOverride: string | null, evidence: string, author: string): void {
+  const taxa = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'taxa.json'), 'utf-8')) as {
+    slug: string; scientific_name: string; rank: string;
+  }[];
+  const taxon = taxa.find((t) => t.slug === slug);
+  if (!taxon) throw new Error('未知的类群');
+  const display =
+    (displayOverride && displayOverride.trim()) ||
+    (['species', 'subspecies'].includes(taxon.rank) ? taxon.scientific_name : `${taxon.scientific_name} sp.`);
+  const prev = db
+    .prepare('SELECT display_identification, taxon_slug FROM identifications WHERE observation_id = ? AND is_current = 1')
+    .get(obsRowId) as { display_identification: string; taxon_slug: string } | undefined;
+  const changed = !prev || prev.taxon_slug !== slug || prev.display_identification !== display;
+  db.prepare('UPDATE identifications SET is_current = 0 WHERE observation_id = ?').run(obsRowId);
+  db.prepare(
+    `INSERT INTO identifications (observation_id, taxon_slug, display_identification, identified_by, identified_at, evidence, is_current)
+     VALUES (?,?,?,?,?,?,1)`,
+  ).run(obsRowId, slug, display, author, new Date().toISOString().slice(0, 10), evidence);
+  if (changed) {
+    const version = (db.prepare("SELECT COUNT(*) c FROM revisions WHERE entity_type = 'identification' AND entity_id = ?").get(obsPublicId) as { c: number }).c + 1;
+    db.prepare("INSERT INTO revisions (entity_type, entity_id, version, action, data_snapshot, author) VALUES ('identification', ?, ?, '修改物种鉴定', ?, ?)")
+      .run(obsPublicId, version, JSON.stringify({ from: prev?.display_identification ?? null, to: display }), author);
+  }
+}
+
+// ---------- 工作台（问候式） ----------
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 5) return '夜深了';
+  if (h < 11) return '早上好';
+  if (h < 14) return '中午好';
+  if (h < 18) return '下午好';
+  return '晚上好';
+}
 
 app.get('/studio', (req, res) => {
   const user = requireUser(db, req, res);
   if (!user) return;
-  const mine = db
-    .prepare('SELECT public_id, observer_name, observed_at, status, field_note FROM observations WHERE created_by = ? ORDER BY id DESC LIMIT 30')
-    .all(user.id) as { public_id: string; observer_name: string; observed_at: string; status: string; field_note: string }[];
-  const queue =
-    user.role === 'owner'
-      ? (db
-          .prepare('SELECT public_id, observer_name, observed_at, status FROM observations ORDER BY id DESC LIMIT 20')
-          .all() as { public_id: string; observer_name: string; observed_at: string; status: string }[])
-      : [];
-  const myPosts = db
-    .prepare('SELECT slug, title, status, created_at FROM posts WHERE author_id = ? ORDER BY id DESC')
-    .all(user.id) as { slug: string; title: string; status: string; created_at: string }[];
-  const statusZh: Record<string, string> = {
-    draft: '草稿', private: '私密', published: '已发布', archived: '已归档',
-  };
-  res.send(
-    page(
-      '工作台',
-      `<h1>工作台</h1>
-      <div style="margin-bottom:26px"><a class="btn" href="/studio/observations/new">发布新观察</a>
-      <a class="btn btn-quiet" href="/studio/posts/new">撰写观察博文</a></div>
-      <h2>${user.role === 'owner' ? '待处理' : '我的观察'}</h2>
-      ${
-        user.role === 'owner'
-          ? `<table><tr><th>编号</th><th>观察者</th><th>日期</th><th>状态</th><th></th></tr>
-             ${queue.map((o) => `<tr><td>${o.public_id}</td><td>${esc(o.observer_name)}</td><td>${o.observed_at}</td><td><span class="status">${statusZh[o.status] ?? o.status}</span></td><td><a href="/studio/observations/${o.public_id}">处理 →</a></td></tr>`).join('') || '<tr><td colspan="5">没有待处理的投稿。</td></tr>'}
-             </table>`
-          : `<table><tr><th>编号</th><th>日期</th><th>状态</th><th></th></tr>
-             ${mine.map((o) => `<tr><td>${o.public_id}</td><td>${o.observed_at}</td><td><span class="status">${statusZh[o.status] ?? o.status}</span></td><td><a href="/studio/observations/${o.public_id}">查看 →</a></td></tr>`).join('') || '<tr><td colspan="4">还没有观察记录。</td></tr>'}
-             </table>`
-      }
-      <h2>我的博文</h2>
-      <table><tr><th>标题</th><th>状态</th><th></th></tr>
-      ${myPosts.map((p) => `<tr><td>${esc(p.title)}</td><td><span class="status">${statusZh[p.status] ?? p.status}</span></td><td>${p.slug ? `<a href="/studio/posts/${p.slug}">查看 →</a>` : '—'}</td></tr>`).join('') || '<tr><td colspan="3">还没有博文。</td></tr>'}
-      </table>
-      ${
-        user.role === 'owner'
-          ? `<h2>发布到静态站</h2>
-             <p><small>将已发布的观察、影像与博文导出为静态站数据（src/data/studio-*.json），随后运行 npm run build 即可上线。</small></p>
-             <form method="post" action="/studio/export"><button type="submit">导出到静态站</button></form>`
-          : ''
-      }`,
-      user,
-    ),
-  );
+  const drafts = db
+    .prepare("SELECT public_id, updated_at FROM observations WHERE created_by = ? AND status = 'draft' ORDER BY updated_at DESC LIMIT 5")
+    .all(user.id) as { public_id: string; updated_at: string }[];
+  const published = db
+    .prepare("SELECT public_id, observed_at, published_at FROM observations WHERE created_by = ? AND status = 'published' ORDER BY published_at DESC LIMIT 5")
+    .all(user.id) as { public_id: string; observed_at: string; published_at: string }[];
+  const noteDrafts = db
+    .prepare("SELECT slug, title, updated_at FROM posts WHERE author_id = ? AND status = 'draft' ORDER BY updated_at DESC LIMIT 5")
+    .all(user.id) as { slug: string; title: string; updated_at: string }[];
+  const notePub = db
+    .prepare("SELECT slug, title, published_at FROM posts WHERE author_id = ? AND status = 'published' ORDER BY published_at DESC LIMIT 5")
+    .all(user.id) as { slug: string; title: string; published_at: string }[];
+  res.send(page('工作台', `
+    <div class="hello">${greeting()}，${esc(user.display_name)}</div>
+    <p class="hello-sub">今天想记录什么？</p>
+    <div class="cards">
+      <a class="big-card" href="/studio/observations/new">
+        <div class="t">＋ 记录一次相遇</div><div class="d">一只蜘蛛，一段相遇</div>
+      </a>
+      <a class="big-card" href="/studio/notes/new">
+        <div class="t">✎ 写一篇札记</div><div class="d">调查、故事与思考</div>
+      </a>
+    </div>
+    <h2>最近草稿</h2>
+    <table><tr><th>条目</th><th>时间</th></tr>
+      ${drafts.map((d) => `<tr><td><a href="/studio/observations/${d.public_id}/edit">${d.public_id}</a></td><td>${d.updated_at}</td></tr>`).join('')}
+      ${noteDrafts.map((n) => `<tr><td><a href="/studio/notes/${n.slug}/edit">${esc(n.title)}</a>（札记草稿）</td><td>${n.updated_at}</td></tr>`).join('')}
+      ${drafts.length + noteDrafts.length === 0 ? '<tr><td>暂无草稿。</td></tr>' : ''}
+    </table>
+    <h2>最近发布</h2>
+    <table><tr><th>条目</th><th>时间</th></tr>
+      ${published.map((r) => `<tr><td><a href="/studio/observations/${r.public_id}/edit">${r.public_id}</a></td><td>${r.published_at ?? '—'}</td></tr>`).join('')}
+      ${notePub.map((n) => `<tr><td><a href="/studio/notes/${n.slug}/edit">${esc(n.title)}</a>（札记）</td><td>${n.published_at}</td></tr>`).join('')}
+      ${published.length + notePub.length === 0 ? '<tr><td>暂无发布记录。</td></tr>' : ''}
+    </table>
+    ${user.role === 'owner' ? '<h2>发布到公开站</h2><p><small>导出已发布内容为静态站数据，随后 npm run build 上线。</small></p><form method="post" action="/studio/export"><button type="submit">导出到静态站</button></form>' : ''}
+  `, user));
 });
 
-/** EXIF 预读：客户端选完照片后立即调用，返回拍摄日期与 GPS 建议（不落盘，须人工确认） */
-app.post('/studio/exif-preview', upload.array('photos', 20), async (req, res) => {
+// ---------- 观察：JSON API（autosave / 照片 / 发布） ----------
+
+app.post('/studio/api/observations', (req, res) => {
   const user = requireUser(db, req, res);
-  if (!user) return;
-  const files = (req.files as Express.Multer.File[]) ?? [];
-  const results = [];
-  for (const f of files.slice(0, 5)) {
-    const s = await parseExif(f.buffer);
-    results.push({ filename: f.originalname, date: s.date ?? null, gps: s.gps ?? null });
-  }
-  res.type('application/json').json({ results });
-});
-
-app.get('/studio/observations/new', (req, res) => {
-  const user = requireUser(db, req, res);
-  if (!user) return;
-  const taxa = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'taxa.json'), 'utf-8')) as {
-    id: string;
-    slug: string;
-    scientific_name: string;
-    rank: string;
-  }[];
-  const taxonOptions = taxa
-    .filter((t) => ['species', 'genus', 'tribe', 'family'].includes(t.rank))
-    .map((t) => `<option value="${t.slug}">${esc(t.scientific_name)}（${t.rank}）</option>`)
-    .join('');
-  res.send(
-    page(
-      '发布新观察',
-      `<h1>发布新观察</h1>
-      <form method="post" action="/studio/observations" enctype="multipart/form-data">
-        <div class="step"><div class="st">STEP 1 · 照 片</div>
-          <label>照片（可多选，JPG/PNG，按上传顺序排列）</label>
-          <input type="file" name="photos" id="photo-input" multiple accept="image/jpeg,image/png" required />
-          <div id="exif-suggestion" class="msg" style="display:none"></div>
-          <label style="display:none" id="exif-gps-row">
-            <input type="checkbox" name="use_exif_gps" value="1" style="width:auto;margin-right:8px">
-            使用照片 GPS 作为精确坐标并<b>公开（exact）</b>——跳蛛类记录通常不敏感；勾选即确认公开该坐标
-          </label>
-          <label>图片说明（每行一条，与照片顺序对应，可留空）</label>
-          <textarea name="photo_captions" placeholder="第一行对应第一张照片…"></textarea>
-          <label>授权</label>
-          <select name="license">
-            <option value="all_rights_reserved">版权所有（默认）</option>
-            <option value="cc_by_4_0">CC BY 4.0</option>
-            <option value="cc_by_nc_4_0">CC BY-NC 4.0</option>
-          </select>
-        </div>
-        <div class="step"><div class="st">STEP 2 · 时 间 与 地 点</div>
-          <label>观察日期 *（选择照片后自动读取 EXIF 拍摄日期作为建议，可修改）</label>
-          <input type="date" name="observed_at" id="observed-at" />
-          <div class="grid2">
-            <div><label>国家 *</label><input type="text" name="country_name" required value="中国" placeholder="中国 / 马来西亚…" /></div>
-            <div><label>海拔（米，可留空）</label><input type="number" name="elevation_m" min="0" max="9000" /></div>
-          </div>
-          <div class="grid2">
-            <div><label>一级行政区 *（省 / 州 / 邦…）</label><input type="text" name="admin1" required placeholder="广东省 / 沙巴…" /></div>
-            <div><label>二级行政区（县 / 市…，可留空）</label><input type="text" name="admin2" placeholder="龙门县" /></div>
-          </div>
-          <label>地点描述</label>
-          <input type="text" name="locality" placeholder="南昆山林缘灌丛" />
-          <div class="grid2">
-            <div><label>位置公开级别 *</label>
-              <select name="location_visibility">
-                <option value="locality_only" selected>仅公开地名（默认，推荐）</option>
-                <option value="blurred">坐标模糊化（需填公开坐标）</option>
-                <option value="exact">精确坐标公开（跳蛛类记录通常不敏感；亦可勾选上方「使用照片 GPS」）</option>
-                <option value="hidden">完全保密</option>
-              </select>
-            </div>
-          </div>
-          <div class="grid2">
-            <div><label>公开纬度（仅 exact / blurred 需要）</label><input type="text" name="public_latitude" placeholder="23.66" /></div>
-            <div><label>公开经度</label><input type="text" name="public_longitude" placeholder="113.92" /></div>
-          </div>
-          <label>精确坐标（选填；仅站长内部留存，绝不公开）</label>
-          <div class="grid2">
-            <div><input type="text" name="exact_latitude" placeholder="纬度" /></div>
-            <div><input type="text" name="exact_longitude" placeholder="经度" /></div>
-          </div>
-        </div>
-        <div class="step"><div class="st">STEP 3 · 你 看 到 了 什 么</div>
-          <label>鉴定（选填；从类群记录中选择，留空则记为未鉴定）</label>
-          <select name="taxon_slug"><option value="">—— 未鉴定 ——</option>${taxonOptions}</select>
-          <label>证据等级</label>
-          <select name="evidence">
-            <option value="field">野外判断</option>
-            <option value="photo_based" selected>照片鉴定</option>
-            <option value="specimen_examined">标本检视</option>
-            <option value="genitalia_confirmed">外生殖器确认</option>
-            <option value="molecularly_supported">分子数据支持</option>
-          </select>
-          <div class="grid2">
-            <div><label>性别</label><select name="sex"><option value="unknown">不明</option><option value="male">雄性</option><option value="female">雌性</option><option value="mixed">雌雄同记</option></select></div>
-            <div><label>龄期</label><select name="life_stage"><option value="unknown">未知</option><option value="adult">成体</option><option value="subadult">亚成体</option><option value="juvenile">幼体</option></select></div>
-          </div>
-          <label>生境</label><input type="text" name="habitat" placeholder="低山常绿阔叶林林缘" />
-          <label>小生境</label><input type="text" name="microhabitat" placeholder="叶片上表面" />
-          <label>行为</label><input type="text" name="behavior" placeholder="游猎 / 求偶 / 静栖…" />
-        </div>
-        <div class="step"><div class="st">STEP 4 · 野 外 笔 记</div>
-          <label>笔记 *（在哪儿、在做什么、有什么特别——不必是论文）</label>
-          <textarea name="field_note" required></textarea>
-        </div>
-        <div class="step"><div class="st">STEP 5 · 确 认 并 提 交</div>
-          <label><input type="checkbox" name="agree" value="1" required style="width:auto;margin-right:8px">
-          我拥有或获授权上传这些照片；允许网站展示照片与观察信息；版权仍归摄影者；敏感情形下地点可能被泛化或隐藏；提交后由站长审核，不保证发布。</label>
-          <label>提交为</label>
-          <select name="submit_mode"><option value="draft">保存为草稿</option><option value="published">直接发布</option><option value="private">设为私密</option></select>
-          <div style="margin-top:20px"><button type="submit">保存</button></div>
-        </div>
-      </form>
-      <script>
-        (function () {
-          var input = document.getElementById('photo-input');
-          var box = document.getElementById('exif-suggestion');
-          var gpsRow = document.getElementById('exif-gps-row');
-          var gpsBox = gpsRow ? gpsRow.querySelector('input') : null;
-          var dateInput = document.getElementById('observed-at');
-          var currentGps = null;
-          input.addEventListener('change', async function () {
-            if (!input.files || input.files.length === 0) return;
-            box.style.display = 'block';
-            box.textContent = '正在读取照片 EXIF…';
-            var fd = new FormData();
-            for (var i = 0; i < input.files.length && i < 5; i++) fd.append('photos', input.files[i]);
-            try {
-              var r = await fetch('/studio/exif-preview', { method: 'POST', body: fd });
-              var data = await r.json();
-              var withDate = data.results.find(function (x) { return x.date; });
-              var withGps = data.results.find(function (x) { return x.gps; });
-              currentGps = withGps ? withGps.gps : null;
-              var parts = [];
-              if (withDate) {
-                parts.push('拍摄日期：' + withDate.date + '（已填入，可修改）');
-                if (!dateInput.value) dateInput.value = withDate.date;
-              }
-              if (currentGps) {
-                parts.push('GPS：' + currentGps.lat + ', ' + currentGps.lng);
-                gpsRow.style.display = 'block';
-                gpsBox.checked = true;
-              } else {
-                gpsRow.style.display = 'none';
-                if (gpsBox) gpsBox.checked = false;
-              }
-              box.style.display = parts.length ? 'block' : 'none';
-              box.textContent = parts.length ? '从照片 EXIF 读取到 → ' + parts.join('　·　') : '照片未包含 EXIF 日期或 GPS。';
-            } catch (e) {
-              box.style.display = 'none';
-            }
-          });
-        })();
-      </script>`,
-      user,
-    ),
-  );
-});
-
-app.post('/studio/observations', upload.array('photos', 20), async (req, res) => {
-  const user = requireUser(db, req, res);
-  if (!user) return;
-  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
-  if (rateLimited(req.ip ?? 'unknown')) return res.status(429).send('上传过于频繁，请稍后再试。');
-
-  const b = req.body as Record<string, string>;
-  const files = (req.files as Express.Multer.File[]) ?? [];
-  if (files.length === 0) return res.status(400).send('至少需要一张照片。');
-  for (const f of files) {
-    const err = validateUpload(f);
-    if (err) return res.status(400).send(err);
-  }
-  if (b.agree !== '1') return res.status(400).send('需要确认投稿条款。');
-
-  // EXIF 建议：拍摄日期在留空时采用；GPS 只有在用户勾选「公开精确坐标」时才写入 exact。
-  // 两者都在表单中展示并经人工确认（prompt.md §17：绝不静默发布）。
-  const useExifGps = b.use_exif_gps === '1';
-  let observedAt = (b.observed_at ?? '').trim();
-  let exifSuggestedDate: string | null = null;
-  let exifGps: { lat: number; lng: number } | null = null;
-  if (files.length > 0 && (useExifGps || !observedAt)) {
-    const suggestion = await parseExif(files[0].buffer);
-    exifSuggestedDate = suggestion.date ?? null;
-    exifGps = suggestion.gps ?? null;
-    if (!observedAt && exifSuggestedDate) observedAt = exifSuggestedDate;
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(observedAt)) return res.status(400).send('无法确定观察日期，请手动填写。');
-  if (useExifGps && !exifGps) {
-    return res.status(400).send('照片未包含 GPS 信息，无法使用「EXIF 精确坐标公开」。可改用其他位置级别。');
-  }
-
-  const visibility =
-    useExifGps && exifGps
-      ? 'exact'
-      : ['exact', 'blurred', 'locality_only', 'hidden'].includes(String(b.location_visibility))
-        ? String(b.location_visibility)
-        : 'locality_only';
-  const num = (v: string | undefined): number | null => {
-    const n = Number(v);
-    return Number.isFinite(n) && v ? n : null;
-  };
-  let exactLat = num(b.exact_latitude);
-  let exactLng = num(b.exact_longitude);
-  let publicLat = num(b.public_latitude);
-  let publicLng = num(b.public_longitude);
-  if (useExifGps && exifGps) {
-    // 用户确认使用照片 GPS：以服务端解析的 EXIF 坐标为准（不信任客户端改写的数值）
-    exactLat = exifGps.lat;
-    exactLng = exifGps.lng;
-    publicLat = exactLat;
-    publicLng = exactLng;
-  } else if (visibility === 'exact') {
-    if (exactLat == null || exactLng == null) return res.status(400).send('exact 级别需要精确坐标。');
-    publicLat = exactLat;
-    publicLng = exactLng;
-  } else if (visibility === 'blurred') {
-    if (publicLat == null || publicLng == null) return res.status(400).send('blurred 级别需要公开（模糊化）坐标。');
-  } else {
-    publicLat = null;
-    publicLng = null;
-  }
-
-  const countryName = String(b.country_name ?? '中国').trim() || '中国';
-  const ISO_MAP: Record<string, string> = {
-    中国: 'CN', 马来西亚: 'MY', 泰国: 'TH', 越南: 'VN', 日本: 'JP', 韩国: 'KR',
-    印度尼西亚: 'ID', 菲律宾: 'PH', 印度: 'IN', 澳大利亚: 'AU', 新加坡: 'SG', 美国: 'US',
-  };
-  const countryCode = ISO_MAP[countryName] ?? 'XX';
-  const year = Number(observedAt.slice(0, 4));
+  if (!user) return res.status(401).json({ error: '未登录' });
+  if (!sameOriginGuard(req, res)) return res.status(403).json({ error: 'Forbidden' });
+  const year = new Date().getFullYear();
   const publicId = nextObservationId(db, year);
-  const submitMode = ['draft', 'published', 'private'].includes(String(b.submit_mode)) ? String(b.submit_mode) : 'draft';
-  const status = submitMode;
+  db.prepare(
+    `INSERT INTO observations (public_id, created_by, observer_name, observed_at, observed_at_precision,
+     state_province, country_name, location_visibility, field_note, status, visibility)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+  ).run(publicId, user.id, user.display_name, new Date().toISOString().slice(0, 10), 'day', '待填写', '中国', 'exact', '', 'draft', 'private');
+  audit(db, user.display_name, 'observation', publicId, 'create-draft');
+  res.json({ public_id: publicId, edit_url: `/studio/observations/${publicId}/edit` });
+});
 
-  const info = db
-    .prepare(
-      `INSERT INTO observations
-       (public_id, created_by, observer_name, observed_at, observed_at_precision, state_province, county, locality,
-        country_code, country_name, admin1, admin2, site_name,
-        exact_latitude, exact_longitude, public_latitude, public_longitude, coordinate_uncertainty_m, elevation_m,
-        location_visibility, sex, life_stage, habitat, microhabitat, behavior, contributor_guess, field_note,
-        status, visibility)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    )
-    .run(
-      publicId, user.id, user.display_name, observedAt, 'day',
-      String(b.admin1 ?? '').trim(), b.admin2 ?? null, b.locality ?? null,
-      countryCode, countryName, String(b.admin1 ?? '').trim(), b.admin2 ?? null, null,
-      exactLat, exactLng, publicLat, publicLng,
-      visibility === 'blurred' ? 3000 : visibility === 'exact' ? 50 : null,
-      num(b.elevation_m), visibility,
-      b.sex ?? 'unknown', b.life_stage ?? 'unknown', b.habitat ?? null, b.microhabitat ?? null,
-      b.behavior ?? null, b.taxon_slug ? String(b.taxon_slug) : null,
-      String(b.field_note ?? '').trim(), status, status === 'published' ? 'public' : 'private',
-    );
-  const obsId = info.lastInsertRowid as number;
+const OBS_FIELDS = new Set([
+  'observed_at', 'latitude', 'longitude', 'country_name', 'admin1', 'admin2',
+  'locality', 'site_name', 'elevation_m', 'sex', 'life_stage', 'count', 'habitat',
+  'microhabitat', 'behavior', 'plant', 'weather', 'field_note', 'trip_slug',
+  'species_taxon_slug', 'species_evidence',
+]);
 
-  const captions = String(b.photo_captions ?? '').split('\n').map((s) => s.trim());
-  let order = 0;
+app.patch('/studio/api/observations/:public_id', (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return res.status(401).json({ error: '未登录' });
+  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
+  const obs = db.prepare('SELECT * FROM observations WHERE public_id = ?').get(req.params.public_id) as
+    | Record<string, any> & { id: number; created_by: number }
+    | undefined;
+  if (!obs) return res.status(404).send('未找到该观察。');
+  if (user.role !== 'owner' && obs.created_by !== user.id) return res.status(403).send('只能编辑自己的记录');
+
+  const b = req.body as Record<string, unknown>;
+  // 客户端字段名 → 数据库列名（坐标在库中为 exact_*，公开政策为全量精确，无模糊列）
+  const COLUMN_OF: Record<string, string> = { latitude: 'exact_latitude', longitude: 'exact_longitude' };
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  for (const [k, v] of Object.entries(b)) {
+    if (!OBS_FIELDS.has(k)) continue;
+    if (k === 'species_taxon_slug' || k === 'species_evidence') continue; // 鉴定走 upsertIdentification，不是列
+    sets.push(`${COLUMN_OF[k] ?? k} = ?`);
+    vals.push(v === '' ? null : v);
+  }
+  if (sets.length) {
+    sets.push("updated_at = datetime('now')");
+    db.prepare(`UPDATE observations SET ${sets.join(', ')} WHERE id = ?`).run(...vals, obs.id);
+  }
+  if (typeof b.species_taxon_slug === 'string' && b.species_taxon_slug) {
+    upsertIdentification(db, obs.id, obs.public_id, b.species_taxon_slug, null, typeof b.species_evidence === 'string' ? b.species_evidence : 'field', user.display_name);
+  }
+  res.json({ ok: true, saved_at: new Date().toISOString().slice(11, 19) });
+});
+
+// 照片上传（追加到观察）
+app.post('/studio/observations/:public_id/photos', upload.array('photos', 20), async (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return res.status(401).send('未登录');
+  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
+  if (rateLimited(req.ip ?? 'x')) return res.status(429).send('上传过于频繁，请稍后再试。');
+  const obs = db.prepare('SELECT id, public_id, created_by, status FROM observations WHERE public_id = ?').get(req.params.public_id) as
+    | { id: number; public_id: string; created_by: number; status: string }
+    | undefined;
+  if (!obs) return res.status(404).send('未找到该观察。');
+  if (user.role !== 'owner' && obs.created_by !== user.id) return res.status(403).send('只能管理自己的照片。');
+  const files = (req.files as Express.Multer.File[]) ?? [];
+  if (!files.length) return res.status(400).send('没有照片。');
+  const base = db.prepare('SELECT COALESCE(MAX(sort_order), 0) m FROM media WHERE observation_id = ?').get(obs.id) as { m: number };
+  let order = base.m;
+  const captions = String((req.body as Record<string, string>).captions ?? '').split('\n').map((x) => x.trim());
+  const added: string[] = [];
   for (const file of files) {
+    const err = validateUpload(file);
+    if (err) return res.status(400).send(err);
     order += 1;
     const saved = await saveUploadedPhoto(db, file);
     db.prepare(
@@ -537,252 +759,467 @@ app.post('/studio/observations', upload.array('photos', 20), async (req, res) =>
        photographer_name, license, visibility, width, height)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
     ).run(
-      saved.publicId, obsId, saved.fileStem, order === 1 ? 'live_dorsal' : 'other',
-      captions[order - 1] ?? null, order, order === 1 ? 1 : 0,
-      user.display_name, b.license ?? 'all_rights_reserved', 'private', saved.width, saved.height,
+      saved.publicId, obs.id, saved.fileStem, 'live_dorsal', captions[order - 1] ?? null, order,
+      order === 1 ? 1 : 0, user.display_name, 'all_rights_reserved',
+      obs.status === 'published' ? 'public' : 'private', saved.width, saved.height,
     );
+    added.push(saved.publicId);
   }
-
-  audit(db, user.display_name, 'observation', publicId, 'create-' + status, {
-    exifSuggestedDate,
-    exifGpsUsed: Boolean(useExifGps && exifGps),
-    photos: files.length,
-  });
-  res.redirect(`/studio/observations/${publicId}`);
+  audit(db, user.display_name, 'media', obs.public_id, 'upload', { added });
+  res.json({ ok: true, added });
 });
 
-app.get('/studio/observations/:publicId', (req, res) => {
+app.post('/studio/api/media/:public_id/caption', (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return res.status(401).json({ error: '未登录' });
+  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
+  const m = db.prepare('SELECT * FROM media WHERE public_id = ?').get(req.params.public_id) as
+    | Record<string, any> & { id: number; observation_id: number | null }
+    | undefined;
+  if (!m) return res.status(404).json({ error: '未找到' });
+  const obs = m.observation_id
+    ? (db.prepare('SELECT created_by FROM observations WHERE id = ?').get(m.observation_id) as { created_by: number })
+    : undefined;
+  if (user.role !== 'owner' && (!obs || obs.created_by !== user.id)) return res.status(403).send('无权操作。');
+  db.prepare('UPDATE media SET caption = ? WHERE id = ?').run(String((req.body as Record<string, string>).caption ?? '').slice(0, 300), m.id);
+  res.json({ ok: true });
+});
+
+// 札记插图上传（不挂观察，note 引用）
+app.post('/studio/api/media/upload', upload.single('photo'), async (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return res.status(401).json({ error: '未登录' });
+  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
+  if (rateLimited(req.ip ?? 'x')) return res.status(429).json({ error: '上传过于频繁' });
+  const file = req.file as Express.Multer.File | undefined;
+  if (!file) return res.status(400).json({ error: '没有文件' });
+  const err = validateUpload(file);
+  if (err) return res.status(400).json({ error: err });
+  const saved = await saveUploadedPhoto(db, file);
+  audit(db, user.display_name, 'media', saved.publicId, 'upload-note-image');
+  res.json({ ok: true, public_id: saved.publicId, url: `/media/derivatives/${saved.fileStem}-1280.jpg` });
+});
+
+app.delete('/studio/api/media/:public_id', (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return res.status(401).json({ error: '未登录' });
+  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
+  const m = db.prepare('SELECT * FROM media WHERE public_id = ?').get(req.params.public_id) as
+    | Record<string, any> & { id: number; observation_id: number | null; file_stem: string }
+    | undefined;
+  if (!m) return res.status(404).json({ error: '未找到' });
+  const obs = m.observation_id
+    ? (db.prepare('SELECT created_by, public_id FROM observations WHERE id = ?').get(m.observation_id) as { created_by: number; public_id: string })
+    : undefined;
+  if (user.role !== 'owner' && (!obs || obs.created_by !== user.id)) return res.status(403).send('无权操作。');
+  db.prepare('DELETE FROM media WHERE id = ?').run(m.id);
+  try {
+    for (const suffix of ['thumb', 'medium', 'large']) unlinkSync(join(DERIVATIVES_DIR, `${m.file_stem}_${suffix}.jpg`));
+    for (const f of readdirSync(DERIVATIVES_DIR)) {
+      if (f.startsWith(m.file_stem + '-')) unlinkSync(join(DERIVATIVES_DIR, f));
+    }
+  } catch {}
+  audit(db, user.display_name, 'media', m.public_id, 'delete');
+  res.json({ ok: true });
+});
+
+// 照片排序（拖拽或按钮提交顺序）
+app.post('/studio/api/observations/:public_id/photos/order', (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return res.status(401).json({ error: '未登录' });
+  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
+  const obs = db.prepare('SELECT id, created_by, public_id FROM observations WHERE public_id = ?').get(req.params.public_id) as
+    | { id: number; created_by: number; public_id: string }
+    | undefined;
+  if (!obs) return res.status(404).json({ error: '未找到' });
+  if (user.role !== 'owner' && obs.created_by !== user.id) return res.status(403).send('无权操作。');
+  const order = (req.body as { order?: string[] }).order ?? [];
+  order.forEach((pid, i) => {
+    db.prepare('UPDATE media SET sort_order = ?, is_cover = ? WHERE public_id = ? AND observation_id = ?').run(i + 1, i === 0 ? 1 : 0, pid, obs.id);
+  });
+  audit(db, user.display_name, 'media', obs.public_id, 'reorder');
+  res.json({ ok: true });
+});
+
+// 发布（§42 校验：日期 + 坐标 + 至少一张照片；物种允许 Unknown → Salticidae sp.）
+app.post('/studio/api/observations/:public_id/publish', (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return res.status(401).json({ error: '未登录' });
+  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
+  const obs = db.prepare('SELECT * FROM observations WHERE public_id = ?').get(req.params.public_id) as
+    | Record<string, any> & { id: number; created_by: number; public_id: string }
+    | undefined;
+  if (!obs) return res.status(404).json({ error: '未找到' });
+  if (user.role !== 'owner' && obs.created_by !== user.id) return res.status(403).send('只能发布自己的记录。');
+  const problems: string[] = [];
+  if (!/^\d{4}-\d{2}-\d{2}/.test(String(obs.observed_at ?? ''))) problems.push('缺少观察日期');
+  if (obs.exact_latitude == null || obs.exact_longitude == null) problems.push('缺少坐标（纬度/经度）');
+  const photoCount = db.prepare('SELECT COUNT(*) c FROM media WHERE observation_id = ?').get(obs.id) as { c: number };
+  if (photoCount.c === 0) problems.push('至少需要一张照片');
+  if (problems.length) return res.status(400).json({ error: problems.join('；') });
+
+  db.prepare(
+    "UPDATE observations SET status = 'published', visibility = 'public', published_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+  ).run(obs.id);
+  db.prepare("UPDATE media SET visibility = 'public' WHERE observation_id = ?").run(obs.id);
+  const idn = db.prepare('SELECT id FROM identifications WHERE observation_id = ? AND is_current = 1').get(obs.id);
+  if (!idn) {
+    db.prepare(
+      `INSERT INTO identifications (observation_id, taxon_slug, display_identification, identified_by, identified_at, evidence, is_current)
+       VALUES (?, 'salticidae', 'Salticidae sp.', ?, date('now'), 'field', 1)`,
+    ).run(obs.id, user.display_name);
+  }
+  const version = (db.prepare("SELECT COUNT(*) c FROM revisions WHERE entity_type = 'observation' AND entity_id = ?").get(obs.public_id) as { c: number }).c + 1;
+  db.prepare("INSERT INTO revisions (entity_type, entity_id, version, action, data_snapshot, author) VALUES ('observation', ?, ?, '发布', ?, ?)")
+    .run(obs.public_id, version, JSON.stringify({ at: new Date().toISOString() }), user.display_name);
+  audit(db, user.display_name, 'observation', obs.public_id, 'publish');
+  res.json({ ok: true, public_url: `/observations/${obs.public_id}/` });
+});
+
+app.post('/studio/api/observations/:public_id/private', (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return res.status(401).json({ error: '未登录' });
+  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
+  const obs = db.prepare('SELECT id, created_by, public_id FROM observations WHERE public_id = ?').get(req.params.public_id) as
+    | { id: number; created_by: number; public_id: string }
+    | undefined;
+  if (!obs) return res.status(404).json({ error: '未找到' });
+  if (user.role !== 'owner' && obs.created_by !== user.id) return res.status(403).send('只能操作自己的记录。');
+  db.prepare("UPDATE observations SET status = 'private', visibility = 'private' WHERE id = ?").run(obs.id);
+  db.prepare("UPDATE media SET visibility = 'private' WHERE observation_id = ?").run(obs.id);
+  audit(db, user.display_name, 'observation', obs.public_id, 'set-private');
+  res.json({ ok: true });
+});
+
+// ---------- EXIF 预读 ----------
+
+app.post('/studio/api/exif-preview', upload.single('photo'), async (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return res.status(401).json({ error: '未登录' });
+  const file = req.file as Express.Multer.File | undefined;
+  if (!file) return res.status(400).json({ error: 'no photo' });
+  const s = await parseExif(file.buffer);
+  res.json({ results: [{ filename: file.originalname, date: s.date ?? null, gps: s.gps ?? null }] });
+});
+
+// ---------- 札记 ----------
+
+app.post('/studio/api/notes', (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return res.status(401).json({ error: '未登录' });
+  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
+  const seq = nextPostSlugSeq(db);
+  const b = req.body as Record<string, string>;
+  const slug = `note-${String(seq).padStart(3, '0')}`;
+  db.prepare('INSERT INTO posts (slug, author_id, title, subtitle, body_md, status) VALUES (?,?,?,?,?,?)').run(
+    slug, user.id, String(b.title ?? '未命名札记').slice(0, 160), b.subtitle ?? null, String(b.body_md ?? ''), 'draft',
+  );
+  audit(db, user.display_name, 'post', slug, 'create-draft');
+  res.json({ ok: true, slug, edit_url: `/studio/notes/${slug}/edit` });
+});
+
+app.patch('/studio/api/notes/:slug', (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return res.status(401).json({ error: '未登录' });
+  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
+  const post = db.prepare('SELECT * FROM posts WHERE slug = ?').get(req.params.slug) as
+    | { id: number; author_id: number }
+    | undefined;
+  if (!post) return res.status(404).json({ error: '未找到' });
+  if (user.role !== 'owner' && post.author_id !== user.id) return res.status(403).json({ error: '只能编辑自己的札记' });
+  const b = req.body as Record<string, string>;
+  db.prepare("UPDATE posts SET title = ?, subtitle = ?, body_md = ?, updated_at = datetime('now') WHERE id = ?").run(
+    String(b.title ?? '').slice(0, 160), b.subtitle ?? null, String(b.body_md ?? ''), post.id,
+  );
+  res.json({ ok: true, saved_at: new Date().toISOString().slice(11, 19) });
+});
+
+app.post('/studio/api/notes/:slug/publish', (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return res.status(401).json({ error: '未登录' });
+  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
+  const post = db.prepare('SELECT * FROM posts WHERE slug = ?').get(req.params.slug) as
+    | Record<string, any> & { id: number; slug: string }
+    | undefined;
+  if (!post) return res.status(404).json({ error: '未找到' });
+  if (user.role !== 'owner' && post.author_id !== user.id) return res.status(403).json({ error: '只能发布自己的札记' });
+  if (!String(post.title ?? '').trim() || !String(post.body_md ?? '').trim()) {
+    return res.status(400).json({ error: '发布前至少需要标题与正文' });
+  }
+  db.prepare("UPDATE posts SET status = 'published', published_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(post.id);
+  const version = (db.prepare("SELECT COUNT(*) c FROM revisions WHERE entity_type = 'post' AND entity_id = ?").get(post.slug) as { c: number }).c + 1;
+  db.prepare("INSERT INTO revisions (entity_type, entity_id, version, action, author) VALUES ('post', ?, ?, '发布札记', ?)")
+    .run(post.slug, version, user.display_name);
+  audit(db, user.display_name, 'post', post.slug, 'publish');
+  res.json({ ok: true, public_url: `/posts/${post.slug}/` });
+});
+
+// 预览：真实 Article Renderer
+app.post('/studio/api/notes/preview', (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return res.status(401).json({ error: '未登录' });
+  const html = renderArticle(String((req.body as Record<string, string>).body_md ?? ''), {
+    mediaRef: mediaRefResolver,
+    embed: observationEmbedResolver(db),
+  });
+  res.type('application/json').json({ html });
+});
+
+function mediaRefResolver(id: string): { url: string; ratio: number; caption: string | null } | null {
+  const m = db.prepare('SELECT * FROM media WHERE public_id = ?').get(id) as
+    | Record<string, any> & { file_stem: string; width: number | null; height: number | null; caption: string | null }
+    | undefined;
+  if (!m) return null;
+  const ratio = m.width && m.height ? m.width / m.height : 1.5;
+  return {
+    url: `/media/derivatives/${m.file_stem}-1280.jpg`,
+    ratio,
+    caption: m.caption,
+  };
+}
+
+// ---------- 编辑器页面 ----------
+
+const TAXA = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'taxa.json'), 'utf-8')) as {
+  slug: string; scientific_name: string; rank: string; chinese_name: string | null;
+}[];
+
+function taxonOptions(): string {
+  return [
+    '<option value="">未鉴定（记为 Salticidae sp.）</option>',
+    ...TAXA.map((t) => `<option value="${t.slug}">${esc(t.scientific_name)}${t.chinese_name ? `（${esc(t.chinese_name)}）` : ''}</option>`),
+  ].join('');
+}
+
+app.get('/studio/observations/new', (req, res) => {
   const user = requireUser(db, req, res);
   if (!user) return;
-  const obs = getObsByPublicId(req.params.publicId);
+  res.send(page('记录一次相遇', obsEditorHtml(null, {}, []), user));
+});
+
+app.get('/studio/observations/:public_id/edit', (req, res) => {
+  const user = requireUser(db, req, res);
+  if (!user) return;
+  const obs = db.prepare('SELECT * FROM observations WHERE public_id = ?').get(req.params.public_id) as
+    | Record<string, any>
+    | undefined;
   if (!obs) return res.status(404).send('未找到该观察。');
-  if (user.role !== 'owner' && obs.created_by !== user.id) return res.status(403).send('无权查看该记录。');
-  const mediaRows = db.prepare('SELECT * FROM media WHERE observation_id = ? ORDER BY sort_order').all(obs.id) as Record<string, unknown>[];
-  const idnRows = db.prepare('SELECT * FROM identifications WHERE observation_id = ? ORDER BY id').all(obs.id) as Record<string, unknown>[];
-  const currentIdn = idnRows.find((i) => i.is_current);
-  const taxa = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'taxa.json'), 'utf-8')) as {
-    slug: string;
-    scientific_name: string;
-    rank: string;
-  }[];
-  const statusZh: Record<string, string> = {
-    draft: '草稿', private: '私密', published: '已发布', archived: '已归档',
+  if (user.role !== 'owner' && obs.created_by !== user.id) return res.status(403).send('只能编辑自己的记录。');
+  const photos = db.prepare('SELECT * FROM media WHERE observation_id = ? ORDER BY sort_order').all(obs.id) as Record<string, any>[];
+  const idn = db.prepare('SELECT taxon_slug FROM identifications WHERE observation_id = ? AND is_current = 1').get(obs.id) as
+    | { taxon_slug: string }
+    | undefined;
+  const data = {
+    ...obs,
+    observed_at: String(obs.observed_at ?? '').slice(0, 10),
+    latitude: obs.exact_latitude ?? '',
+    longitude: obs.exact_longitude ?? '',
+    species_taxon_slug: idn?.taxon_slug ?? '',
   };
-  const actions = TRANSITIONS[obs.status] ?? {};
-  const actionButtons = Object.entries(actions)
-    .filter(([, t]) => true)
+  res.send(page(`编辑 ${obs.public_id}`, obsEditorHtml(obs.public_id, data, photos), user));
+});
+
+function obsEditorHtml(publicId: string | null, data: Record<string, any>, photos: Record<string, any>[]): string {
+  // datalist 选项值显示「学名（中文名）」，客户端剥壳后映射回 slug（见 boot.taxa）
+  const taxonOptions = [
+    '<option value=" Salticidae sp.（未鉴定）"></option>',
+    ...TAXA.map((t) => `<option value="${esc(t.scientific_name)}${t.chinese_name ? `（${esc(t.chinese_name)}）` : ''}"></option>`),
+  ].join('');
+  const TRIPS = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'trips.json'), 'utf-8')) as { slug: string; title: string }[];
+  const tripOptions = [
+    '<option value="">—— 不关联 ——</option>',
+    ...TRIPS.map((t) => `<option value="${t.slug}">${esc(t.title)}</option>`),
+  ].join('');
+  const photoGrid = photos
     .map(
-      ([action, t]) => `<form method="post" action="/studio/observations/${obs.public_id}/action" style="display:inline;margin-right:8px">
-        <input type="hidden" name="action" value="${action}" />
-        ${t.needMessage ? '<input type="text" name="message" placeholder="修改意见（必填）" required style="width:220px;margin-right:8px">' : ''}
-        <button type="submit">${action}</button>
-      </form>`,
+      (p) => `
+      <div class="thumb" data-pid="${p.public_id}">
+        <div class="box"><img src="/media/derivatives/${p.file_stem}_thumb.jpg" alt="" loading="lazy" /></div>
+        <div class="tools">
+          <button type="button" data-act="cover" data-pid="${p.public_id}" class="${p.is_cover ? 'on' : ''}">封面</button>
+          <button type="button" data-act="delete" data-pid="${p.public_id}">删除</button>
+        </div>
+        <input type="text" placeholder="图注…" value="${esc(p.caption)}" data-caption-pid="${p.public_id}" />
+      </div>`,
     )
     .join('');
+  return `
+  <h1>${publicId ? `编辑 ${publicId}` : '记录一次相遇'}</h1>
+  <div class="status" id="save-status"></div>
 
-  const taxonOptions = taxa
-    .map((t) => `<option value="${t.slug}">${esc(t.scientific_name)}（${t.rank}）</option>`)
-    .join('');
+  <label>照片 *（JPG/PNG，可多选；上传后可拖拽排序、设封面、加图注）</label>
+  <div class="dropzone" id="dropzone">拖入照片，或点击选择（可多选）</div>
+  <input type="file" id="photo-input" multiple accept="image/jpeg,image/png" style="display:none" />
+  <div class="thumbs" id="photo-grid">${photoGrid}</div>
 
-  res.send(
-    page(
-      obs.public_id,
-      `<h1>${obs.public_id} <span class="status">${statusZh[obs.status] ?? obs.status}</span></h1>
-      <p><small>${esc(String(obs.country_name))} · ${esc(String(obs.admin1 ?? ''))}${obs.admin2 ? ` · ${esc(String(obs.admin2))}` : ''} · ${obs.observed_at} · 观察 ${esc(String(obs.observer_name))} · 位置级别 ${esc(String(obs.location_visibility))}</small></p>
-      <div class="thumbs">${mediaRows.map((m) => `<img src="/media/derivatives/${m.file_stem}_thumb.jpg" alt="">`).join('')}</div>
-      <h2>野 外 笔 记</h2>
-      <div class="card">${esc(String(obs.field_note))}</div>
-      <div class="grid2">
-        <div class="card"><h2 style="margin-top:0">元 数 据</h2>
-          <table>
-            <tr><th>生境</th><td>${esc(obs.habitat) || '—'}</td></tr>
-            <tr><th>小生境</th><td>${esc(obs.microhabitat) || '—'}</td></tr>
-            <tr><th>行为</th><td>${esc(obs.behavior) || '—'}</td></tr>
-            <tr><th>性别 / 龄期</th><td>${esc(obs.sex)} / ${esc(obs.life_stage)}</td></tr>
-            <tr><th>初步印象</th><td>${esc(obs.contributor_guess) || '—'}</td></tr>
-            <tr><th>海拔</th><td>${obs.elevation_m ? `${obs.elevation_m} m` : '—'}</td></tr>
-          </table>
-        </div>
-        <div class="card"><h2 style="margin-top:0">鉴 定</h2>
-          ${
-            currentIdn
-              ? `<p><em>${esc(String(currentIdn.display_identification))}</em><br>
-                 <small>${esc(String(currentIdn.evidence))} · ${esc(String(currentIdn.identified_by))} · ${esc(String(currentIdn.identified_at))}</small></p>`
-              : '<p><small>暂无权威鉴定。投稿者的初步印象仅供参考。</small></p>'
-          }
-          ${
-            user.role === 'owner'
-              ? `<form method="post" action="/studio/observations/${obs.public_id}/identify">
-                 <label>权威鉴定（引用类群记录）</label>
-                 <select name="taxon_slug">${taxonOptions}</select>
-                 <label>展示文本（默认与类群一致，可用 cf. 等表述）</label>
-                 <input type="text" name="display" placeholder="留空则自动生成" />
-                 <label>证据等级</label>
-                 <select name="evidence">
-                   <option value="tentative">暂定参考</option><option value="photo_based">照片鉴定</option>
-                   <option value="specimen_examined">标本检视</option><option value="genitalia_confirmed">外生殖器确认</option>
-                   <option value="molecularly_supported">分子数据支持</option>
-                 </select>
-                 <label>备注</label><input type="text" name="remarks" />
-                 <div style="margin-top:12px"><button type="submit">记录鉴定</button></div>
-               </form>`
-              : ''
-          }
-          ${
-            idnRows.length > 1
-              ? `<h2 style="margin-top:18px">鉴定历史</h2><ul>${idnRows
-                  .map(
-                    (i) =>
-                      `<li><small>${esc(String(i.identified_at))} · ${esc(String(i.display_identification))}（${esc(String(i.evidence))}）${Number(i.is_current) ? ' ← 当前' : ''}</small></li>`,
-                  )
-                  .join('')}</ul>`
-              : ''
-          }
-        </div>
+  <div class="step"><div class="st">物 种 与 时 间</div>
+    <div class="grid2">
+      <div><label>物种（可输入学名 / 中文名筛选；允许未鉴定）</label>
+        <input type="text" id="species-search" list="species-list" placeholder="Siler / 翠蛛 / …" autocomplete="off" />
+        <datalist id="species-list">${taxonOptions}</datalist>
       </div>
-      <h2>操 作</h2>
-      <div>${actionButtons || '<small>当前状态没有可执行的操作。</small>'}</div>`,
-      user,
-    ),
-  );
-});
+      <div><label>观察日期 *</label><input type="date" id="observed-at" data-field="observed_at" /></div>
+    </div>
+    <small style="color:var(--faint)">选择照片后自动读取 EXIF 拍摄时间与 GPS（可修改）。</small>
+  </div>
 
-app.post('/studio/observations/:publicId/action', (req, res) => {
+  <div class="step"><div class="st">坐 标 与 地 点</div>
+    <div class="grid3">
+      <div><label>纬度 *（十进制度，6 位小数）</label><input type="text" id="latitude" data-field="latitude" placeholder="21.927381" /></div>
+      <div><label>经度 *</label><input type="text" id="longitude" data-field="longitude" placeholder="101.256742" /></div>
+      <div><label>海拔（米）</label><input type="number" data-field="elevation_m" /></div>
+    </div>
+    <div class="grid3">
+      <div><label>国家 *</label><input type="text" data-field="country_name" value="中国" /></div>
+      <div><label>一级行政区 *（省 / 州…）</label><input type="text" data-field="admin1" placeholder="云南省" /></div>
+      <div><label>二级行政区</label><input type="text" data-field="admin2" placeholder="西双版纳傣族自治州" /></div>
+    </div>
+    <div class="grid2">
+      <div><label>地点（县 / 镇 / 具体位置）</label><input type="text" data-field="locality" placeholder="勐腊县 · 勐仑镇" /></div>
+      <div><label>具体地点名</label><input type="text" data-field="site_name" placeholder="沟谷雨林林缘" /></div>
+    </div>
+  </div>
+
+  <div class="step"><div class="st">野 外 笔 记</div>
+    <textarea data-field="field_note" placeholder="它在哪里、在做什么、有什么特别——不必是论文。（快速记录可留空）"></textarea>
+  </div>
+
+  <details>
+    <summary>＋ 添加详细信息（可选）</summary>
+    <div class="grid3">
+      <div><label>性别</label><select data-field="sex"><option value="unknown">未知</option><option value="male">雄性</option><option value="female">雌性</option></select></div>
+      <div><label>生命阶段</label><select data-field="life_stage"><option value="unknown">未知</option><option value="adult">成体</option><option value="subadult">亚成体</option><option value="juvenile">幼体</option></select></div>
+      <div><label>数量</label><input type="number" data-field="count" min="1" /></div>
+    </div>
+    <div class="grid3">
+      <div><label>微生境</label><input type="text" data-field="microhabitat" placeholder="叶片上表面" /></div>
+      <div><label>行为</label><input type="text" data-field="behavior" placeholder="游猎 / 求偶…" /></div>
+      <div><label>所在植物</label><input type="text" data-field="plant" /></div>
+    </div>
+    <div class="grid2">
+      <div><label>天气</label><input type="text" data-field="weather" placeholder="雨后 / 晴…" /></div>
+      <div><label>所属调查</label><select data-field="trip_slug">${tripOptions}</select></div>
+    </div>
+  </details>
+
+  <div class="row" style="margin-top:26px">
+    <button type="button" id="btn-publish">发 布</button>
+    <button type="button" id="btn-private" class="btn-quiet">设为私密</button>
+    <a class="btn-quiet" href="/studio">返回</a>
+  </div>
+  <script src="/studio-editor.js"></script>
+  <script>
+    window.__EDITOR_BOOT = {
+      publicId: ${JSON.stringify(publicId)},
+      mode: ${JSON.stringify(publicId ? 'edit' : 'new')},
+      taxa: ${JSON.stringify(TAXA.map((t) => ({ slug: t.slug, name: t.scientific_name })))},
+      data: ${JSON.stringify({
+        observed_at: data.observed_at ?? '',
+        latitude: data.latitude ?? '',
+        longitude: data.longitude ?? '',
+        country_name: data.country_name ?? '中国',
+        admin1: data.admin1 ?? '',
+        admin2: data.admin2 ?? '',
+        locality: data.locality ?? '',
+        site_name: data.site_name ?? '',
+        elevation_m: data.elevation_m ?? '',
+        sex: data.sex ?? 'unknown',
+        life_stage: data.life_stage ?? 'unknown',
+        count: data.count ?? '',
+        habitat: data.habitat ?? '',
+        microhabitat: data.microhabitat ?? '',
+        behavior: data.behavior ?? '',
+        plant: data.plant ?? '',
+        weather: data.weather ?? '',
+        trip_slug: data.trip_slug ?? '',
+        field_note: data.field_note ?? '',
+        species_taxon_slug: data.species_taxon_slug ?? '',
+      })},
+    };
+  </script>`;
+}
+
+// ---------- 札记编辑器页面 ----------
+
+app.get('/studio/notes/new', (req, res) => {
   const user = requireUser(db, req, res);
   if (!user) return;
-  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
-  const obs = getObsByPublicId(req.params.publicId);
-  if (!obs) return res.status(404).send('未找到该观察。');
-  const action = String((req.body as Record<string, string>).action ?? '');
-  const message = String((req.body as Record<string, string>).message ?? '').trim();
-  const transition = (TRANSITIONS[obs.status] ?? {})[action];
-  if (!transition) return res.status(400).send(`当前状态（${obs.status}）不允许该操作。`);
-  const isAuthor = obs.created_by === user.id;
-  if (!isAuthor && user.role !== 'owner') return res.status(403).send('只能操作自己的记录。');
-  if (transition.needMessage && !message) return res.status(400).send('该操作必须附上说明。');
-
-  db.prepare('UPDATE observations SET status = ?, updated_at = datetime(\'now\') WHERE id = ?').run(transition.to, obs.id);
-  if (transition.to === 'published') {
-    // 发布 = 进入公开站：观察与全部媒体转为 public（导出与静态隐私管线都以此为闸门）
-    db.prepare("UPDATE observations SET visibility = 'public' WHERE id = ?").run(obs.id);
-    db.prepare("UPDATE media SET visibility = 'public' WHERE observation_id = ?").run(obs.id);
-  }
-  if (transition.to === 'private') {
-    db.prepare("UPDATE observations SET visibility = 'private' WHERE id = ?").run(obs.id);
-    db.prepare("UPDATE media SET visibility = 'private' WHERE observation_id = ?").run(obs.id);
-  }
-  audit(db, user.display_name, 'observation', obs.public_id, `${obs.status}→${transition.to}`, message || undefined);
-  res.redirect(`/studio/observations/${obs.public_id}`);
+  res.send(page('写一篇札记', noteEditorHtml('', { title: '', subtitle: '', body_md: '' }), user));
 });
 
-app.post('/studio/observations/:publicId/identify', (req, res) => {
-  // §24：Collaborator 可以为自己（或 Owner 对任意）记录进行/修改鉴定
+app.get('/studio/notes/:slug/edit', (req, res) => {
   const user = requireUser(db, req, res);
   if (!user) return;
-  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
-  const obs = getObsByPublicId(req.params.publicId);
-  if (!obs) return res.status(404).send('未找到该观察。');
-  if (user.role !== 'owner' && obs.created_by !== user.id) return res.status(403).send('只能鉴定自己的记录。');
-  const b = req.body as Record<string, string>;
-  const taxa = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'taxa.json'), 'utf-8')) as {
-    slug: string;
-    scientific_name: string;
-    rank: string;
-  }[];
-  const taxon = taxa.find((t) => t.slug === b.taxon_slug);
-  if (!taxon) return res.status(400).send('未知的类群。');
-  const display = (b.display ?? '').trim() || (['species', 'subspecies'].includes(taxon.rank) ? taxon.scientific_name : `${taxon.scientific_name} sp.`);
-  db.prepare('UPDATE identifications SET is_current = 0 WHERE observation_id = ?').run(obs.id);
-  db.prepare(
-    `INSERT INTO identifications (observation_id, taxon_slug, display_identification, identified_by, identified_at, evidence, remarks, is_current)
-     VALUES (?,?,?,?,?,?,?,1)`,
-  ).run(obs.id, taxon.slug, display, user.display_name, new Date().toISOString().slice(0, 10), b.evidence ?? 'tentative', b.remarks ?? null);
-  audit(db, user.display_name, 'identification', obs.public_id, 'identify', { display, evidence: b.evidence });
-  res.redirect(`/studio/observations/${obs.public_id}`);
+  const post = db.prepare('SELECT * FROM posts WHERE slug = ?').get(req.params.slug) as Record<string, any> | undefined;
+  if (!post) return res.status(404).send('未找到该札记。');
+  if (user.role !== 'owner' && post.author_id !== user.id) return res.status(403).send('只能编辑自己的札记。');
+  res.send(page(`编辑：${post.title}`, noteEditorHtml(post.slug, post), user));
 });
 
-// ---------- 观察博文 ----------
+function noteEditorHtml(slug: string | null, data: Record<string, any>): string {
+  return `
+  <div class="row" style="justify-content:space-between">
+    <h1 style="margin:0">写一篇札记</h1>
+    <div class="row">
+      <button type="button" id="btn-preview" class="btn-quiet">预 览</button>
+      <button type="button" id="btn-publish-note">发 布</button>
+    </div>
+  </div>
+  <div class="status" id="save-status"></div>
+  <label>标题 *</label><input type="text" id="n-title" value="${esc(data.title ?? '')}" />
+  <label>副标题（可选）</label><input type="text" id="n-subtitle" value="${esc(data.subtitle ?? '')}" />
+  <label>正文（工具栏插入标记；图片按钮上传后自动插入引用）</label>
+  <div class="row" style="margin:6px 0">
+    <button type="button" class="btn-quiet" data-md="## ">H2</button>
+    <button type="button" class="btn-quiet" data-md="### ">H3</button>
+    <button type="button" class="btn-quiet" data-md="**">粗体</button>
+    <button type="button" class="btn-quiet" data-md="*">斜体</button>
+    <button type="button" class="btn-quiet" data-md="> ">引用</button>
+    <button type="button" class="btn-quiet" data-md="- ">列表</button>
+    <button type="button" class="btn-quiet" data-md="---">分隔线</button>
+    <button type="button" class="btn-quiet" id="btn-note-image">插入图片</button>
+    <button type="button" class="btn-quiet" id="btn-note-obs">插入观察</button>
+    <button type="button" class="btn-quiet" id="btn-note-trip">插入调查</button>
+    <input type="file" id="note-image-input" accept="image/jpeg,image/png" style="display:none" />
+  </div>
+  <textarea id="n-body" style="min-height:420px">${esc(data.body_md ?? '')}</textarea>
+  <div id="note-preview" class="card" style="display:none"></div>
+  <input type="hidden" id="n-slug" value="${esc(slug ?? '')}" />
+  <script src="/studio-note-editor.js"></script>`;
+}
 
-app.get('/studio/posts/new', (req, res) => {
+// ---------- 媒体管理 ----------
+
+app.get('/studio/media', (req, res) => {
   const user = requireUser(db, req, res);
   if (!user) return;
-  res.send(
-    page(
-      '撰写观察博文',
-      `<h1>撰写观察博文</h1>
-      <form method="post" action="/studio/posts">
-        <label>标题 *</label><input type="text" name="title" required />
-        <label>Slug（留空自动生成）</label><input type="text" name="slug" placeholder="nankunshan-may-2023" />
-        <label>封面媒体编号（选填，如 CSFN-M-000001）</label><input type="text" name="cover" />
-        <label>关联观察（逗号分隔的观察编号，选填）</label><input type="text" name="related" placeholder="CSFN-2023-000001, CSFN-2023-000002" />
-        <label>正文（Markdown）*</label>
-        <textarea name="body_md" style="min-height:260px" required></textarea>
-        <div style="margin-top:16px"><button type="submit">保存草稿</button></div>
-      </form>`,
-      user,
-    ),
-  );
+  const rows = db
+    .prepare(`SELECT m.*, o.public_id AS obs_public_id FROM media m
+              LEFT JOIN observations o ON o.id = m.observation_id
+              WHERE m.visibility = 'public' ORDER BY m.id DESC LIMIT 200`)
+    .all() as Record<string, any>[];
+  res.send(page('影像', `
+    <h1>影像</h1>
+    <p><small>已公开影像 ${rows.length} 张（按编号倒序）。编号可单独引用；点击观察编号可打开所属记录。</small></p>
+    <div class="thumbs">
+      ${rows.map((m) => `
+        <div class="thumb">
+          <div class="box"><img src="/media/derivatives/${m.file_stem}_thumb.jpg" alt="" loading="lazy" /></div>
+          <div class="tools"><span>${m.public_id}</span></div>
+          <div style="font-size:12px;color:var(--faint)">${m.obs_public_id ? `<a href="/studio/observations/${m.obs_public_id}/edit">${m.obs_public_id}</a>` : '未关联'}</div>
+        </div>`).join('')}
+    </div>`, user));
 });
 
-app.post('/studio/posts', (req, res) => {
+// ---------- EXIF 预读 ----------
+
+app.post('/studio/api/exif-preview', upload.single('photo'), async (req, res) => {
   const user = requireUser(db, req, res);
-  if (!user) return;
-  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
-  const b = req.body as Record<string, string>;
-  if (!b.title?.trim() || !b.body_md?.trim()) return res.status(400).send('标题与正文必填。');
-  const seq = nextPostSlugSeq(db);
-  const slug =
-    b.slug && /^[a-z0-9][a-z0-9-]{1,60}$/.test(b.slug)
-      ? b.slug
-      : `post-${String(seq).padStart(3, '0')}`;
-  const cover = b.cover?.trim() ? (db.prepare('SELECT id FROM media WHERE public_id = ?').get(b.cover.trim()) as { id: number } | undefined) : undefined;
-  const related = JSON.stringify(
-    (b.related ?? '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => /^CSFN-\d{4}-\d{6}$/.test(s)),
-  );
-  db.prepare(
-    'INSERT INTO posts (slug, author_id, title, body_md, cover_media_id, related_observation_public_ids, status) VALUES (?,?,?,?,?,?,?)',
-  ).run(slug, user.id, b.title.trim(), b.body_md, cover?.id ?? null, related, 'draft');
-  audit(db, user.display_name, 'post', slug, 'create-draft');
-  res.redirect('/studio');
-});
-
-app.get('/studio/posts/:slug', (req, res) => {
-  const user = requireUser(db, req, res);
-  if (!user) return;
-  const post = db.prepare('SELECT * FROM posts WHERE slug = ?').get(req.params.slug) as Record<string, unknown> | undefined;
-  if (!post) return res.status(404).send('未找到该博文。');
-  if (user.role !== 'owner' && post.author_id !== user.id) return res.status(403).send('无权查看。');
-  const statusZh: Record<string, string> = { draft: '草稿', private: '私密', published: '已发布', archived: '已归档' };
-  res.send(
-    page(
-      String(post.title),
-      `<h1>${esc(String(post.title))} <span class="status">${statusZh[String(post.status)] ?? ''}</span></h1>
-      <div class="card"><pre style="white-space:pre-wrap;font:inherit;margin:0">${esc(String(post.body_md))}</pre></div>
-      ${
-        user.role === 'owner' && post.status === 'draft'
-          ? `<form method="post" action="/studio/posts/${post.slug}/action"><input type="hidden" name="action" value="publish"><button type="submit">发布到静态站</button></form>`
-          : `<small>发布由站长在导出流程中完成。</small>`
-      }`,
-      user,
-    ),
-  );
-});
-
-app.post('/studio/posts/:slug/action', (req, res) => {
-  const user = requireOwner(db, req, res);
-  if (!user) return;
-  if (!sameOriginGuard(req, res)) return res.status(403).send('Forbidden');
-  const post = db.prepare('SELECT * FROM posts WHERE slug = ?').get(req.params.slug) as Record<string, unknown> | undefined;
-  if (!post) return res.status(404).send('未找到该博文。');
-  const action = String((req.body as Record<string, string>).action ?? '');
-  if (action !== 'publish') return res.status(400).send('未知操作。');
-  if (post.status !== 'draft') return res.status(400).send('仅草稿可发布。');
-  db.prepare("UPDATE posts SET status = 'published', updated_at = datetime('now') WHERE id = ?").run(post.id as number);
-  audit(db, user.display_name, 'post', String(post.slug), 'publish');
-  res.redirect('/studio');
+  if (!user) return res.status(401).json({ error: '未登录' });
+  const file = req.file as Express.Multer.File | undefined;
+  if (!file) return res.status(400).json({ error: 'no photo' });
+  const s = await parseExif(file.buffer);
+  res.json({ results: [{ filename: file.originalname, date: s.date ?? null, gps: s.gps ?? null }] });
 });
 
 // ---------- 导出 ----------
@@ -794,22 +1231,20 @@ app.post('/studio/export', (req, res) => {
   const result = exportForStaticSite(db);
   audit(db, user.display_name, 'export', null, 'export-static', result);
   res.send(
-    page(
-      '导出完成',
-      `<h1>导出完成</h1>
+    page('导出完成', `
+      <h1>导出完成</h1>
       <div class="msg">已写入 src/data/studio-*.json：观察 ${result.observations} 条 · 媒体 ${result.media} 条 · 博文 ${result.posts} 篇。</div>
-      <p><small>下一步：在项目根目录运行 <code>npm run build && npm run test:privacy</code>，确认后提交并部署到 GitHub Pages。</small></p>
-      <a class="btn" href="/studio">返回工作台</a>`,
-      user,
-    ),
+      <p><small>下一步：项目根目录运行 <code>npm run build && npm run test:privacy</code>，确认后提交部署。</small></p>
+      <a class="btn" href="/studio">返回工作台</a>`, user),
   );
 });
 
-app.use((req, res) => {
-  res.status(404).send('Not Found');
-});
+// ---------- 404 ----------
+
+app.use((_req, res) => res.status(404).send('Not Found'));
 
 app.listen(PORT, () => {
-  console.log(`Field Studio 运行于 http://localhost:${PORT}/studio`);
+  console.log(`Field Studio v1 运行于 http://localhost:${PORT}/studio`);
   console.log(`OTP 邮件投递：${process.env.SMTP_HOST ? 'SMTP' : '开发模式（服务器控制台）'}`);
 });
+

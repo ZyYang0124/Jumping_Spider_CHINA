@@ -111,18 +111,13 @@ function validate(): void {
     if (!observationIds.has(s.observation_id)) fail(`标本 ${s.id} 指向不存在的观察`);
   }
 
-  // 地点隐私一致性：blurred 必须有脱敏坐标；locality_only/hidden 绝不携带公开坐标
+  // 地点数据完整性：单一坐标模型，有地名层级即可，坐标可为空（待补），
+  // 但一旦提供必须落在合法范围（观察坐标全量精确公开，Studio SOP §7）。
   for (const l of locations) {
-    if (l.location_visibility === 'blurred' && (l.public_latitude == null || l.public_longitude == null)) {
-      fail(`地点 ${l.id} 为 blurred 但缺少 public 坐标`);
-    }
-    if (l.location_visibility === 'exact' &&
-        (l.public_latitude !== l.exact_latitude || l.public_longitude !== l.exact_longitude)) {
-      fail(`地点 ${l.id} 为 exact 但 public 坐标与 exact 坐标不一致`);
-    }
-    if ((l.location_visibility === 'locality_only' || l.location_visibility === 'hidden') &&
-        l.public_latitude != null) {
-      fail(`地点 ${l.id} 不允许携带公开坐标`);
+    for (const [k, v] of [['latitude', l.latitude], ['longitude', l.longitude]] as const) {
+      if (v == null) continue;
+      const ok = k === 'latitude' ? v >= -90 && v <= 90 : v >= -180 && v <= 180;
+      if (!ok) fail(`地点 ${l.id} 的 ${k} 超出合法范围：${v}`);
     }
   }
 }

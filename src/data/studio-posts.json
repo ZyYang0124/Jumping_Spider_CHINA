@@ -1,0 +1,13 @@
+[
+  {
+    "id": "studio-post-5",
+    "slug": "note-001",
+    "title": "雨后山径半小时",
+    "author_name": "杨智勇",
+    "created_at": "2026-09-08 17:46:53",
+    "cover_media_public_id": null,
+    "related_observation_public_ids": [],
+    "body_md": "## 山径上的半小时\n\n雨后初晴，叶片上的游猎者格外活跃。\n\n![封面图注](media:SFN-M-000003)\n\n![第二张图注](media:SFN-M-000004)\n\n{{observation:SFN-2026-000001}}\n\n> 野外观感，仅供参考。",
+    "body_html": "<h2>山径上的半小时</h2>\n<p>雨后初晴，叶片上的游猎者格外活跃。</p>\n<div class=\"article-media-group amg-pair\"><figure class=\"am am-portrait\"><img src=\"/media/derivatives/SFN-M-000003-1280.jpg\" alt=\"\" loading=\"lazy\" /></figure><figure class=\"am am-portrait\"><img src=\"/media/derivatives/SFN-M-000004-1280.jpg\" alt=\"\" loading=\"lazy\" /></figure></div>\n<div class=\"article-embed embed-observation\"><a href=\"/media/derivatives/SFN-M-000001_thumb.jpg\">\n    <img src=\"/media/derivatives/SFN-M-000001_thumb.jpg\" alt=\"\" loading=\"lazy\" />\n    <div class=\"embed-body\"><span class=\"embed-id\">SFN-2026-000001</span>\n    <strong>Salticidae sp.</strong>\n    <span>广东省 · 罗浮山 · 2026-09-07</span></div></a></div>\n<blockquote><p>野外观感，仅供参考。</p></blockquote>"
+  }
+]

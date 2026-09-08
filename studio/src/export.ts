@@ -1,34 +1,33 @@
-// 导出：将 studio 中 approved/published 的观察、媒体、博文写为静态站数据文件。
+// 导出：将 studio 中已发布的观察、媒体、札记写为静态站数据文件。
 // 与手写数据分离（src/data/studio-*.json），绝不覆盖手工维护的内容；
-// 隐私口径与静态管线一致：精确坐标不导出，location_visibility 决定公开层（规则 2）。
+// 坐标口径与静态管线一致（Studio SOP §7）：观察坐标全量精确公开（单一坐标模型）。
 import { writeFileSync, readFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { marked } from 'marked';
-import sanitizeHtml from 'sanitize-html';
 import type { Database } from 'better-sqlite3';
+import { renderArticle } from './article.js';
+import { observationEmbedResolver } from './embeds.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const DATA_DIR = join(ROOT, 'src', 'data');
 
-const ALLOWED_TAGS = [
-  ...sanitizeHtml.defaults.allowedTags,
-  'img', 'h1', 'h2', 'del', 'ins', 'figure', 'figcaption',
-];
-const sanitized = (md: string): string =>
-  sanitizeHtml(marked.parse(md) as string, {
-    allowedTags: ALLOWED_TAGS,
-    allowedAttributes: {
-      ...sanitizeHtml.defaults.allowedAttributes,
-      img: ['src', 'alt', 'title', 'loading', 'width', 'height'],
-      a: ['href', 'name', 'target', 'rel'],
-    },
-    transformTags: {
-      a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer nofollow' }),
-    },
-  });
-
 export function exportForStaticSite(db: Database): { observations: number; media: number; posts: number } {
+  // 札记正文与 Studio 预览共用 Article Renderer，media: 编号解析为公开派生图路径
+  const renderPost = (md: string): string =>
+    renderArticle(md, {
+      mediaRef: (id) => {
+        const m = db.prepare('SELECT file_stem, width, height, caption FROM media WHERE public_id = ?').get(id) as
+          | { file_stem: string; width: number | null; height: number | null; caption: string | null }
+          | undefined;
+        if (!m) return null;
+        return {
+          url: `/media/derivatives/${m.file_stem}-1280.jpg`,
+          ratio: m.width && m.height ? m.width / m.height : 1.5,
+          caption: m.caption,
+        };
+      },
+      embed: observationEmbedResolver(db),
+    });
   // 仅 approved 之后（approved/published/archived 保留 approved 语义）且观察即将/已经公开的记录。
   // 注意：只有 owner 显式 publish 的内容才进入静态站（规则 4）。
   const observations = db
@@ -46,7 +45,7 @@ export function exportForStaticSite(db: Database): { observations: number; media
         id: m.public_id, // 静态站内部键与稳定编号一致
         public_id: m.public_id,
         observation_id: `studio-${o.id}`, // 与观察记录的内部 id 一致
-        source_original: `studio/storage/originals/${m.file_stem}.jpg`,
+        source_original: `media/originals/${m.file_stem}.jpg`,
         view_type: m.view_type,
         caption: m.caption,
         sort_order: m.sort_order,
@@ -84,8 +83,7 @@ export function exportForStaticSite(db: Database): { observations: number; media
     }
   }
 
-  // 静态站观察记录结构：location 以私有源格式写出（含 exact_*），
-  // 由静态隐私管线（src/lib/privacy.ts）在构建期统一脱敏——公开产物仍不含精确坐标。
+  // 静态站观察记录结构：location 使用单一坐标模型（latitude/longitude 即公开坐标）。
   const observationsOut = observations.map((o) => ({
     id: `studio-${o.id}`,
     public_id: o.public_id,
@@ -102,25 +100,20 @@ export function exportForStaticSite(db: Database): { observations: number; media
     field_note: o.field_note,
     status: o.status,
     visibility: o.visibility,
-    trip_id: null,
+    trip_id: o.trip_slug || null,
   }));
 
-  // 内联私有 location 记录（精确坐标只存在于私有源数据层，构建后不会出现在产物中）
   const locationsOut = observations.map((o) => ({
     id: `loc-studio-${o.id}`,
-    country_code: o.country_code,
-    country_name: o.country_name,
-    admin1: o.admin1,
+    country_code: o.country_code ?? '',
+    country_name: o.country_name ?? '',
+    admin1: o.admin1 ?? '',
     admin2: o.admin2,
     locality: o.locality,
     site_name: o.site_name,
-    exact_latitude: o.exact_latitude,
-    exact_longitude: o.exact_longitude,
-    public_latitude: o.public_latitude,
-    public_longitude: o.public_longitude,
-    coordinate_uncertainty_m: o.coordinate_uncertainty_m,
+    latitude: o.exact_latitude,
+    longitude: o.exact_longitude,
     elevation_m: o.elevation_m,
-    location_visibility: o.location_visibility,
   }));
 
   const posts = db
@@ -139,7 +132,7 @@ export function exportForStaticSite(db: Database): { observations: number; media
       cover_media_public_id: cover?.public_id ?? null,
       related_observation_public_ids: JSON.parse(String(p.related_observation_public_ids ?? '[]')),
       body_md: p.body_md,
-      body_html: sanitized(String(p.body_md)),
+      body_html: renderPost(String(p.body_md)),
     };
   });
 

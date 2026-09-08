@@ -64,16 +64,7 @@ export function shortRegion(loc: { country_name: string; admin1: string }): stri
   return loc.country_name === '中国' ? loc.admin1 : `${loc.country_name} · ${loc.admin1}`;
 }
 
-export function coordLabel(loc: {
-  visibility: string;
-  latitude: number | null;
-  coordinate_uncertainty_m: number | null;
-}): string | null {
-  if (loc.visibility === 'exact') return '精确坐标公开';
-  if (loc.visibility === 'blurred') {
-    const km = loc.coordinate_uncertainty_m ? Math.round(loc.coordinate_uncertainty_m / 100) / 10 : null;
-    return km ? `坐标模糊至约 ${km} km` : '坐标已模糊';
-  }
-  if (loc.visibility === 'locality_only') return '仅公开到地名';
-  return '位置保密';
+/** 坐标政策（Studio SOP §7）：跳蛛观察坐标全量精确公开 */
+export function coordLabel(loc: { latitude: number | null; longitude: number | null }): string | null {
+  return loc.latitude != null && loc.longitude != null ? '精确坐标公开' : null;
 }

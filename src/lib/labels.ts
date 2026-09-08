@@ -2,7 +2,6 @@ import type {
   Evidence,
   LifeStage,
   License,
-  LocationVisibility,
   MediaViewType,
   ObservationStatus,
   Sex,
@@ -47,13 +46,6 @@ export const VIEW_TYPE_ZH: Record<MediaViewType, string> = {
   vulva: '阴门',
   microscopy: '镜检',
   other: '其他',
-};
-
-export const LOCATION_VISIBILITY_ZH: Record<LocationVisibility, string> = {
-  exact: '精确坐标公开',
-  blurred: '坐标已模糊化',
-  locality_only: '仅公开地名',
-  hidden: '位置保密',
 };
 
 export const LICENSE_ZH: Record<License, string> = {

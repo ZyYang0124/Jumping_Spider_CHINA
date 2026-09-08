@@ -24,8 +24,6 @@ export type Evidence =
   | 'genitalia_confirmed'
   | 'molecularly_supported';
 
-export type LocationVisibility = 'exact' | 'blurred' | 'locality_only' | 'hidden';
-
 export type MediaViewType =
   | 'live_dorsal'
   | 'live_frontal'
@@ -74,7 +72,7 @@ export interface Taxon {
   personal_note: string | null;
 }
 
-/** 私有源数据：包含精确坐标。任何 exact_ 字段都绝不进入公开输出。 */
+/** 地点记录：单一坐标模型。跳蛛观察坐标全量精确公开（Studio SOP §7），无模糊化层级。 */
 export interface LocationRecord {
   id: string;
   /** ISO 3166-1 alpha-2，如 CN / MY；地理模型全球适用（SOP §47） */
@@ -88,13 +86,11 @@ export interface LocationRecord {
   locality: string | null;
   /** 具体地点名（可空） */
   site_name: string | null;
-  exact_latitude: number | null;
-  exact_longitude: number | null;
-  public_latitude: number | null;
-  public_longitude: number | null;
-  coordinate_uncertainty_m: number | null;
+  /** 十进制纬度（WGS84）；观察记录坐标全量公开 */
+  latitude: number | null;
+  /** 十进制经度（WGS84） */
+  longitude: number | null;
   elevation_m: number | null;
-  location_visibility: LocationVisibility;
 }
 
 export interface Observation {

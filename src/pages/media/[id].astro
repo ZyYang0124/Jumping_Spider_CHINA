@@ -3,7 +3,7 @@ export const prerender = true;
 import Base from '../../layouts/Base.astro';
 import { getAllPublicMedia, getPublicMediaDetail } from '../../lib/queries';
 import { withBase } from '../../lib/privacy';
-import { VIEW_TYPE_ZH, LICENSE_ZH, SEX_ZH, LIFE_STAGE_ZH, EVIDENCE_ZH, LOCATION_VISIBILITY_ZH } from '../../lib/labels';
+import { VIEW_TYPE_ZH, LICENSE_ZH, SEX_ZH, LIFE_STAGE_ZH, EVIDENCE_ZH } from '../../lib/labels';
 import { formatDate, sciNameHtml } from '../../lib/format';
 
 export function getStaticPaths() {
@@ -53,7 +53,7 @@ const { media, observation: obs } = detail;
           <div class="side-secondary">{obs.place_line}</div>
           <div class="side-footnote">
             {obs.elevation_m != null && <>海拔约 {obs.elevation_m} m<br /></>}
-            {LOCATION_VISIBILITY_ZH[obs.place_visibility as keyof typeof LOCATION_VISIBILITY_ZH]}
+            {obs.place_latitude != null && obs.place_longitude != null && <>{obs.place_latitude.toFixed(5)}, {obs.place_longitude.toFixed(5)}<br />精确坐标公开</>}
           </div>
         </div>
 

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "studio-12",
+    "observation_id": "studio-18",
+    "taxon_id": "tax-salticidae",
+    "display_identification": "Salticidae sp.",
+    "identified_by_profile_id": null,
+    "identified_by_text": "杨智勇",
+    "identified_at": "2026-09-08",
+    "evidence": "field",
+    "remarks": null,
+    "is_current": true
+  },
+  {
+    "id": "studio-13",
+    "observation_id": "studio-19",
+    "taxon_id": "tax-salticidae",
+    "display_identification": "Salticidae sp.",
+    "identified_by_profile_id": null,
+    "identified_by_text": "杨智勇",
+    "identified_at": "2026-09-08",
+    "evidence": "field",
+    "remarks": null,
+    "is_current": true
+  },
+  {
+    "id": "studio-14",
+    "observation_id": "studio-20",
+    "taxon_id": "tax-salticidae",
+    "display_identification": "Salticidae sp.",
+    "identified_by_profile_id": null,
+    "identified_by_text": "杨智勇",
+    "identified_at": "2026-09-08",
+    "evidence": "field",
+    "remarks": null,
+    "is_current": true
+  }
+]

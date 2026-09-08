@@ -3,7 +3,7 @@
 //
 // 铁律：
 //  1. 只有 status === 'published' 且 visibility === 'public' 的观察才允许进入公开输出；
-//  2. 精确坐标（exact_*）绝不进入任何公开对象，模糊化在构建期完成，而非浏览器端；
+//  2. 坐标政策（Studio SOP §7）：跳蛛观察坐标全量精确公开，单一坐标模型，无模糊化层级；
 //  3. 媒体 visibility !== 'public' 不进入公开输出；
 //  4. 草稿、投稿、审核中的记录一律不出现在站点任何页面与 JSON 中。
 
@@ -36,10 +36,9 @@ export interface PublicLocation {
   locality: string | null;
   site_name: string | null;
   elevation_m: number | null;
-  visibility: LocationVisibility;
+  /** 坐标政策（Studio SOP §7）：观察地点坐标全量精确公开 */
   latitude: number | null;
   longitude: number | null;
-  coordinate_uncertainty_m: number | null;
 }
 
 export interface PublicMedia {
@@ -112,51 +111,22 @@ export function withBase(path: string): string {
   return `${BASE}${path}`;
 }
 
-// ---------- 公开地点：按 visibility 决定暴露哪一层 ----------
+// ---------- 公开地点：单一坐标模型（全量精确公开，Studio SOP §7） ----------
 
 function publicLocation(locationId: string): PublicLocation {
   const l = locationById.get(locationId);
   if (!l) throw new Error(`location ${locationId} 不存在`);
-  const out: PublicLocation = {
+  return {
     country_code: l.country_code,
     country_name: l.country_name,
     admin1: l.admin1,
-    admin2: null,
-    locality: null,
-    site_name: null,
+    admin2: l.admin2,
+    locality: l.locality,
+    site_name: l.site_name,
     elevation_m: l.elevation_m,
-    visibility: l.location_visibility,
-    latitude: null,
-    longitude: null,
-    coordinate_uncertainty_m: null,
+    latitude: l.latitude,
+    longitude: l.longitude,
   };
-  switch (l.location_visibility) {
-    case 'exact':
-      out.admin2 = l.admin2;
-      out.locality = l.locality;
-      out.site_name = l.site_name;
-      out.latitude = l.public_latitude;
-      out.longitude = l.public_longitude;
-      out.coordinate_uncertainty_m = l.coordinate_uncertainty_m;
-      break;
-    case 'blurred':
-      out.admin2 = l.admin2;
-      out.locality = l.locality;
-      out.site_name = l.site_name;
-      out.latitude = l.public_latitude;
-      out.longitude = l.public_longitude;
-      out.coordinate_uncertainty_m = l.coordinate_uncertainty_m;
-      break;
-    case 'locality_only':
-      out.admin2 = l.admin2;
-      out.locality = l.locality;
-      out.site_name = l.site_name;
-      break;
-    case 'hidden':
-      // 不公开坐标，也不公开敏感地点细节（SOP §52）
-      break;
-  }
-  return out;
 }
 
 // ---------- 公开鉴定 ----------

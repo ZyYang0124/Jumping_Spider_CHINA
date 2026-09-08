@@ -34,11 +34,24 @@ async function main() {
   );
   const publicMedia = media.filter((m) => m.visibility === 'public' && publishedObs.has(m.observation_id));
 
+  // Studio 导出数据（存在时）合并进同一管线：source_original 已指向 media/originals/
+  let studioMediaList = [];
+  let studioObsList = [];
+  try { studioMediaList = JSON.parse(readFileSync(resolve(ROOT, 'src/data/studio-media.json'), 'utf-8')); } catch {}
+  try { studioObsList = JSON.parse(readFileSync(resolve(ROOT, 'src/data/studio-observations.json'), 'utf-8')); } catch {}
+  const publishedStudioObs = new Set(
+    studioObsList.filter((o) => o.status === 'published' && o.visibility === 'public').map((o) => o.id),
+  );
+  const allPublicMedia = [
+    ...publicMedia,
+    ...studioMediaList.filter((m) => m.visibility === 'public' && publishedStudioObs.has(m.observation_id)),
+  ];
+
   const manifest = {};
   let count = 0;
   mkdirSync(dirname(MANIFEST_OUT), { recursive: true });
 
-  for (const m of publicMedia) {
+  for (const m of allPublicMedia) {
     const src = resolve(ROOT, m.source_original);
     // rotate() 归一方向；重编码不保留任何元数据（EXIF/GPS 全部剥离）
     const pipeline = sharp(src).rotate();
@@ -88,7 +101,7 @@ async function main() {
   // 旧清单（兼容 /media/derivatives/manifest.json 引用者）
   writeFileSync(LEGACY_MANIFEST, JSON.stringify(manifest, null, 2));
   console.log(
-    `已生成 ${count} 张多格式派生图（${Object.keys(manifest).length}/${media.length} 个媒体，其余为非公开记录）。原图未做任何修改。`,
+    `已生成 ${count} 张多格式派生图（${Object.keys(manifest).length}/${allPublicMedia.length} 个媒体，其余为非公开记录）。原图未做任何修改。`,
   );
 }
 

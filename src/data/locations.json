@@ -7,13 +7,9 @@
     "admin2": "龙门县",
     "locality": "南昆山省级自然保护区",
     "site_name": null,
-    "exact_latitude": 23.6572,
-    "exact_longitude": 113.9216,
-    "public_latitude": 23.66,
-    "public_longitude": 113.92,
-    "coordinate_uncertainty_m": 3000,
-    "elevation_m": 890,
-    "location_visibility": "blurred"
+    "latitude": 23.6572,
+    "longitude": 113.9216,
+    "elevation_m": 890
   },
   {
     "id": "loc-conghua",
@@ -23,13 +19,9 @@
     "admin2": "从化区",
     "locality": "天湖林场附近次生林",
     "site_name": null,
-    "exact_latitude": 23.7914,
-    "exact_longitude": 113.6102,
-    "public_latitude": 23.79,
-    "public_longitude": 113.61,
-    "coordinate_uncertainty_m": 3000,
-    "elevation_m": 320,
-    "location_visibility": "blurred"
+    "latitude": 23.7914,
+    "longitude": 113.6102,
+    "elevation_m": 320
   },
   {
     "id": "loc-menglun",
@@ -39,13 +31,9 @@
     "admin2": "勐腊县",
     "locality": "勐仑镇附近沟谷雨林",
     "site_name": null,
-    "exact_latitude": 21.9182,
-    "exact_longitude": 101.2701,
-    "public_latitude": null,
-    "public_longitude": null,
-    "coordinate_uncertainty_m": null,
-    "elevation_m": 570,
-    "location_visibility": "locality_only"
+    "latitude": 21.9182,
+    "longitude": 101.2701,
+    "elevation_m": 570
   },
   {
     "id": "loc-yinggeling",
@@ -55,13 +43,9 @@
     "admin2": "白沙黎族自治县",
     "locality": "鹦哥岭自然保护区",
     "site_name": null,
-    "exact_latitude": 19.0452,
-    "exact_longitude": 109.5479,
-    "public_latitude": 19.05,
-    "public_longitude": 109.55,
-    "coordinate_uncertainty_m": 5000,
-    "elevation_m": 1150,
-    "location_visibility": "blurred"
+    "latitude": 19.0452,
+    "longitude": 109.5479,
+    "elevation_m": 1150
   },
   {
     "id": "loc-chayu",
@@ -71,13 +55,9 @@
     "admin2": "察隅县",
     "locality": "察隅河支流谷地",
     "site_name": null,
-    "exact_latitude": 28.1247,
-    "exact_longitude": 97.0231,
-    "public_latitude": null,
-    "public_longitude": null,
-    "coordinate_uncertainty_m": null,
-    "elevation_m": 2300,
-    "location_visibility": "locality_only"
+    "latitude": 28.1247,
+    "longitude": 97.0231,
+    "elevation_m": 2300
   },
   {
     "id": "loc-beijing-haidian",
@@ -87,13 +67,9 @@
     "admin2": "海淀区",
     "locality": "城市绿地",
     "site_name": null,
-    "exact_latitude": 39.9832,
-    "exact_longitude": 116.3103,
-    "public_latitude": 39.9832,
-    "public_longitude": 116.3103,
-    "coordinate_uncertainty_m": 50,
-    "elevation_m": 55,
-    "location_visibility": "exact"
+    "latitude": 39.9832,
+    "longitude": 116.3103,
+    "elevation_m": 55
   },
   {
     "id": "loc-huanan-botanical-garden",
@@ -103,13 +79,9 @@
     "admin2": "天河区",
     "locality": "华南国家植物园",
     "site_name": null,
-    "exact_latitude": 23.1827,
-    "exact_longitude": 113.3648,
-    "public_latitude": 23.1827,
-    "public_longitude": 113.3648,
-    "coordinate_uncertainty_m": 100,
-    "elevation_m": 30,
-    "location_visibility": "exact"
+    "latitude": 23.1827,
+    "longitude": 113.3648,
+    "elevation_m": 30
   },
   {
     "id": "loc-tianmushan",
@@ -119,12 +91,8 @@
     "admin2": "临安区",
     "locality": "天目山国家级自然保护区",
     "site_name": null,
-    "exact_latitude": 30.3438,
-    "exact_longitude": 119.4392,
-    "public_latitude": 30.34,
-    "public_longitude": 119.44,
-    "coordinate_uncertainty_m": 3000,
-    "elevation_m": 1100,
-    "location_visibility": "blurred"
+    "latitude": 30.3438,
+    "longitude": 119.4392,
+    "elevation_m": 1100
   }
 ]

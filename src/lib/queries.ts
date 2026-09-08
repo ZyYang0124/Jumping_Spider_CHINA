@@ -133,7 +133,8 @@ export interface PublicMediaDetail {
     sex: string;
     life_stage: string;
     place_line: string;
-    place_visibility: string;
+    place_latitude: number | null;
+    place_longitude: number | null;
     elevation_m: number | null;
   };
   photographer: string;
@@ -162,7 +163,8 @@ export function getPublicMediaDetail(publicMediaId: string): PublicMediaDetail |
       sex: obs.sex,
       life_stage: obs.life_stage,
       place_line: [loc.country_name, loc.admin1, loc.admin2, loc.locality].filter(Boolean).join(' · '),
-      place_visibility: loc.visibility,
+      place_latitude: loc.latitude,
+      place_longitude: loc.longitude,
       elevation_m: loc.elevation_m,
     },
     photographer: mediaDto.photographer,
@@ -283,7 +285,6 @@ export interface LocalityCard {
   admin1: string;
   name: string;
   elevation: number | null;
-  visibilityLabel: string;
   count: number;
   habitats: string[];
   cover: { thumb: string; medium: string; large: string } | null;
@@ -303,7 +304,6 @@ export function getLocalityCards(): LocalityCard[] {
         admin1: loc.admin1,
         name: nameParts.join(' · ') || loc.admin1,
         elevation: loc.elevation_m,
-        visibilityLabel: loc.visibility,
         count: 0,
         habitats: [],
         cover: null,

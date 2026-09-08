@@ -1,23 +1,24 @@
 // 迁移执行器：按文件名顺序应用 studio/migrations/*.sql（规则 1：migration-first）。
+// 迁移期间临时关闭外键强制（表重建需要），结束后做 foreign_key_check 校验。
 import { readFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const DB_PATH = process.env.STUDIO_DB ?? join(ROOT, 'data', 'studio.db');
+export const DB_PATH = process.env.STUDIO_DB ?? join(ROOT, 'data', 'studio.db');
 
 export function openDb(): Database.Database {
   mkdirSync(dirname(DB_PATH), { recursive: true });
   const db = new Database(DB_PATH);
   db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
   return db;
 }
 
 export function migrate(): void {
   const db = openDb();
-  db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime(\'now\')))');
+  db.pragma('foreign_keys = OFF');
+  db.exec("CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')))");
   const applied = new Set(
     (db.prepare('SELECT name FROM schema_migrations').all() as { name: string }[]).map((r) => r.name),
   );
@@ -32,6 +33,11 @@ export function migrate(): void {
     })();
     console.log(`已应用迁移：${file}`);
   }
+  const violations = db.pragma('foreign_key_check') as unknown[];
+  if (violations.length) {
+    throw new Error(`迁移后外键校验失败：${JSON.stringify(violations).slice(0, 400)}`);
+  }
+  db.pragma('foreign_keys = ON');
   db.close();
 }
 

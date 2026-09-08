@@ -2,7 +2,6 @@
 export const prerender = true;
 import Base from '../layouts/Base.astro';
 import { getLocalityCards } from '../lib/queries';
-import { LOCATION_VISIBILITY_ZH } from '../lib/labels';
 
 const cards = getLocalityCards();
 // 全球地理：顶层按国家分组，其下按一级行政区（SOP §104）
@@ -41,7 +40,6 @@ for (const c of cards) {
                   {c.admin1}
                   {c.elevation != null && ` · 海拔约 ${c.elevation} m`}
                   {` · ${c.count} 次相遇`}
-                  {` · ${LOCATION_VISIBILITY_ZH[c.visibilityLabel as keyof typeof LOCATION_VISIBILITY_ZH]}`}
                 </div>
                 {c.habitats.length > 0 && <div class="habitats">{c.habitats.join(' / ')}</div>}
               </div>
@@ -52,7 +50,7 @@ for (const c of cards) {
         </section>
       ))}
       <p class="place-legend">
-        隐私图例：{Object.values(LOCATION_VISIBILITY_ZH).join(' / ')}。敏感坐标在数据层就被拦截，不会发送到浏览器——模糊化从不依赖前端脚本。本页仅显示本站实际记录，不代表任何物种的完整分布；具体观察请到「观察」页按永久编号检索。
+        本站所有观察地点坐标均精确公开（可在地图中直接查看）。本页仅显示本站实际记录，不代表任何物种的完整分布；具体观察请到「观察」页按永久编号检索。
       </p>
     </div>
   </div>

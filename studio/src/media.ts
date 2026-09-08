@@ -8,7 +8,8 @@ import sharp from 'sharp';
 import type { Database } from 'better-sqlite3';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-export const ORIGINALS_DIR = join(ROOT, 'studio', 'storage', 'originals');
+// 原图写入 media/originals/（进 Git，供构建管线在 Cloudflare 上再生派生图）；按编号写新文件，永不覆盖（规则 20）
+export const ORIGINALS_DIR = join(ROOT, 'media', 'originals');
 export const DERIVATIVES_DIR = join(ROOT, 'public', 'media', 'derivatives');
 const MANIFEST_OUT = resolve(ROOT, 'src', 'data', 'generated', 'media-manifest.json');
 const LEGACY_MANIFEST = join(DERIVATIVES_DIR, 'manifest.json');

@@ -7,7 +7,6 @@ import { allPublicObservations, getPublicTrips, getLocalityCards, getSpeciesGrou
 import { withBase } from '../lib/privacy';
 import { siteConfig } from '../lib/store';
 import { sciNameHtml, formatDate, shortRegion } from '../lib/format';
-import { LOCATION_VISIBILITY_ZH } from '../lib/labels';
 
 const hero = allPublicObservations.find((o) => o.cover?.id === 'm-3047463f')?.cover ?? allPublicObservations[0]?.cover ?? null;
 const heroPreload = hero
@@ -171,7 +170,7 @@ const years = allPublicObservations.length > 0
           <a class="place-card" href={withBase('/places/')}>
             <div class="frame">{p.cover && <img src={p.cover.medium} alt={p.name} loading="lazy" />}</div>
             <div class="name">{p.name}</div>
-            <div class="meta">{p.country_name === '中国' ? p.admin1 : p.country_name + ' · ' + p.admin1} · {p.count} 次相遇{p.elevation != null ? ` · 海拔约 ${p.elevation} m` : ''} · {LOCATION_VISIBILITY_ZH[p.visibilityLabel as keyof typeof LOCATION_VISIBILITY_ZH]}</div>
+            <div class="meta">{p.country_name === '中国' ? p.admin1 : p.country_name + ' · ' + p.admin1} · {p.count} 次相遇{p.elevation != null ? ` · 海拔约 ${p.elevation} m` : ''}</div>
           </a>
         ))}
       </div>

@@ -15,6 +15,7 @@ const observations = JSON.parse(readFileSync(resolve(ROOT, 'src/data/observation
 const media = JSON.parse(readFileSync(resolve(ROOT, 'src/data/media.json'), 'utf-8'));
 
 const failures = [];
+let textHits = 0;
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -26,12 +27,29 @@ function walk(dir, out = []) {
   return out;
 }
 
-// 1. 模糊化/仅地名/隐藏 记录的精确坐标不得出现在任何产物中
+// 1. 坐标政策（Studio SOP §7）：观察坐标全量精确公开，已无模糊化层级。
+//    守卫对象改为「未发布观察的坐标」：草稿/私密记录的坐标同样不得出现在公开产物中。
 const forbiddenCoords = new Set();
-for (const l of locations) {
-  if (l.location_visibility !== 'exact') {
-    if (l.exact_latitude != null) forbiddenCoords.add(String(l.exact_latitude));
-    if (l.exact_longitude != null) forbiddenCoords.add(String(l.exact_longitude));
+const publicObsIds = new Set(observations.filter((o) => o.status === 'published' && o.visibility === 'public').map((o) => o.id));
+const studioLocations = (() => {
+  try { return JSON.parse(readFileSync(resolve(ROOT, 'src/data/studio-locations.json'), 'utf-8')); }
+  catch { return []; }
+})();
+const studioObs = (() => {
+  try { return JSON.parse(readFileSync(resolve(ROOT, 'src/data/studio-observations.json'), 'utf-8')); }
+  catch { return []; }
+})();
+const locationOwnerIsPrivate = (locId) => {
+  const own = observations.find((o) => o.location_id === locId);
+  if (own) return !publicObsIds.has(own.id);
+  const sObs = studioObs.find((o) => o.location_id === locId);
+  if (sObs) return !(sObs.status === 'published' && sObs.visibility === 'public');
+  return false;
+};
+for (const l of [...locations, ...studioLocations]) {
+  if (locationOwnerIsPrivate(l.id)) {
+    if (l.latitude != null) forbiddenCoords.add(String(l.latitude));
+    if (l.longitude != null) forbiddenCoords.add(String(l.longitude));
   }
 }
 
@@ -45,8 +63,8 @@ const forbiddenMedia = media
   .filter((m) => m.visibility !== 'public')
   .flatMap((m) => [m.id, m.public_id].filter(Boolean));
 
-// 4. 公开产物中不得出现私有字段名
-const forbiddenKeys = ['exact_latitude', 'exact_longitude', 'exif_json_private'];
+// 4. 公开产物中不得出现私有字段名（坐标已全量精确公开，exact_* 双轨列名随旧模型废除）
+const forbiddenKeys = ['exact_latitude', 'exact_longitude', 'exif_json_private', 'location_visibility'];
 
 const files = walk(DIST).filter((f) => ['.html', '.json', '.js', '.xml', '.txt'].includes(extname(f)));
 
