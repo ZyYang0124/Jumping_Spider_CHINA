@@ -1,10 +1,12 @@
 import { defineConfig } from 'astro/config';
+import cloudflare from '@astrojs/cloudflare';
 
-// 部署目标：GitHub Pages 项目站点
-// https://zyyang0124.github.io/Salticid_Notes/
+// 部署目标：Cloudflare Workers + Static Assets（GitHub 为源码真源，push 自动部署）
+// 正式域名：https://salticidnotes.cn（SOP §6/§119）
 export default defineConfig({
-  site: 'https://zyyang0124.github.io',
-  base: '/Salticid_Notes',
+  site: 'https://salticidnotes.cn',
+  output: 'server',
+  adapter: cloudflare(),
   trailingSlash: 'ignore',
   build: {
     format: 'directory',

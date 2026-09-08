@@ -25,17 +25,23 @@ import {
 import type { Taxon, TaxonRank } from './types';
 import { shortRegion } from './format';
 
-const MEDIA_MANIFEST_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../public/media/derivatives/manifest.json',
-);
-
+// 媒体尺寸清单：构建期（Node/静态）从磁盘读取；Worker 运行时无文件系统，
+// 惰性安全加载并降级为空表（仅影响 width/height 元数据，不影响内容渲染）。
+let _manifest: Record<string, { width: number; height: number }> | null = null;
 function mediaManifest(): Record<string, { width: number; height: number }> {
+  if (_manifest) return _manifest;
   try {
-    return JSON.parse(readFileSync(MEDIA_MANIFEST_PATH, 'utf-8'));
+    if (import.meta.url) {
+      const p = resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        '../../public/media/derivatives/manifest.json',
+      );
+      _manifest = JSON.parse(readFileSync(p, 'utf-8'));
+    }
   } catch {
-    return {};
+    _manifest = {};
   }
+  return _manifest ?? {};
 }
 
 const manifest = mediaManifest();

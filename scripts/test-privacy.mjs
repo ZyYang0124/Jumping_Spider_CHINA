@@ -49,8 +49,14 @@ const forbiddenMedia = media
 const forbiddenKeys = ['exact_latitude', 'exact_longitude', 'exif_json_private'];
 
 const files = walk(DIST).filter((f) => ['.html', '.json', '.js', '.xml', '.txt'].includes(extname(f)));
-let textHits = 0;
-for (const f of files) {
+
+// SSR 模式：dist/_worker.js/ 是服务端 Worker 包（在 Cloudflare 边缘执行，永不发送给浏览器），
+// 其中包含数据库层的精确坐标与未发布记录属服务端设计（SOP §53 禁止的是到达客户端）。
+// 其不可公开性由 dist/.assetsignore 保证 —— 见下方断言 7。
+const isServerBundle = (f) => f.includes('_worker.js') || f.endsWith('.assetsignore');
+const publicSurfaceFiles = files.filter((f) => !isServerBundle(f));
+
+for (const f of publicSurfaceFiles) {
   const text = readFileSync(f, 'utf-8');
   for (const c of forbiddenCoords) {
     if (text.includes(c)) {
@@ -77,9 +83,21 @@ for (const f of files) {
     }
   }
 }
-void textHits;
 
-// 5. dist 中的媒体派生图必须已剥离 EXIF（含 GPS）
+
+// 5. SSR Worker 包的不可公开性：dist/.assetsignore 必须存在且包含 _worker.js（Wrangler 安全检查依赖它）
+const assetsignorePath = join(DIST, '.assetsignore');
+if (!statSync(assetsignorePath).isFile()) {
+  failures.push('缺少 dist/.assetsignore —— 服务端 _worker.js 可能被当作公开资产上传');
+} else {
+  const content = readFileSync(assetsignorePath, 'utf-8');
+  const lines = content.split(/\r?\n/).map((l) => l.trim());
+  if (!lines.includes('_worker.js')) {
+    failures.push('dist/.assetsignore 未包含 _worker.js —— 服务端 Worker 包可能被公开上传');
+  }
+}
+
+// 6. dist 中的媒体派生图必须已剥离 EXIF（含 GPS）
 const imageFiles = walk(join(DIST, 'media')).filter((f) => extname(f) === '.jpg');
 for (const f of imageFiles) {
   const meta = await sharp(f).metadata();
@@ -102,7 +120,7 @@ if (failures.length > 0) {
   process.exit(1);
 } else {
   console.log(
-    `隐私测试通过：${files.length} 个文本产物未泄露精确坐标/未发布记录/非公开媒体；` +
-      `${imageFiles.length} 张派生图均已剥离 EXIF。`,
+    `隐私测试通过：${publicSurfaceFiles.length} 个客户端可见文本产物未泄露精确坐标/未发布记录/非公开媒体；` +
+      `${imageFiles.length} 张派生图均已剥离 EXIF；服务端 Worker 包未列入公开资产。`,
   );
 }
