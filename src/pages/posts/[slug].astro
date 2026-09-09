@@ -17,8 +17,9 @@ if (!post) return Astro.redirect(withBase('/posts/'));
 <Base title={post.title} description={post.bodyHtml.replace(/<[^>]+>/g, ' ').slice(0, 90)}>
   <article class="container-narrow">
     <div class="page-title" style="padding: 48px 0 6px;">
-      <div class="kicker on-paper">观 察 博 文</div>
+      <div class="kicker on-paper">札 记</div>
       <h1 style="font-family: var(--serif); font-weight: 400; font-size: clamp(30px, 5vw, 46px); margin: 10px 0 8px; letter-spacing: -0.01em;">{post.title}</h1>
+      {post.subtitle && <p style="color: var(--muted); font-size: 16px; margin: 0 0 6px;">{post.subtitle}</p>}
       <div class="byline" style="color: var(--muted); font-size: 14px;">
         {formatDate(post.created_at.slice(0, 10), 'day')} · {post.author}
       </div>
@@ -43,7 +44,7 @@ if (!post) return Astro.redirect(withBase('/posts/'));
       </section>
     )}
 
-    <p style="padding-bottom: 60px; margin-top: 40px;"><a href={withBase('/posts/')} style="text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px;">← 全部博文</a></p>
+    <p style="padding-bottom: 60px; margin-top: 40px;"><a href={withBase('/posts/')} style="text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px;">← 全部札记</a></p>
   </article>
 </Base>
 

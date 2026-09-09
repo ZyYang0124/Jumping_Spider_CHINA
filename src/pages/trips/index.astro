@@ -8,11 +8,9 @@ import { withBase } from '../../lib/privacy';
 
 <Base title="野外调查" description="每一次野外调查都是一册 field journal——路线、生境、故事与当时的记录。">
   <div class="container-wide">
-    <div class="page-title" style="padding-top: 44px;">
-      <h1 style="font-family: var(--serif); font-weight: 400; font-size: clamp(28px, 4vw, 40px); margin: 0;">野外调查</h1>
-      <p class="lede" style="color: var(--muted); margin: 10px 0 0; max-width: 640px; font-size: 15px;">
-        调查页是野外日记，不是采样点表格。地点、天气、遇见——按时间线记下来。
-      </p>
+    <div class="page-title">
+      <h1>野外调查</h1>
+      <p class="lede">调查页是野外日记，不是采样点表格。地点、天气、遇见——按时间线记下来。</p>
     </div>
     <div class="trip-list" style="padding-bottom: 70px;">
       {getPublicTrips().map((t) => (
@@ -20,7 +18,7 @@ import { withBase } from '../../lib/privacy';
           <div class="cover">{t.cover && <img src={t.cover.large} alt={`${t.title} 封面`} loading="lazy" />}</div>
           <h2>{t.title}</h2>
           {t.subtitle && <div class="sub-title">{t.subtitle}</div>}
-          <div class="dates">{t.region} · {t.start_date} – {t.end_date} · {t.observations.length} 条记录</div>
+          <div class="dates">{t.region} · {t.start_date} – {t.end_date} · {t.observations.length} 次相遇</div>
           <p>{t.summary}</p>
         </a>
       ))}

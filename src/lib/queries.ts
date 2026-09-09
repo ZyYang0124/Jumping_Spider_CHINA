@@ -431,6 +431,7 @@ export function getTaxonomyBrowse(): TaxonNode | null {
 export interface PublicPost {
   slug: string;
   title: string;
+  subtitle: string | null;
   author: string;
   created_at: string;
   cover: { thumb: string; medium: string; large: string } | null;
@@ -449,6 +450,7 @@ export function getPublishedPosts(): PublicPost[] {
   return posts.map((p) => ({
     slug: p.slug,
     title: p.title,
+    subtitle: p.subtitle ?? null,
     author: p.author_name,
     created_at: p.created_at,
     cover: postCover(p.cover_media_public_id),

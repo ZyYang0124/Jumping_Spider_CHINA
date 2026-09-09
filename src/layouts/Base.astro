@@ -10,9 +10,13 @@ interface Props {
   description?: string;
   /** 首页 Hero LCP 预加载（仅首页传入） */
   preload?: { href: string; imagesrcset?: string; imagesizes?: string };
+  /** Open Graph 预览图（相对路径，如 /media/derivatives/...） */
+  ogImage?: string;
 }
 
-const { title, description = siteConfig.subtitle, preload } = Astro.props;
+const { title, description = siteConfig.subtitle, preload, ogImage } = Astro.props;
+const SITE_URL = 'https://salticidnotes.cn';
+const ogImageAbs = ogImage ? SITE_URL + withBase(ogImage) : SITE_URL + withBase('/media/derivatives/m-3047463f-1280.jpg');
 const pageTitle = title ? `${title} · ${siteConfig.site_name}` : `${siteConfig.site_name} | ${siteConfig.site_name_en}`;
 
 const nav = [
@@ -37,6 +41,10 @@ const nav = [
     <link rel="icon" href={withBase('/favicon.svg')} type="image/svg+xml" />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImageAbs} />
+    <meta property="og:url" content={SITE_URL + withBase(Astro.url.pathname)} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="canonical" href={SITE_URL + withBase(Astro.url.pathname)} />
     <meta name="generator" content={Astro.generator} />
     {preload && (
       <link

@@ -9,13 +9,11 @@ import { withBase } from '../../lib/privacy';
 const posts = getPublishedPosts();
 ---
 
-<Base title="观察博文" description="关于跳蛛、野外与自然史的记录文字。">
+<Base title="札记" description="关于跳蛛、野外与自然史的记录文字。">
   <div class="container">
-    <div class="page-title" style="padding: 44px 0 6px;">
-      <h1 style="font-family: var(--serif); font-weight: 400; font-size: clamp(28px, 4vw, 40px); margin: 0;">观察博文</h1>
-      <p class="lede" style="color: var(--muted); margin: 10px 0 0; max-width: 680px; font-size: 15px;">
-        观察记录之外 longer 的文字：野外故事、鉴定笔记、某个物种教会我们的事。
-      </p>
+    <div class="page-title">
+      <h1>札记</h1>
+      <p class="lede">观察记录之外更长的文字：野外故事、鉴定笔记、某个物种教会我们的事。</p>
     </div>
 
     {posts.length > 0 ? (
@@ -32,7 +30,7 @@ const posts = getPublishedPosts();
         ))}
       </div>
     ) : (
-      <div class="empty-state" style="margin-bottom: 80px;">还没有已发布的博文。</div>
+      <div class="empty-state" style="margin-bottom: 80px;">还没有已发布的札记。</div>
     )}
   </div>
 </Base>
