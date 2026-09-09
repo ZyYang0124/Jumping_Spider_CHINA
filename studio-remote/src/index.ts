@@ -27,6 +27,7 @@ import { renderArticle } from './article';
 import { buildResolvers } from './embeds';
 import { buildExportZip } from './export';
 import { esc, loginPage, mediaPage, noteEditorHtml, obsEditorHtml, page, STYLES, TAXA, greetingWord } from './pages';
+import { invitePage } from './invites';
 import { OBS_EDITOR_SCRIPT, NOTE_EDITOR_SCRIPT } from './editorjs';
 
 const app = new Hono<{ Bindings: Env; Variables: { user: StudioUser } }>();
@@ -625,6 +626,38 @@ app.get('/studio/media', async (c) => {
       { observations: obsCount?.c ?? 0, posts: postCount?.c ?? 0 },
     ), u),
   );
+});
+
+// ---------- 邀请伙伴（规则 11：仅站长可邀请） ----------
+
+app.get('/studio/invite', async (c) => {
+  const u = user(c);
+  if (u.role !== 'owner') return c.text('只有站长可以管理邀请。', 403);
+  const rows = await all<any>(
+    c.env.DB,
+    'SELECT code, label, email, claimed_by FROM invitations ORDER BY id DESC',
+  );
+  return c.html(page('邀请伙伴', invitePage(rows, c.req.query('ok') ? '已加入受邀名单 ✓' : null), u));
+});
+
+app.post('/studio/invite', async (c) => {
+  const u = user(c);
+  if (u.role !== 'owner') return c.text('只有站长可以管理邀请。', 403);
+  if (!sameOrigin(c.req.raw)) return c.text('Forbidden', 403);
+  const form = await c.req.parseBody();
+  const label = String((form as any).label ?? '').trim().slice(0, 40);
+  const email = String((form as any).email ?? '').trim().toLowerCase();
+  const fail = async (msg: string) => {
+    const rows = await all<any>(c.env.DB, 'SELECT code, label, email, claimed_by FROM invitations ORDER BY id DESC');
+    return c.html(page('邀请伙伴', invitePage(rows, msg), u));
+  };
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('邮箱格式不正确。');
+  const dup = await get(c.env.DB, 'SELECT id FROM invitations WHERE lower(email) = ?', email);
+  if (dup) return fail('该邮箱已在受邀名单中。');
+  const code = `INV-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
+  await run(c.env.DB, 'INSERT INTO invitations (code, label, email) VALUES (?, ?, ?)', code, label || null, email);
+  await audit(c.env, u.display_name, 'invitation', email, 'invite', { label });
+  return c.redirect('/studio/invite?ok=1');
 });
 
 // ---------- 导出（zip：JSON + 新增原图） ----------

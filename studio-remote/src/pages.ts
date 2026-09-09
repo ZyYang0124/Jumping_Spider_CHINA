@@ -99,7 +99,7 @@ export function page(title: string, body: string, user: StudioUser | null = null
 <title>${esc(title)} · Field Studio</title><link rel="stylesheet" href="/studio.css"></head>
 <body><header>
 <a class="brand" href="/studio">Field Studio · 跳蛛观察志</a>
-<nav>${user ? `${esc(user.display_name)} · <a href="/studio/observations/new">记录相遇</a> · <a href="/studio/notes/new">写札记</a> · <a href="/studio/media">影像</a> · <a href="/studio">工作台</a> · <a href="/studio/logout">退出</a>` : `<a href="/studio/login">登录</a>`}</nav>
+<nav>${user ? `${esc(user.display_name)} · <a href="/studio/observations/new">记录相遇</a> · <a href="/studio/notes/new">写札记</a> · <a href="/studio/media">影像</a> · ${user.role === 'owner' ? '<a href="/studio/invite">邀请伙伴</a> · ' : ''}<a href="/studio">工作台</a> · <a href="/studio/logout">退出</a>` : `<a href="/studio/login">登录</a>`}</nav>
 </header><main>${body}</main></body></html>`;
 }
 
