@@ -198,12 +198,17 @@ async function recentItems(env: Env, userId: number, limit: number): Promise<Fee
     "SELECT slug, title, published_at, updated_at FROM posts WHERE author_id = ? AND status = 'published' ORDER BY published_at DESC LIMIT 20",
     userId,
   );
+  const toTs = (v: unknown): number => {
+    const raw = String(v ?? '');
+    const t = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T') + 'Z').getTime();
+    return Number.isNaN(t) ? 0 : t;
+  };
   const items: FeedItem[] = [];
-  for (const o of obsDrafts) items.push({ kind: 'obs', href: `/studio/observations/${o.public_id}/edit`, title: o.display_identification || o.public_id, status: 'draft', timeText: relTime(o.updated_at) });
-  for (const o of obsPub) items.push({ kind: 'obs', href: `/studio/observations/${o.public_id}/edit`, title: o.display_identification || o.public_id, status: 'published', timeText: relTime(o.published_at || o.updated_at) });
-  for (const n of noteDrafts) items.push({ kind: 'note', href: `/studio/notes/${n.slug}/edit`, title: n.title || '未命名札记', status: 'draft', timeText: relTime(n.updated_at) });
-  for (const n of notePub) items.push({ kind: 'note', href: `/studio/notes/${n.slug}/edit`, title: n.title || '未命名札记', status: 'published', timeText: relTime(n.published_at || n.updated_at) });
-  items.sort((a, b) => (a.timeText < b.timeText ? 1 : -1));
+  for (const o of obsDrafts) items.push({ kind: 'obs', href: `/studio/observations/${o.public_id}/edit`, title: o.display_identification || o.public_id, status: 'draft', timeText: relTime(o.updated_at), ts: toTs(o.updated_at) });
+  for (const o of obsPub) items.push({ kind: 'obs', href: `/studio/observations/${o.public_id}/edit`, title: o.display_identification || o.public_id, status: 'published', timeText: relTime(o.published_at || o.updated_at), ts: toTs(o.published_at || o.updated_at) });
+  for (const n of noteDrafts) items.push({ kind: 'note', href: `/studio/notes/${n.slug}/edit`, title: n.title || '未命名札记', status: 'draft', timeText: relTime(n.updated_at), ts: toTs(n.updated_at) });
+  for (const n of notePub) items.push({ kind: 'note', href: `/studio/notes/${n.slug}/edit`, title: n.title || '未命名札记', status: 'published', timeText: relTime(n.published_at || n.updated_at), ts: toTs(n.published_at || n.updated_at) });
+  items.sort((a, b) => b.ts - a.ts);
   return items.slice(0, limit);
 }
 

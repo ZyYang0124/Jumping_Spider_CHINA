@@ -470,6 +470,8 @@ export interface FeedItem {
   title: string;
   status: 'draft' | 'published';
   timeText: string;
+  /** 排序键：源时间戳（毫秒） */
+  ts: number;
 }
 
 function feedHtml(items: FeedItem[], emptyHtml: string): string {

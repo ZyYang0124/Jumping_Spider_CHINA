@@ -162,7 +162,9 @@ const OBS_EDITOR_JS = `
   }
   function setPublishButton() {
     var btn = $('#btn-publish');
-    if (btn) btn.textContent = (published && !dirtySincePublish) ? '已发布 ✓' : (published ? '更新' : '发布');
+    if (!btn) return;
+    if (published && !dirtySincePublish) { btn.textContent = '已发布 ✓'; btn.disabled = true; }
+    else { btn.textContent = published ? '更新' : '发布'; btn.disabled = false; }
   }
   function fields() {
     var o = {};
