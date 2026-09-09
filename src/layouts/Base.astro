@@ -58,10 +58,28 @@ const nav = [
           <span class="en">{siteConfig.site_name_en}</span>
         </a>
         <nav class="site-nav" aria-label="主导航">
-          {nav.map((n) => <a href={withBase(n.href)}>{n.label}</a>)}
+          {nav.map((n) => (
+            <a
+              href={withBase(n.href)}
+              aria-current={Astro.url.pathname.replace(/\/$/, '') === n.href.replace(/\/$/, '') ? 'page' : undefined}
+            >
+              {n.label}
+            </a>
+          ))}
         </nav>
+        <button class="menu-btn" type="button" aria-label="打开菜单" aria-expanded="false" data-menu-open>
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+            <path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+          </svg>
+        </button>
       </div>
     </header>
+
+    <!-- 移动端全屏菜单（§23） -->
+    <nav class="mobile-nav" id="mobile-nav" aria-label="移动导航" hidden>
+      <button class="close" type="button" aria-label="关闭菜单" data-menu-close>×</button>
+      {nav.map((n) => <a href={withBase(n.href)} data-menu-link>{n.label}</a>)}
+    </nav>
 
     <main>
       <slot />
@@ -99,6 +117,29 @@ const nav = [
     </style>
 
   <script>
+    // 移动端菜单：开/关 + Esc + 点击链接后关闭
+    function initMenu() {
+      const btn = document.querySelector('[data-menu-open]');
+      const nav = document.getElementById('mobile-nav');
+      if (!btn || !nav) return;
+      const close = nav.querySelector('[data-menu-close]');
+      const setOpen = (open) => {
+        nav.hidden = !open;
+        nav.classList.toggle('open', open);
+        btn.setAttribute('aria-expanded', String(open));
+        document.body.style.overflow = open ? 'hidden' : '';
+      };
+      btn.addEventListener('click', () => setOpen(true));
+      close?.addEventListener('click', () => setOpen(false));
+      nav.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('[data-menu-link]')) setOpen(false);
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') setOpen(false);
+      });
+    }
+    document.addEventListener('astro:page-load', initMenu);
+
     // Scroll Reveal：进入视口一次上浮，不做重复动画；reduced-motion 时直接可见。
     function initReveal() {
       const els = document.querySelectorAll('.reveal:not(.is-visible)');

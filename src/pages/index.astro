@@ -12,21 +12,14 @@ const hero = allPublicObservations.find((o) => o.cover?.id === 'm-3047463f')?.co
 const heroPreload = hero
   ? {
       href: hero.medium,
-      imagesrcset: [hero.srcset.avif, hero.srcset.webp, hero.srcset.jpg]
-        .map((ss) => ss)
-        .join(', '),
+      imagesrcset: [hero.srcset.avif, hero.srcset.webp, hero.srcset.jpg].map((ss) => ss).join(', '),
       imagesizes: '100vw',
     }
   : undefined;
-const [lead, ...rest] = allPublicObservations;
-const featuredSide = rest.slice(0, 2);
-const grid = rest.slice(2, 7);
-const trips = getPublicTrips().slice(0, 2);
+const recent = allPublicObservations.slice(0, 5);
+const [leadTrip, sideTrip] = getPublicTrips().slice(0, 2);
 const species = getSpeciesGroups().slice(0, 4);
 const places = getLocalityCards().slice(0, 3);
-const years = allPublicObservations.length > 0
-  ? `${allPublicObservations.at(-1)!.observed_at.slice(0, 4)}—${allPublicObservations[0].observed_at.slice(0, 4)}`
-  : '';
 ---
 
 <Base preload={heroPreload ?? undefined}>
@@ -34,11 +27,11 @@ const years = allPublicObservations.length > 0
     {hero && <img class="hero-photo" src={hero.large} alt="封面照片：求偶中的雄性翠蛛" fetchpriority="high" />}
     <div class="veil"></div>
     <div class="inner">
-      <div class="kicker">Field Notes · {years}</div>
+      <div class="kicker">Field Notes · Since 2023</div>
       <h1>{siteConfig.site_name}</h1>
       <p>{siteConfig.subtitle}</p>
       <div class="actions">
-        <a class="btn solid" href={withBase('/observations/')}>浏览观察记录</a>
+        <a class="btn solid" href={withBase('/observations/')}>浏览观察</a>
         <a class="btn" href={withBase('/trips/')}>阅读野外调查</a>
       </div>
     </div>
@@ -46,125 +39,95 @@ const years = allPublicObservations.length > 0
   </section>
 
   <div class="container-wide">
+    <!-- 最近的相遇：紧凑 editorial strip（§12/§13） -->
     <section class="section reveal">
       <div class="section-head">
-        <h2>最近的野外笔记</h2>
-        <a class="more" href={withBase('/observations/')}>全部记录 →</a>
+        <h2>最近的相遇</h2>
+        <a class="more" href={withBase('/observations/')}>全部观察 →</a>
       </div>
-      <p class="section-lede">每一条记录都始于一次相遇：在哪里、什么时候、以怎样的方式。</p>
-
-      <div class="featured-grid">
-        {lead && (
-          <a class="ed-card ed-lead" href={lead.url}>
-            <div class="frame">
-              {lead.cover && (
-                <PictureImage
-                  media={lead.cover}
-                  sizes="(max-width: 820px) 92vw, 58vw"
-                  alt={lead.cover.caption ?? lead.public_id}
-                  eager={true}
-                  fetchpriority="high"
-                  transitionName={`obs-${lead.public_id}`}
-                />
-              )}
-            </div>
-            <div class="meta">
-              <div class="name">
-                {lead.identification ? (
-                  <span set:html={sciNameHtml(lead.identification.display, lead.identification.taxon_rank)} />
-                ) : (
-                  <span>未鉴定的跳蛛</span>
-                )}
-              </div>
-              <div class="sub">
-                {formatDate(lead.observed_at, lead.observed_at_precision)} · {shortRegion(lead.location)}
-              </div>
-              <p class="excerpt">{lead.field_note}</p>
-            </div>
-          </a>
-        )}
-        {featuredSide.map((o) => (
-          <a class="ed-card ed-side" href={o.url}>
-            <div class="frame">
-              {o.cover && (
-                <PictureImage
-                  media={o.cover}
-                  sizes="(max-width: 820px) 92vw, 34vw"
-                  alt={o.cover.caption ?? o.public_id}
-                  transitionName={`obs-${o.public_id}`}
-                />
-              )}
-            </div>
-            <div class="meta">
-              <div class="name">
-                {o.identification ? (
-                  <span set:html={sciNameHtml(o.identification.display, o.identification.taxon_rank)} />
-                ) : (
-                  <span>未鉴定的跳蛛</span>
-                )}
-              </div>
-              <div class="sub">
-                {formatDate(o.observed_at, o.observed_at_precision)} · {shortRegion(o.location)}
-              </div>
-            </div>
-          </a>
-        ))}
-      </div>
-
-      <div class="card-grid" style="margin-top: 40px;">
-        {grid.map((o) => <ObsCard obs={o} />)}
+      <div class="strip-grid">
+        {recent.map((o) => <ObsCard obs={o} />)}
       </div>
     </section>
 
+    <!-- 来自野外：非对称 field story（§14/§15） -->
     <section class="section reveal">
       <div class="section-head">
         <h2>来自野外</h2>
         <a class="more" href={withBase('/trips/')}>全部调查 →</a>
       </div>
-      <div class="trip-list">
-        {trips.map((t) => (
-          <a class="trip-card" href={withBase(`/trips/${t.slug}/`)}>
-            <div class="cover">{t.cover && <img src={t.cover.large} alt={`${t.title} 封面`} loading="lazy" />}</div>
-            <h2>{t.title}</h2>
-            {t.subtitle && <div class="sub-title">{t.subtitle}</div>}
-            <div class="dates">{t.region} · {t.start_date} – {t.end_date} · {t.observations.length} 条记录</div>
-            <p>{t.summary}</p>
+      {leadTrip && (
+      <div class="story-grid">
+        <a class="story story-lead" href={withBase(`/trips/${leadTrip.slug}/`)}>
+          <div class="frame">
+            {leadTrip.cover && (
+              <PictureImage
+                media={leadTrip.cover}
+                sizes="(max-width: 900px) 92vw, 60vw"
+                alt={`${leadTrip.title} 封面`}
+                transitionName={`trip-${leadTrip.slug}`}
+              />
+            )}
+          </div>
+          <div class="dates">{leadTrip.region} · {leadTrip.start_date} – {leadTrip.end_date} · {leadTrip.observations.length} 次相遇</div>
+          <h2>{leadTrip.title}</h2>
+          {leadTrip.subtitle && <div class="story-sub">{leadTrip.subtitle}</div>}
+          <p>{leadTrip.summary}</p>
+        </a>
+        {sideTrip && (
+          <a class="story story-side" href={withBase(`/trips/${sideTrip.slug}/`)}>
+            <div class="frame">
+              {sideTrip.cover && (
+                <PictureImage
+                  media={sideTrip.cover}
+                  sizes="(max-width: 900px) 92vw, 34vw"
+                  alt={`${sideTrip.title} 封面`}
+                  transitionName={`trip-${sideTrip.slug}`}
+                />
+              )}
+            </div>
+            <div class="dates">{sideTrip.region} · {sideTrip.start_date} – {sideTrip.end_date} · {sideTrip.observations.length} 次相遇</div>
+            <h2>{sideTrip.title}</h2>
+            {sideTrip.subtitle && <div class="story-sub">{sideTrip.subtitle}</div>}
           </a>
-        ))}
+        )}
       </div>
+      )}
     </section>
 
+    <!-- 相遇的物种：自然史索引（§16/§17） -->
     <section class="section reveal">
       <div class="section-head">
         <h2>相遇的物种</h2>
         <a class="more" href={withBase('/species/')}>全部物种 →</a>
       </div>
       <p class="section-lede">物种页由观察记录聚合而成——它们是相遇的积累，而不是名录的条目。</p>
-      <div class="species-list" style="padding-top: 0;">
+      <div class="species-mini">
         {species.map((g) => (
           <a class="species-card" href={withBase(`/species/${speciesSlug(g)}/`)}>
             <div class="frame">
               {g.observations.find((o) => o.cover) && (
                 <PictureImage
                   media={g.observations.find((o) => o.cover)!.cover!}
-                  sizes="(max-width: 900px) 92vw, 30vw"
+                  sizes="(max-width: 900px) 46vw, 24vw"
                   alt={`${g.display} 的代表照片`}
                 />
               )}
             </div>
             <div class="name" set:html={sciNameHtml(g.display, g.rank)} />
-            <div class="sub">{g.observations.length} 条记录 · {g.regions.join('、')}</div>
+            <div class="sub">{g.observations.length} 次相遇 · {g.regions.join('、')}</div>
           </a>
         ))}
       </div>
     </section>
 
-    <section class="section reveal" style="padding-bottom: 70px;">
+    <!-- 地点：明确的位置（§18/§19/§76） -->
+    <section class="section reveal" style="padding-bottom: var(--s-8);">
       <div class="section-head">
         <h2>地点</h2>
         <a class="more" href={withBase('/places/')}>全部地点 →</a>
       </div>
-      <p class="section-lede">敏感到位的记录只公开到地名，甚至完全保密——这是本站从第一天就坚持的底线。</p>
+      <p class="section-lede">每一次相遇都有明确的位置。地点不是附属信息，而是自然史记录的一部分。</p>
       <div class="place-cards">
         {places.map((p) => (
           <a class="place-card" href={withBase('/places/')}>
