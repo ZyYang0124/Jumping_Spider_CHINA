@@ -11,18 +11,26 @@ on:
       - '.github/workflows/studio-deploy.yml'
   workflow_dispatch:
 
-env:
-  CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-
 jobs:
   deploy:
-    # 未配置 secrets 时静默跳过（配置后自动生效）
-    if: ${{ env.CF_TOKEN != '' }}
     runs-on: ubuntu-latest
     concurrency: studio-deploy
     steps:
       - uses: actions/checkout@v4
+      - name: Guard - 未配置 secrets 时跳过（配置后自动生效）
+        id: guard
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CF_TOKEN" ] || [ -z "$CF_ACCOUNT" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "未配置 CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID，跳过 Studio 自动部署。"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: cloudflare/wrangler-action@v3
+        if: steps.guard.outputs.skip != 'true'
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
