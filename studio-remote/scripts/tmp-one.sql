@@ -1,0 +1,1 @@
+INSERT INTO identifications (observation_id, taxon_slug, display_identification, identified_by, identified_at, evidence, is_current) VALUES (14,'salticidae','Salticidae sp.','杨智勇','2026-09-08','field',1);
