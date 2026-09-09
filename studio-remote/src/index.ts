@@ -26,9 +26,9 @@ import { parseExif } from './exif';
 import { renderArticle } from './article';
 import { buildResolvers } from './embeds';
 import { buildExportZip } from './export';
-import { esc, loginPage, mediaPage, noteEditorHtml, obsEditorHtml, page, STYLES, TAXA, greetingWord } from './pages';
+import { esc, loginPage, mediaPage, noteEditorHtml, obsEditorHtml, page, STYLES, TAXA, homePage, draftsPage, relTime, type FeedItem } from './pages';
 import { invitePage } from './invites';
-import { OBS_EDITOR_SCRIPT, NOTE_EDITOR_SCRIPT } from './editorjs';
+import { OBS_EDITOR_SCRIPT, NOTE_EDITOR_SCRIPT, LOGIN_SCRIPT } from './editorjs';
 
 const app = new Hono<{ Bindings: Env; Variables: { user: StudioUser } }>();
 
@@ -92,6 +92,7 @@ app.get('/', (c) => c.redirect('/studio'));
 app.get('/studio.css', (c) => c.body(STYLES, 200, { 'Content-Type': 'text/css; charset=utf-8' }));
 app.get('/studio-editor.js', (c) => c.body(OBS_EDITOR_SCRIPT, 200, { 'Content-Type': 'text/javascript; charset=utf-8' }));
 app.get('/studio-note-editor.js', (c) => c.body(NOTE_EDITOR_SCRIPT, 200, { 'Content-Type': 'text/javascript; charset=utf-8' }));
+app.get('/studio-login.js', (c) => c.body(LOGIN_SCRIPT, 200, { 'Content-Type': 'text/javascript; charset=utf-8' }));
 
 // ---------- R2 派生图（Studio 内部展示用；公开站仍由构建管线产出自己的派生图） ----------
 
@@ -109,12 +110,8 @@ app.get('/media/derivatives/*', async (c) => {
 app.get('/studio/login', async (c) => {
   if (await auth(c)) return c.redirect('/studio');
   const q = c.req.query();
-  const html = loginPage({
-    error: q.error,
-    email: q.email,
-    devNotice: !c.env.RESEND_API_KEY,
-  });
-  return c.html(page('登录', html));
+  void q;
+  return c.html(loginPage({ devNotice: !c.env.RESEND_API_KEY }));
 });
 
 app.post('/studio/login/otp', async (c) => {
@@ -124,15 +121,18 @@ app.post('/studio/login/otp', async (c) => {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return c.redirect('/studio/login');
   if (!(await isInvited(c.env, email))) {
     await audit(c.env, email, 'session', null, 'otp-denied-not-invited');
+    if (c.req.header('X-Studio-Api') === '1') return c.json({ ok: false, error: 'invite', message: '该邮箱不在受邀名单中' });
     return c.redirect('/studio/login?error=invite');
   }
   let code: string;
   try {
     code = await issueOtp(c.env, email);
   } catch (err: any) {
+    if (c.req.header('X-Studio-Api') === '1') return c.json({ ok: false, error: 'rate', message: err.message });
     return c.html(page('登录', `<div class="msg error">${esc(err.message)}</div><p><a href="/studio/login">返回</a></p>`));
   }
-  await deliverOtp(c.env, email, code);
+  const via = await deliverOtp(c.env, email, code);
+  if (c.req.header('X-Studio-Api') === '1') return c.json({ ok: true, via });
   return c.redirect(`/studio/login?email=${encodeURIComponent(email)}`);
 });
 
@@ -141,17 +141,21 @@ app.post('/studio/login/verify', async (c) => {
   const form = await c.req.parseBody();
   const email = String((form as any).email ?? '');
   const code = String((form as any).code ?? '');
-  if (!(await verifyOtp(c.env, email, code))) return c.redirect('/studio/login?error=otp');
+  if (!(await verifyOtp(c.env, email, code))) {
+    if (c.req.header('X-Studio-Api') === '1') return c.json({ ok: false, error: 'otp', message: '验证码无效或已过期' });
+    return c.redirect('/studio/login?error=otp');
+  }
   const user = await findOrCreateUserByEmail(c.env, email);
   await run(c.env.DB, 'UPDATE invitations SET claimed_by = ? WHERE lower(email) = lower(?) AND claimed_by IS NULL', user.id, email);
   const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
   await createSession(c.env, token, user.id);
   setSessionCookie(c, token);
   await audit(c.env, user.display_name, 'session', user.id, 'login-otp');
+  if (c.req.header('X-Studio-Api') === '1') return c.json({ ok: true });
   return c.redirect('/studio');
 });
 
-app.post('/studio/logout', async (c) => {
+app.get('/studio/logout', async (c) => {
   if (!sameOrigin(c.req.raw)) return c.text('Forbidden', 403);
   const token = getCookie(c, SESSION_COOKIE) ?? '';
   await destroySession(c.env, token);
@@ -163,61 +167,50 @@ app.post('/studio/logout', async (c) => {
 
 app.get('/studio', async (c) => {
   const u = user(c);
-  const drafts = await all<{ public_id: string; updated_at: string }>(
-    c.env.DB,
-    "SELECT public_id, updated_at FROM observations WHERE created_by = ? AND status = 'draft' ORDER BY updated_at DESC LIMIT 5",
-    u.id,
+  const items = await recentItems(c.env, u.id, 8);
+  return c.html(homePage(u, items));
+});
+
+async function recentItems(env: Env, userId: number, limit: number): Promise<FeedItem[]> {
+  const obsDrafts = await all<any>(
+    env.DB,
+    `SELECT o.public_id, o.updated_at, i.display_identification
+     FROM observations o
+     LEFT JOIN identifications i ON i.observation_id = o.id AND i.is_current = 1
+     WHERE o.created_by = ? AND o.status = 'draft' ORDER BY o.updated_at DESC LIMIT 20`,
+    userId,
   );
-  const published = await all<{ public_id: string; published_at: string }>(
-    c.env.DB,
-    "SELECT public_id, published_at FROM observations WHERE created_by = ? AND status = 'published' ORDER BY published_at DESC LIMIT 5",
-    u.id,
+  const obsPub = await all<any>(
+    env.DB,
+    `SELECT o.public_id, o.published_at, o.updated_at, i.display_identification
+     FROM observations o
+     LEFT JOIN identifications i ON i.observation_id = o.id AND i.is_current = 1
+     WHERE o.created_by = ? AND o.status = 'published' ORDER BY o.published_at DESC LIMIT 20`,
+    userId,
   );
-  const noteDrafts = await all<{ slug: string; title: string; updated_at: string }>(
-    c.env.DB,
-    "SELECT slug, title, updated_at FROM posts WHERE author_id = ? AND status = 'draft' ORDER BY updated_at DESC LIMIT 5",
-    u.id,
+  const noteDrafts = await all<any>(
+    env.DB,
+    "SELECT slug, title, updated_at FROM posts WHERE author_id = ? AND status = 'draft' ORDER BY updated_at DESC LIMIT 20",
+    userId,
   );
-  const notePub = await all<{ slug: string; title: string; published_at: string }>(
-    c.env.DB,
-    "SELECT slug, title, published_at FROM posts WHERE author_id = ? AND status = 'published' ORDER BY published_at DESC LIMIT 5",
-    u.id,
+  const notePub = await all<any>(
+    env.DB,
+    "SELECT slug, title, published_at, updated_at FROM posts WHERE author_id = ? AND status = 'published' ORDER BY published_at DESC LIMIT 20",
+    userId,
   );
-  return c.html(
-    page(
-      '工作台',
-      `
-    <div class="hello">${greetingWord()}，${esc(u.display_name)}</div>
-    <p class="hello-sub">今天想记录什么？</p>
-    <div class="cards">
-      <a class="big-card" href="/studio/observations/new">
-        <div class="t">＋ 记录一次相遇</div><div class="d">一只蜘蛛，一段相遇</div>
-      </a>
-      <a class="big-card" href="/studio/notes/new">
-        <div class="t">✎ 写一篇札记</div><div class="d">调查、故事与思考</div>
-      </a>
-    </div>
-    <h2>最近草稿</h2>
-    <table><tr><th>条目</th><th>时间</th></tr>
-      ${drafts.map((d) => `<tr><td><a href="/studio/observations/${d.public_id}/edit">${d.public_id}</a></td><td>${d.updated_at}</td></tr>`).join('')}
-      ${noteDrafts.map((n) => `<tr><td><a href="/studio/notes/${n.slug}/edit">${esc(n.title)}</a>（札记草稿）</td><td>${n.updated_at}</td></tr>`).join('')}
-      ${drafts.length + noteDrafts.length === 0 ? '<tr><td>暂无草稿。</td></tr>' : ''}
-    </table>
-    <h2>最近发布</h2>
-    <table><tr><th>条目</th><th>时间</th></tr>
-      ${published.map((r) => `<tr><td><a href="/studio/observations/${r.public_id}/edit">${r.public_id}</a></td><td>${r.published_at ?? '—'}</td></tr>`).join('')}
-      ${notePub.map((n) => `<tr><td><a href="/studio/notes/${n.slug}/edit">${esc(n.title)}</a>（札记）</td><td>${n.published_at}</td></tr>`).join('')}
-      ${published.length + notePub.length === 0 ? '<tr><td>暂无发布记录。</td></tr>' : ''}
-    </table>
-    ${
-      u.role === 'owner'
-        ? '<h2>发布到公开站</h2><p><small>下载导出包（studio-*.json 与新增原图），解压进仓库后 npm run build 发布。</small></p><p><a class="btn" href="/studio/export">下载导出包（zip）</a></p>'
-        : ''
-    }
-  `,
-      u,
-    ),
-  );
+  const items: FeedItem[] = [];
+  for (const o of obsDrafts) items.push({ kind: 'obs', href: `/studio/observations/${o.public_id}/edit`, title: o.display_identification || o.public_id, status: 'draft', timeText: relTime(o.updated_at) });
+  for (const o of obsPub) items.push({ kind: 'obs', href: `/studio/observations/${o.public_id}/edit`, title: o.display_identification || o.public_id, status: 'published', timeText: relTime(o.published_at || o.updated_at) });
+  for (const n of noteDrafts) items.push({ kind: 'note', href: `/studio/notes/${n.slug}/edit`, title: n.title || '未命名札记', status: 'draft', timeText: relTime(n.updated_at) });
+  for (const n of notePub) items.push({ kind: 'note', href: `/studio/notes/${n.slug}/edit`, title: n.title || '未命名札记', status: 'published', timeText: relTime(n.published_at || n.updated_at) });
+  items.sort((a, b) => (a.timeText < b.timeText ? 1 : -1));
+  return items.slice(0, limit);
+}
+
+app.get('/studio/drafts', async (c) => {
+  const u = user(c);
+  const items = await recentItems(c.env, u.id, 50);
+  return c.html(draftsPage(u, items.filter((i) => i.status === 'draft'), items.filter((i) => i.status === 'published')));
 });
 
 // ---------- 观察：JSON API ----------
@@ -369,12 +362,17 @@ app.post('/studio/observations/:public_id/photos', async (c) => {
   const added: string[] = [];
   for (const g of groups) {
     order += 1;
-    const saved = await saveUpload(
-      c.env,
-      u.display_name,
-      { original: g.original!, width: g.width, height: g.height, variants: g.variants },
-      { observationId: obs.id, noteSlug: null, publicVisibility: obs.status === 'published' },
-    );
+    let saved;
+    try {
+      saved = await saveUpload(
+        c.env,
+        u.display_name,
+        { original: g.original!, width: g.width, height: g.height, variants: g.variants },
+        { observationId: obs.id, noteSlug: null, publicVisibility: obs.status === 'published' },
+      );
+    } catch (err: any) {
+      return c.text(err?.message ?? '照片保存失败', 400);
+    }
     await run(
       c.env.DB,
       'UPDATE media SET sort_order = ?, is_cover = ? WHERE public_id = ?',
@@ -407,12 +405,17 @@ app.post('/studio/api/media/upload', async (c) => {
   const fd = await c.req.formData();
   const groups = groupUploads(fd);
   if (!groups.length) return c.json({ error: '没有文件' }, 400);
-  const saved = await saveUpload(c.env, u.display_name, {
-    original: groups[0].original!,
-    width: groups[0].width,
-    height: groups[0].height,
-    variants: groups[0].variants,
-  }, { observationId: null, noteSlug: null, publicVisibility: false });
+  let saved;
+  try {
+    saved = await saveUpload(c.env, u.display_name, {
+      original: groups[0].original!,
+      width: groups[0].width,
+      height: groups[0].height,
+      variants: groups[0].variants,
+    }, { observationId: null, noteSlug: null, publicVisibility: false });
+  } catch (err: any) {
+    return c.json({ error: err?.message ?? '照片保存失败' }, 400);
+  }
   await audit(c.env, u.display_name, 'media', saved.publicId, 'upload-note-image');
   return c.json({ ok: true, public_id: saved.publicId, url: thumbUrl({ ...(await mediaByPublicId(c.env, saved.publicId))! } as MediaRow) });
 });
@@ -508,7 +511,7 @@ app.post('/studio/api/exif-preview', async (c) => {
   const file = fd.get('photo');
   if (!(file instanceof File)) return c.json({ error: 'no photo' }, 400);
   const s = await parseExif(await file.arrayBuffer());
-  return c.json({ results: [{ filename: file.name, date: s.date ?? null, gps: s.gps ?? null }] });
+  return c.json({ results: [{ filename: file.name, date: s.date ?? null, gps: s.gps ?? null, camera: s.camera ?? null }] });
 });
 
 // ---------- 札记 ----------
@@ -570,8 +573,8 @@ app.post('/studio/api/notes/preview', async (c) => {
 // ---------- 观察编辑器页面 ----------
 
 app.get('/studio/observations/new', async (c) => {
-  const u = user(c);
-  return c.html(page('记录一次相遇', obsEditorHtml(null, {}, []), u));
+  user(c);
+  return c.html(obsEditorHtml(null, {}, [], { status: 'draft', hasUnpublished: false, photoMeta: [] }));
 });
 
 app.get('/studio/observations/:public_id/edit', async (c) => {
@@ -588,15 +591,23 @@ app.get('/studio/observations/:public_id/edit', async (c) => {
     longitude: obs.exact_longitude ?? '',
     species_taxon_slug: idn?.taxon_slug ?? '',
   };
-  const grid = photos.map((p) => ({ public_id: p.public_id, thumb: thumbUrl(p), caption: p.caption, is_cover: p.is_cover }));
-  return c.html(page(`编辑 ${obs.public_id}`, obsEditorHtml(obs.public_id, data, grid), u));
+  const grid = photos.map((p) => ({
+    public_id: p.public_id, thumb: thumbUrl(p), caption: p.caption,
+    photographer_name: p.photographer_name, is_cover: p.is_cover,
+  }));
+  const bootMeta = {
+    status: obs.status,
+    hasUnpublished: obs.status === 'published' && String(obs.updated_at ?? '') > String(obs.published_at ?? ''),
+    photoMeta: grid.map((g) => ({ public_id: g.public_id, caption: g.caption, photographer_name: g.photographer_name })),
+  };
+  return c.html(obsEditorHtml(obs.public_id, data, grid, bootMeta));
 });
 
 // ---------- 札记编辑器页面 ----------
 
 app.get('/studio/notes/new', async (c) => {
   const u = user(c);
-  return c.html(page('写一篇札记', noteEditorHtml('', { title: '', subtitle: '', body_md: '' }), u));
+  return c.html(noteEditorHtml('', { title: '', subtitle: '', body_md: '', status: 'draft', author_name: u.display_name, related: '' }));
 });
 
 app.get('/studio/notes/:slug/edit', async (c) => {
@@ -604,7 +615,11 @@ app.get('/studio/notes/:slug/edit', async (c) => {
   const post = await get<any>(c.env.DB, 'SELECT * FROM posts WHERE slug = ?', c.req.param('slug'));
   if (!post) return c.text('未找到该札记。', 404);
   if (u.role !== 'owner' && post.author_id !== u.id) return c.text('只能编辑自己的札记。', 403);
-  return c.html(page(`编辑：${post.title}`, noteEditorHtml(post.slug, post), u));
+  return c.html(noteEditorHtml(post.slug, {
+    ...post,
+    author_name: u.display_name,
+    related: String(post.related_observation_public_ids ?? '[]').replace(/[\[\]"]/g, ''),
+  }));
 });
 
 // ---------- 媒体管理 ----------
@@ -620,12 +635,30 @@ app.get('/studio/media', async (c) => {
   const obsCount = await get<{ c: number }>(c.env.DB, "SELECT COUNT(*) AS c FROM observations WHERE status = 'published'");
   const postCount = await get<{ c: number }>(c.env.DB, "SELECT COUNT(*) AS c FROM posts WHERE status = 'published'");
   return c.html(
-    page('影像', mediaPage(
+    mediaPage(
       rows.map((m) => ({ public_id: m.public_id, thumb: thumbUrl(m), obs_public_id: m.obs_public_id })),
       u.role === 'owner',
       { observations: obsCount?.c ?? 0, posts: postCount?.c ?? 0 },
-    ), u),
+      u,
+    ),
   );
+});
+
+// 照片元信息（图注 / 摄影者）
+app.patch('/studio/api/media/:public_id', async (c) => {
+  const u = user(c);
+  if (!sameOrigin(c.req.raw)) return c.text('Forbidden', 403);
+  const m = await mediaByPublicId(c.env, c.req.param('public_id'));
+  if (!m) return c.json({ error: '未找到' }, 404);
+  const obs = m.observation_id ? await get<{ created_by: number }>(c.env.DB, 'SELECT created_by FROM observations WHERE id = ?', m.observation_id) : undefined;
+  if (u.role !== 'owner' && (!obs || obs.created_by !== u.id)) return c.text('无权操作。', 403);
+  const body = (await c.req.json()) as { caption?: string; photographer_name?: string };
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  if (typeof body.caption === 'string') { sets.push('caption = ?'); vals.push(body.caption.slice(0, 300)); }
+  if (typeof body.photographer_name === 'string') { sets.push('photographer_name = ?'); vals.push(body.photographer_name.slice(0, 80)); }
+  if (sets.length) await run(c.env.DB, `UPDATE media SET ${sets.join(', ')} WHERE id = ?`, ...vals, m.id);
+  return c.json({ ok: true });
 });
 
 // ---------- 邀请伙伴（规则 11：仅站长可邀请） ----------

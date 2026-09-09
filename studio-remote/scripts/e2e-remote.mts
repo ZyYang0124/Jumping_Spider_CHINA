@@ -117,8 +117,10 @@ ok(patch.ok === true, 'A3 autosave：字段与鉴定已保存');
 const upA = new FormData();
 appendUpload(upA, await preparedUpload(gpsBuf, 'a1.jpg'));
 const upAres = await req(`/studio/observations/${pidA}/photos`, { method: 'POST', body: upA });
-const upAj = await upAres.json().catch(() => ({}));
-ok(upAres.ok && upAj.added?.length === 1, `A4 照片上传：${upAj.added?.[0] ?? (await upAres.text()).slice(0, 80)}`);
+const upAtext = await upAres.text();
+let upAj: any = {};
+try { upAj = JSON.parse(upAtext); } catch {}
+ok(upAres.ok && upAj.added?.length === 1, `A4 照片上传：${upAres.ok ? upAj.added?.[0] : upAtext.slice(0, 120)}`);
 
 const pj = await (await req(`/studio/api/observations/${pidA}/publish`, { method: 'POST' })).json();
 ok(pj.ok === true, `A5 发布：${pj.public_url ?? pj.error}`);
@@ -164,7 +166,9 @@ for (const n of ['gps', 'nogps', 'gps', 'nogps', 'gps'] as const) {
   appendUpload(upC, await preparedUpload(n === 'gps' ? gpsBuf : nogpsBuf, `${n}.jpg`));
 }
 const upCres = await req(`/studio/observations/${pidC}/photos`, { method: 'POST', body: upC });
-const upCj = await upCres.json().catch(() => ({}));
+const upCtext = await upCres.text();
+let upCj: any = {};
+try { upCj = JSON.parse(upCtext); } catch {}
 const cids: string[] = upCj.added ?? [];
 ok(cids.length === 5, `C1 五张照片上传：${cids.join(',')}`);
 const third = cids[2];

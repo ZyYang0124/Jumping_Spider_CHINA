@@ -5,6 +5,8 @@ import exifReader from 'exif-reader';
 export interface ExifSuggestion {
   date?: string;
   gps?: { lat: number; lng: number };
+  /** 相机（Make + Model），仅用于编辑器展示 */
+  camera?: string;
 }
 
 function dmsToDecimal(dms: unknown, ref: unknown): number | null {
@@ -42,6 +44,8 @@ export async function parseExif(buffer: ArrayBuffer): Promise<ExifSuggestion> {
           const d = new Date(dateVal);
           if (!Number.isNaN(d.getTime())) out.date = d.toISOString().slice(0, 10);
         }
+        const camera = [parsed?.Image?.Make, parsed?.Image?.Model].filter(Boolean).join(' ').trim();
+        if (camera) out.camera = camera;
         const gps = parsed?.GPSInfo;
         if (gps) {
           const lat = dmsToDecimal(gps.GPSLatitude, gps.GPSLatitudeRef);
