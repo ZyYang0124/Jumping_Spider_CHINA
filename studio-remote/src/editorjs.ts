@@ -724,8 +724,11 @@ const NOTE_EDITOR_JS = `
     btn.addEventListener('click', function () {
       toggleMenu(false);
       var ins = btn.getAttribute('data-ins');
-      if (ins === '__IMAGE__' || ins === '__OBS__' || ins === '__TRIP__') insertBlock(ins);
-      else insertBlock(ins.replace(/&gt;/g, '>'));
+      // 哨兵项直接唤起对应流程，不把字面量插进正文
+      if (ins === '__IMAGE__') { insertImage(); return; }
+      if (ins === '__OBS__') { insertAsk('观察编号（如 SFN-2026-000001）', 'observation'); return; }
+      if (ins === '__TRIP__') { insertAsk('调查 slug（见公开站 /trips/…）', 'trip'); return; }
+      insertBlock(ins.replace(/&gt;/g, '>'));
     });
   });
   // 行首 "/" 呼出

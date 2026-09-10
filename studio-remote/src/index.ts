@@ -301,13 +301,20 @@ app.patch('/studio/api/observations/:public_id', async (c) => {
   const b = (await c.req.json()) as Record<string, unknown>;
   // 客户端字段名 → 数据库列名（坐标在库中为 exact_*，公开政策为全量精确，无模糊列）
   const COLUMN_OF: Record<string, string> = { latitude: 'exact_latitude', longitude: 'exact_longitude' };
+  // 空串语义按列区分：可空列存 NULL；sex/life_stage 回退默认值；
+  // field_note / observed_at 为 NOT NULL（field_note DEFAULT ''），空串原样写入，否则触发约束 500
+  const NULLABLE = new Set([
+    'latitude', 'longitude', 'country_name', 'admin1', 'admin2', 'locality', 'site_name',
+    'elevation_m', 'count', 'habitat', 'microhabitat', 'behavior', 'plant', 'weather', 'trip_slug',
+  ]);
   const sets: string[] = [];
   const vals: unknown[] = [];
   for (const [k, v] of Object.entries(b)) {
     if (!OBS_FIELDS.has(k)) continue;
     if (k === 'species_taxon_slug' || k === 'species_evidence') continue; // 鉴定走 upsertIdentification，不是列
     sets.push(`${COLUMN_OF[k] ?? k} = ?`);
-    vals.push(v === '' ? null : v);
+    if (v === '') vals.push(NULLABLE.has(k) ? null : (k === 'sex' || k === 'life_stage' ? 'unknown' : ''));
+    else vals.push(v);
   }
   if (sets.length) {
     sets.push("updated_at = datetime('now')");

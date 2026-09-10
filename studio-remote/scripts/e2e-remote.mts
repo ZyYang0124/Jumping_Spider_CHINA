@@ -114,6 +114,14 @@ const patch = await (await req(`/studio/api/observations/${pidA}`, {
 })).json();
 ok(patch.ok === true, 'A3 autosave：字段与鉴定已保存');
 
+// 回归：空 field_note / 空 observed_at 不应触发 NOT NULL 约束 500
+const patchEmpty = await (await req(`/studio/api/observations/${pidA}`, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ field_note: '', locality: '', elevation_m: '', sex: '' }),
+})).json();
+ok(patchEmpty.ok === true, `A3b 空串字段（field_note/locality/elevation/sex）保存不 500`);
+
 const upA = new FormData();
 appendUpload(upA, await preparedUpload(gpsBuf, 'a1.jpg'));
 const upAres = await req(`/studio/observations/${pidA}/photos`, { method: 'POST', body: upA });
