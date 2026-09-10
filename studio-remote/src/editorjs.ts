@@ -181,6 +181,13 @@ const OBS_EDITOR_JS = `
     var w = window.__chosenSlug;
     return w || '';
   }
+  // 发布时刻的字段快照：之后的保存若与快照一致，不再误报「有未发布修改」
+  var lastPublishedSnapshot = null;
+  function snapshotNow() {
+    var p = fields();
+    p.species_taxon_slug = taxonSlug();
+    return JSON.stringify(p);
+  }
   function lsSave() { try { localStorage.setItem(LS_KEY, JSON.stringify(fields())); } catch (e) {} }
   function lsClear() { try { localStorage.removeItem(LS_KEY); } catch (e) {} }
 
@@ -205,6 +212,7 @@ const OBS_EDITOR_JS = `
       if (!pid) { saving = false; return; }
       var payload = fields();
       payload.species_taxon_slug = taxonSlug();
+      var snap = JSON.stringify(payload);
       return fetch('/studio/api/observations/' + pid, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       })
@@ -213,7 +221,7 @@ const OBS_EDITOR_JS = `
           if (j.ok) {
             offline = false;
             setStatus('已保存 ' + (j.saved_at || ''));
-            if (published) { dirtySincePublish = true; setPublishButton(); setStatus('有未发布修改'); }
+            if (published && snap !== lastPublishedSnapshot) { dirtySincePublish = true; setPublishButton(); setStatus('有未发布修改'); }
             lsClear();
           } else setStatus('保存失败：' + (j.error || ''), true);
         })
@@ -426,6 +434,7 @@ const OBS_EDITOR_JS = `
   }
   function pushOrder() {
     if (!publicId) return;
+    lastPublishedSnapshot = null; // 照片顺序变化视为发布后修改
     return fetch('/studio/api/observations/' + publicId + '/photos/order', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order: photos }),
     });
@@ -460,6 +469,7 @@ const OBS_EDITOR_JS = `
         if (r.ok) {
           photos = photos.filter(function (x) { return x !== pid; });
           delete window.__photoMeta[pid];
+          lastPublishedSnapshot = null; // 删照片视为发布后修改
           rerenderGrid();
           panel.hidden = true;
           setStatus('已删除 ' + pid);
@@ -527,6 +537,7 @@ const OBS_EDITOR_JS = `
             });
           }
           if (added.length) {
+            lastPublishedSnapshot = null; // 新照片视为发布后修改
             lsClear();
             setStatus('已添加 ' + added.length + ' 张照片');
             await saveNow(true);
@@ -556,6 +567,7 @@ const OBS_EDITOR_JS = `
       btn.disabled = false;
       if (j && j.ok) {
         published = true; dirtySincePublish = false;
+        lastPublishedSnapshot = snapshotNow();
         setPublishButton();
         setStatus('已发布 ✓ <a href="' + escHtml(j.public_url || '') + '" target="_blank" rel="noopener">查看 →</a>', false, true);
         lsClear();
@@ -603,6 +615,13 @@ const NOTE_EDITOR_JS = `
     else { btn.textContent = published ? '更新' : '发布'; btn.disabled = false; }
   }
   function payload() { return { title: title.value, subtitle: sub.value, body_md: body.value }; }
+  // 发布时刻的内容快照：之后的保存若与快照一致，不再误报「有未发布修改」
+  var lastPublishedSnapshot = null;
+  function snapshotNow() {
+    var p = payload();
+    p.related_observation_public_ids = ($('#n-related') && $('#n-related').value) || '';
+    return JSON.stringify(p);
+  }
   function lsSave() { try { localStorage.setItem(LS_KEY, JSON.stringify(payload())); } catch (e) {} }
   function lsClear() { try { localStorage.removeItem(LS_KEY); } catch (e) {} }
 
@@ -628,14 +647,15 @@ const NOTE_EDITOR_JS = `
       if (!s) { setStatus('创建失败', true); saving = false; return; }
       var p = payload();
       p.related_observation_public_ids = ($('#n-related') && $('#n-related').value) || '';
+      var snap = JSON.stringify(p);
       return fetch('/studio/api/notes/' + s, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p),
       })
         .then(readJson)
         .then(function (j) {
           if (j.ok) {
-            if (published) { dirty = true; setStatus('有未发布修改'); }
-            else setStatus('已保存 ' + (j.saved_at || ''));
+            if (published && snap !== lastPublishedSnapshot) { dirty = true; setStatus('有未发布修改'); }
+            else if (!published) setStatus('已保存 ' + (j.saved_at || ''));
             lsClear();
           } else setStatus('保存失败：' + (j.error || ''), true);
           setPubBtn();
@@ -800,6 +820,7 @@ const NOTE_EDITOR_JS = `
       btn.disabled = false;
       if (j && j.ok) {
         published = true; dirty = false;
+        lastPublishedSnapshot = snapshotNow();
         setPubBtn();
         setStatus('已发布 ✓ <a href="' + escHtml(j.public_url || '') + '" target="_blank" rel="noopener">查看 →</a>');
         lsClear();

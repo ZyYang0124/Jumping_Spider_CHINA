@@ -59,4 +59,39 @@ if (!post) return Astro.redirect(withBase('/posts/'));
     background: var(--paper-deep); color: var(--muted);
   }
   .post-body :global(code) { background: var(--paper-deep); padding: 1px 6px; font-size: 0.85em; }
+
+  /* ---- Article Engine（Studio 导出正文）的布局语义 ---- */
+  /* 单图与方向层级：竖幅收窄居中，横幅通栏 */
+  .post-body :global(.article-media) { margin: 26px 0; }
+  .post-body :global(.article-media figure), .post-body :global(.article-media-group figure) { margin: 0; }
+  .post-body :global(.article-media img), .post-body :global(.article-media-group img) { margin: 0; }
+  .post-body :global(.am) { margin: 26px 0; }
+  .post-body :global(.am-portrait) { max-width: 62%; margin-inline: auto; }
+  .post-body :global(.am-panorama) { max-width: none; }
+  /* 连续图片组合：数量决定网格 */
+  .post-body :global(.article-media-group) { display: grid; gap: 12px; margin: 26px 0; }
+  .post-body :global(.amg-pair) { grid-template-columns: 1fr 1fr; }
+  .post-body :global(.amg-triptych) { grid-template-columns: 1fr 1fr 1fr; }
+  .post-body :global(.amg-grid4), .post-body :global(.amg-grid) { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 640px) {
+    .post-body :global(.amg-triptych) { grid-template-columns: 1fr; }
+  }
+  .post-body :global(figcaption) {
+    font-family: var(--sans); font-size: 12.5px; line-height: 1.6;
+    color: var(--muted); margin-top: 8px;
+  }
+  /* 观察嵌入卡片 */
+  .post-body :global(.article-embed) {
+    border: 1px solid var(--line); background: #fff; border-radius: 12px;
+    padding: 14px 18px; margin: 22px 0; font-family: var(--sans); font-size: 14px;
+  }
+  .post-body :global(.article-embed.is-missing) { color: var(--terra); }
+  .post-body :global(.article-embed a) { display: flex; gap: 14px; align-items: center; text-decoration: none; }
+  .post-body :global(.article-embed img) {
+    width: 84px; height: 84px; object-fit: cover; border-radius: 8px; margin: 0; flex: none;
+  }
+  .post-body :global(.embed-body) { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .post-body :global(.embed-id) { color: var(--faint); font-size: 12px; display: block; letter-spacing: 0.04em; }
+  .post-body :global(.embed-body strong) { font-weight: 600; }
+  .post-body :global(.embed-body span) { color: var(--muted); font-size: 13px; }
 </style>
