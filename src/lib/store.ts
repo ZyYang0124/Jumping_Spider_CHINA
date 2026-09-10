@@ -96,7 +96,8 @@ function validate(): void {
   }
 
   for (const m of media) {
-    if (!observationIds.has(m.observation_id)) fail(`媒体 ${m.id} 指向不存在的观察`);
+    // observation_id 为 null 仅限札记独立插图（Studio 导出；只服务札记正文，不挂观察）
+    if (m.observation_id !== null && !observationIds.has(m.observation_id)) fail(`媒体 ${m.id} 指向不存在的观察`);
     if (!/^(CSFN|SFN)-M-\d{6}$/.test(m.public_id)) fail(`媒体 ${m.id} 的 public_id 格式非法：${m.public_id}`);
     if (mediaPublicIds.has(m.public_id)) fail(`媒体 public_id 重复：${m.public_id}`);
     mediaPublicIds.add(m.public_id);
@@ -131,6 +132,7 @@ export const locationById = new Map(locations.map((l) => [l.id, l]));
 export const observationById = new Map(observations.map((o) => [o.id, o]));
 export const mediaByObservation = new Map<string, MediaRecord[]>();
 for (const m of media) {
+  if (m.observation_id === null) continue; // 札记插图无观察归属
   const list = mediaByObservation.get(m.observation_id) ?? [];
   list.push(m);
   mediaByObservation.set(m.observation_id, list);

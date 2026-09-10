@@ -10,8 +10,6 @@ export interface StudioUser {
   role: 'owner' | 'contributor';
 }
 
-const SESSION_DAYS = 14;
-const OTP_MINUTES = 10;
 const SESSION_COOKIE = 'studio_session';
 
 /** 随机十六进制串（Workers 无 node:crypto 的 randomBytes 同步 API） */
@@ -45,8 +43,8 @@ export async function issueOtp(env: Env, email: string): Promise<string> {
   );
   if ((recent?.c ?? 0) >= 5) throw new Error('验证码请求过于频繁，请十分钟后再试');
   const code = sixDigitCode();
-  const expires = new Date(Date.now() + OTP_MINUTES * 60_000).toISOString();
-  await run(env.DB, 'INSERT INTO otp_codes (email, code, expires_at) VALUES (?, ?, ?)', email.toLowerCase(), code, expires);
+  // expires_at 由 SQLite 生成（datetime 格式），与 verifyOtp 的 datetime('now') 比较口径一致
+  await run(env.DB, "INSERT INTO otp_codes (email, code, expires_at) VALUES (?, ?, datetime('now', '+10 minutes'))", email.toLowerCase(), code);
   return code;
 }
 
@@ -103,8 +101,8 @@ export async function deliverOtp(env: Env, email: string, code: string): Promise
 }
 
 export async function createSession(env: Env, token: string, userId: number): Promise<void> {
-  const expires = new Date(Date.now() + SESSION_DAYS * 24 * 3600 * 1000).toISOString();
-  await run(env.DB, 'INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)', token, userId, expires);
+  // 同 issueOtp：由 SQLite 生成 datetime 格式，保证过期比较口径一致
+  await run(env.DB, "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, datetime('now', '+14 days'))", token, userId);
 }
 
 export async function destroySession(env: Env, token: string): Promise<void> {

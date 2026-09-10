@@ -532,19 +532,32 @@ app.post('/studio/api/notes', async (c) => {
   return c.json({ ok: true, slug, edit_url: `/studio/notes/${slug}/edit` });
 });
 
+/** 「关联观察」输入归一：逗号/分号/空白分隔 → 合法 SFN/CSFN 编号数组（去重、限 20 个） */
+function parseRelatedIds(raw: unknown): string[] {
+  const text = Array.isArray(raw) ? raw.join(',') : String(raw ?? '');
+  const out: string[] = [];
+  for (const tok of text.split(/[,，;；\s]+/)) {
+    const t = tok.trim().toUpperCase();
+    if (/^(CSFN|SFN)-\d{4}-\d{6}$/.test(t) && !out.includes(t)) out.push(t);
+  }
+  return out.slice(0, 20);
+}
+
 app.patch('/studio/api/notes/:slug', async (c) => {
   const u = user(c);
-  if (!sameOrigin(c.req.raw)) return c.text('Forbidden', 403);
+  if (!sameOrigin(c.req.raw)) return c.json({ error: 'Forbidden' }, 403);
   const post = await get<any>(c.env.DB, 'SELECT * FROM posts WHERE slug = ?', c.req.param('slug'));
   if (!post) return c.json({ error: '未找到' }, 404);
   if (u.role !== 'owner' && post.author_id !== u.id) return c.json({ error: '只能编辑自己的札记' }, 403);
-  const body = (await c.req.json()) as Record<string, string>;
+  const body = (await c.req.json()) as Record<string, unknown>;
+  const related = parseRelatedIds(body.related_observation_public_ids);
   await run(
     c.env.DB,
-    "UPDATE posts SET title = ?, subtitle = ?, body_md = ?, updated_at = datetime('now') WHERE id = ?",
+    "UPDATE posts SET title = ?, subtitle = ?, body_md = ?, related_observation_public_ids = ?, updated_at = datetime('now') WHERE id = ?",
     String(body.title ?? '').slice(0, 160),
-    body.subtitle ?? null,
+    typeof body.subtitle === 'string' ? body.subtitle : null,
     String(body.body_md ?? ''),
+    JSON.stringify(related),
     post.id,
   );
   return c.json({ ok: true, saved_at: new Date().toISOString().slice(11, 19) });

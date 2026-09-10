@@ -8,7 +8,6 @@ import type { Database } from 'better-sqlite3';
 const SESSION_SECRET =
   process.env.STUDIO_SESSION_SECRET ?? 'dev-only-secret-do-not-use-in-production';
 const SESSION_DAYS = 14;
-const OTP_MINUTES = 10;
 
 export interface StudioUser {
   id: number;
@@ -34,11 +33,10 @@ export function isInvited(db: Database, email: string): boolean {
 
 export function issueOtp(db: Database, email: string): string {
   const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-  const expires = new Date(Date.now() + OTP_MINUTES * 60_000).toISOString();
-  db.prepare('INSERT INTO otp_codes (email, code, expires_at) VALUES (?, ?, ?)').run(
+  // expires_at 由 SQLite 生成（datetime 格式），与查询里的 datetime('now') 比较口径一致
+  db.prepare("INSERT INTO otp_codes (email, code, expires_at) VALUES (?, ?, datetime('now', '+10 minutes'))").run(
     email.toLowerCase(),
     code,
-    expires,
   );
   return code;
 }
@@ -129,8 +127,8 @@ export function verifyPending(token: string): string | null {
 
 export function createSession(db: Database, res: Response, userId: number): void {
   const token = randomBytes(32).toString('hex');
-  const expires = new Date(Date.now() + SESSION_DAYS * 24 * 3600 * 1000).toISOString();
-  db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)').run(token, userId, expires);
+  // 同 issueOtp：由 SQLite 生成 datetime 格式，保证过期比较口径一致
+  db.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, datetime('now', '+14 days'))").run(token, userId);
   res.cookie('studio_session', token, {
     httpOnly: true,
     sameSite: 'lax',

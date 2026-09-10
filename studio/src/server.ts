@@ -918,6 +918,17 @@ app.post('/studio/api/notes', (req, res) => {
   res.json({ ok: true, slug, edit_url: `/studio/notes/${slug}/edit` });
 });
 
+/** 「关联观察」输入归一：逗号/分号/空白分隔 → 合法 SFN/CSFN 编号数组（去重、限 20 个） */
+function parseRelatedIds(raw: unknown): string[] {
+  const text = Array.isArray(raw) ? raw.join(',') : String(raw ?? '');
+  const out: string[] = [];
+  for (const tok of text.split(/[,，;；\s]+/)) {
+    const t = tok.trim().toUpperCase();
+    if (/^(CSFN|SFN)-\d{4}-\d{6}$/.test(t) && !out.includes(t)) out.push(t);
+  }
+  return out.slice(0, 20);
+}
+
 app.patch('/studio/api/notes/:slug', (req, res) => {
   const user = requireUser(db, req, res);
   if (!user) return res.status(401).json({ error: '未登录' });
@@ -927,9 +938,13 @@ app.patch('/studio/api/notes/:slug', (req, res) => {
     | undefined;
   if (!post) return res.status(404).json({ error: '未找到' });
   if (user.role !== 'owner' && post.author_id !== user.id) return res.status(403).json({ error: '只能编辑自己的札记' });
-  const b = req.body as Record<string, string>;
-  db.prepare("UPDATE posts SET title = ?, subtitle = ?, body_md = ?, updated_at = datetime('now') WHERE id = ?").run(
-    String(b.title ?? '').slice(0, 160), b.subtitle ?? null, String(b.body_md ?? ''), post.id,
+  const b = req.body as Record<string, unknown>;
+  const related = parseRelatedIds(b.related_observation_public_ids);
+  db.prepare(
+    "UPDATE posts SET title = ?, subtitle = ?, body_md = ?, related_observation_public_ids = ?, updated_at = datetime('now') WHERE id = ?",
+  ).run(
+    String(b.title ?? '').slice(0, 160), typeof b.subtitle === 'string' ? b.subtitle : null,
+    String(b.body_md ?? ''), JSON.stringify(related), post.id,
   );
   res.json({ ok: true, saved_at: new Date().toISOString().slice(11, 19) });
 });

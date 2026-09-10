@@ -172,7 +172,9 @@ export function getPublicMediaDetail(publicMediaId: string): PublicMediaDetail |
   };
 }
 
-function getObservationByRecord(observationId: string): PublicObservation | undefined {
+function getObservationByRecord(observationId: string | null): PublicObservation | undefined {
+  // null = 札记独立插图（无观察归属），不进入观察相关展示
+  if (observationId === null) return undefined;
   const found = observations.find((o) => o.id === observationId);
   if (!found || found.status !== 'published' || found.visibility !== 'public') return undefined;
   return getObservation(found.public_id);
@@ -231,7 +233,7 @@ function safeTripMedia(mediaIds: string[]) {
     .map((id) => mediaById.get(id))
     .filter(
       (m): m is NonNullable<ReturnType<typeof mediaById.get>> =>
-        !!m && m.visibility === 'public' && publishedObservationIds.has(m.observation_id),
+        !!m && m.visibility === 'public' && m.observation_id !== null && publishedObservationIds.has(m.observation_id),
     )
     .map((m) => {
       const pm = publicMediaFromRecord(m);
@@ -350,6 +352,7 @@ export function getPublicContributors(): PublicContributor[] {
       const favorite =
         favoriteMedia &&
         favoriteMedia.visibility === 'public' &&
+        favoriteMedia.observation_id !== null &&
         publishedObservationIds.has(favoriteMedia.observation_id)
           ? publicMediaFromRecord(favoriteMedia)
           : null;
@@ -442,7 +445,7 @@ export interface PublicPost {
 function postCover(mediaPublicId: string | null) {
   if (!mediaPublicId) return null;
   const record = media.find((m) => m.public_id === mediaPublicId && m.visibility === 'public');
-  if (!record || !publishedObservationIds.has(record.observation_id)) return null;
+  if (!record || record.observation_id === null || !publishedObservationIds.has(record.observation_id)) return null;
   return publicMediaFromRecord(record);
 }
 

@@ -42,9 +42,13 @@ async function main() {
   const publishedStudioObs = new Set(
     studioObsList.filter((o) => o.status === 'published' && o.visibility === 'public').map((o) => o.id),
   );
+  // observation_id 为 null 的 Studio 媒体是札记独立插图（导出端只收录已发布札记引用的图），
+  // 与观察媒体走同一条派生管线，保证札记正文引用的编号都有产物。
   const allPublicMedia = [
     ...publicMedia,
-    ...studioMediaList.filter((m) => m.visibility === 'public' && publishedStudioObs.has(m.observation_id)),
+    ...studioMediaList.filter(
+      (m) => m.visibility === 'public' && (m.observation_id == null || publishedStudioObs.has(m.observation_id)),
+    ),
   ];
 
   const manifest = {};

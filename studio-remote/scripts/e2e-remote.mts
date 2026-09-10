@@ -186,10 +186,19 @@ const cp = await (await req(`/studio/api/observations/${pidC}/publish`, { method
 ok(cp.ok === true, `C3 排序后发布：${cp.public_url ?? cp.error}`);
 
 // ---------- 场景 D ----------
+// 札记独立插图（不挂观察）：走 /studio/api/media/upload
+const upN = new FormData();
+appendUpload(upN, await preparedUpload(nogpsBuf, 'd1.jpg'));
+const upNj = await (await req('/studio/api/media/upload', { method: 'POST', body: upN })).json();
+const noteImgId: string = upNj.public_id ?? '';
+ok(upNj.ok === true && /^SFN-M-\d{6}$/.test(noteImgId), `D0 札记插图独立上传：${noteImgId}`);
+
 const bodyMd = [
   '## 山径上的半小时',
   '',
   '雨后初晴，叶片上的游猎者格外活跃。',
+  '',
+  `![独立插图](media:${noteImgId})`,
   '',
   `![封面图注](media:${cids[0]})`,
   '',
@@ -204,13 +213,35 @@ const nd = await (await req('/studio/api/notes', {
   body: JSON.stringify({ title: '雨后山径半小时', subtitle: '从沟谷到山脊，找一只翠蛛', body_md: bodyMd }),
 })).json();
 ok(!!nd.slug, `D1 札记创建：${nd.slug}`);
+const nr = await (await req(`/studio/api/notes/${nd.slug}`, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    title: '雨后山径半小时', subtitle: '从沟谷到山脊，找一只翠蛛', body_md: bodyMd,
+    related_observation_public_ids: `${pidA}, junk, ${pidB}`,
+  }),
+})).json();
+ok(nr.ok === true, 'D2 关联观察字段已保存（含非法编号过滤）');
 const pv = await (await req('/studio/api/notes/preview', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body_md: bodyMd }),
 })).json();
-ok(typeof pv.html === 'string' && pv.html.includes('amg-pair'), 'D2 预览：两张横图自动配对（amg-pair）');
+ok(typeof pv.html === 'string' && pv.html.includes('amg-triptych'), 'D3 预览：三张连续图组成三联（amg-triptych）');
 ok(pv.html.includes('embed-observation') && pv.html.includes(pidA), 'D3 预览：观察嵌入渲染为卡片');
 const np = await (await req(`/studio/api/notes/${nd.slug}/publish`, { method: 'POST' })).json();
 ok(np.ok === true, `D4 札记发布：${np.public_url ?? np.error}`);
+
+// 二次导出：post 字段与札记独立插图必须完整进包（公开站构建依赖）
+const exp2 = await req('/studio/export');
+ok(exp2.ok, 'D5 二次导出：zip 可下载');
+const zip2 = unzipSync(new Uint8Array(await exp2.arrayBuffer()));
+const posts2 = JSON.parse(new TextDecoder().decode(zip2['studio-posts.json'])) as any[];
+const p0 = posts2.find((p) => p.slug === nd.slug);
+ok(!!p0 && Array.isArray(p0.related_observation_public_ids) && p0.related_observation_public_ids.join(',') === [pidA, pidB].join(','), `D5 导出关联观察：${p0?.related_observation_public_ids}`);
+ok(!!p0 && 'cover_media_public_id' in p0, 'D5 导出封面字段存在（cover_media_public_id）');
+const media2 = JSON.parse(new TextDecoder().decode(zip2['studio-media.json'])) as any[];
+const noteMedia = media2.find((m) => m.public_id === noteImgId);
+ok(!!noteMedia && noteMedia.observation_id === null, 'D6 导出札记独立插图（observation_id = null）');
+ok(Object.keys(zip2).includes(`originals/${noteImgId}.jpg`), 'D6 札记插图原图已打包');
+ok(!!p0 && String(p0.body_html).includes(`/media/derivatives/${noteImgId}-`), 'D6 正文引用公开派生图路径');
 
 // ---------- 场景 F ----------
 await req(`/studio/api/observations/${pidA}`, {

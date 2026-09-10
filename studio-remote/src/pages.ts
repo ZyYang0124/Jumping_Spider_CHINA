@@ -15,6 +15,9 @@ export const SITE_URL = 'https://salticidnotes.cn';
 
 // ---------- 时间（全部按北京时间显示；Workers 上 new Date() 是 UTC，须显式换算） ----------
 
+/** 内联进 <script> 的 JSON：转义 <，防止内容里的 </script> 提前闭合标签 */
+const jsonForScript = (v: unknown): string => JSON.stringify(v).replace(/</g, '\\u003c');
+
 const TZ = 'Asia/Shanghai';
 function shParts(d: Date): { y: number; m: number; d: number; hh: string; mm: string } {
   const f = new Intl.DateTimeFormat('zh-CN', {
@@ -108,6 +111,7 @@ details.avatar .menu .who { color:var(--faint); font-size:12.5px; }
 #save-status { font-size:12.5px; color:var(--faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 #save-status.err { color:var(--terra); }
 #save-status a { color:var(--accent); }
+#bar-status a { color:var(--accent); }
 
 /* ---- 通用元素 ---- */
 main { min-height:calc(100vh - 56px); }
@@ -671,12 +675,12 @@ export function obsEditorHtml(
 
   <script>
     window.__EDITOR_BOOT = {
-      publicId: ${JSON.stringify(publicId)},
-      status: ${JSON.stringify(meta.status)},
-      hasUnpublished: ${JSON.stringify(meta.hasUnpublished)},
-      photoMeta: ${JSON.stringify(meta.photoMeta)},
-      taxa: ${JSON.stringify(TAXA.map((t) => ({ slug: t.slug, name: t.scientific_name, cn: t.chinese_name, rank: t.rank })))},
-      data: ${JSON.stringify({
+      publicId: ${jsonForScript(publicId)},
+      status: ${jsonForScript(meta.status)},
+      hasUnpublished: ${jsonForScript(meta.hasUnpublished)},
+      photoMeta: ${jsonForScript(meta.photoMeta)},
+      taxa: ${jsonForScript(TAXA.map((t) => ({ slug: t.slug, name: t.scientific_name, cn: t.chinese_name, rank: t.rank })))},
+      data: ${jsonForScript({
         observed_at: data.observed_at ?? '',
         latitude: data.latitude ?? '',
         longitude: data.longitude ?? '',
@@ -752,9 +756,9 @@ export function noteEditorHtml(slug: string | null, data: Record<string, any>): 
   <input type="hidden" id="n-slug" value="${esc(slug ?? '')}" />
   <script>
     window.__NOTE_BOOT = {
-      slug: ${JSON.stringify(slug ?? null)},
-      bodyMd: ${JSON.stringify(data.body_md ?? '')},
-      status: ${JSON.stringify(data.status ?? 'draft')},
+      slug: ${jsonForScript(slug ?? null)},
+      bodyMd: ${jsonForScript(data.body_md ?? '')},
+      status: ${jsonForScript(data.status ?? 'draft')},
     };
   </script>
   <script src="/studio-note-editor.js"></script>`, null, { editor: true, actions });

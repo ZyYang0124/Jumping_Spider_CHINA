@@ -154,11 +154,17 @@ const OBS_EDITOR_JS = `
   var dirtySincePublish = false;
   var LS_KEY = 'sfn-obs-' + (boot.publicId || 'new');
   var saveTimer = null, saving = false, offline = false;
+  var saveChain = Promise.resolve(), saveQueued = false;
   var photos = $all('#photo-grid .photo').map(function (n) { return n.getAttribute('data-pid'); });
 
-  function setStatus(s, err) {
-    if (statusEl) { statusEl.textContent = s; statusEl.className = err ? 'err' : ''; }
-    if (barStatus) { barStatus.textContent = s; barStatus.style.color = err ? 'var(--terra)' : 'var(--faint)'; }
+  function readJson(r) {
+    return r.text().then(function (t) {
+      try { return JSON.parse(t); } catch (e) { return { ok: false, error: '服务异常（' + r.status + '）' }; }
+    });
+  }
+  function setStatus(s, err, isHtml) {
+    if (statusEl) { if (isHtml) { statusEl.innerHTML = s; } else { statusEl.textContent = s; } statusEl.className = err ? 'err' : ''; }
+    if (barStatus) { if (isHtml) { barStatus.innerHTML = s; } else { barStatus.textContent = s; } barStatus.style.color = err ? 'var(--terra)' : 'var(--faint)'; }
   }
   function setPublishButton() {
     var btn = $('#btn-publish');
@@ -192,23 +198,21 @@ const OBS_EDITOR_JS = `
   }
 
   function saveNow(silent) {
-    if (saving) return Promise.resolve();
+    if (saving) { saveQueued = true; return saveChain; } // 已有保存 in-flight：登记尾随保存，避免发布与保存竞态
     saving = true;
     var ensure = publicId ? Promise.resolve(publicId) : create();
-    return ensure.then(function (pid) {
+    saveChain = ensure.then(function (pid) {
       if (!pid) { saving = false; return; }
       var payload = fields();
       payload.species_taxon_slug = taxonSlug();
       return fetch('/studio/api/observations/' + pid, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       })
-        .then(function (r) { return r.json(); })
+        .then(readJson)
         .then(function (j) {
           if (j.ok) {
             offline = false;
-            var t = (j.saved_at || '');
-            if (!silent) setStatus('已保存 ' + t);
-            else setStatus('已保存 ' + t);
+            setStatus('已保存 ' + (j.saved_at || ''));
             if (published) { dirtySincePublish = true; setPublishButton(); setStatus('有未发布修改'); }
             lsClear();
           } else setStatus('保存失败：' + (j.error || ''), true);
@@ -216,9 +220,12 @@ const OBS_EDITOR_JS = `
         .catch(function () {
           offline = true;
           setStatus('暂时离线，更改已留在本机，恢复后重试', true);
-        })
-        .then(function () { saving = false; });
+        });
+    }).then(function () {
+      saving = false;
+      if (saveQueued) { saveQueued = false; return saveNow(silent); }
     });
+    return saveChain;
   }
   function scheduleSave() {
     setStatus('正在保存…');
@@ -437,7 +444,6 @@ const OBS_EDITOR_JS = `
       '<button type="button" class="ghost" id="pp-del">删除</button>' +
       '<button type="button" class="ghost" id="pp-close">收起</button></div>';
     var cap = panel.querySelector('#pp-caption'), ph = panel.querySelector('#pp-photographer');
-    fetch('/studio/api/media/' + pid).catch(function () {});
     cap.value = window.__photoMeta[pid] ? (window.__photoMeta[pid].caption || '') : '';
     ph.value = window.__photoMeta[pid] ? (window.__photoMeta[pid].photographer_name || '') : '';
     cap.addEventListener('change', function () { patchMedia(pid, { caption: cap.value }); });
@@ -542,14 +548,16 @@ const OBS_EDITOR_JS = `
     btn.disabled = true;
     setStatus('正在检查…');
     saveNow(true).then(function () {
+      if (!publicId) { btn.disabled = false; setStatus('保存失败，无法发布', true); return; }
       setStatus('正在准备图片…');
-      return fetch('/studio/api/observations/' + publicId + '/publish', { method: 'POST' }).then(function (r) { return r.json(); });
+      return fetch('/studio/api/observations/' + publicId + '/publish', { method: 'POST' }).then(readJson);
     }).then(function (j) {
+      if (!j) return; // 保存失败分支已处理
       btn.disabled = false;
       if (j && j.ok) {
         published = true; dirtySincePublish = false;
         setPublishButton();
-        setStatus('已发布 ✓ <a href="' + j.public_url + '" target="_blank" rel="noopener">查看 →</a>');
+        setStatus('已发布 ✓ <a href="' + escHtml(j.public_url || '') + '" target="_blank" rel="noopener">查看 →</a>', false, true);
         lsClear();
       } else {
         setStatus('无法发布：' + ((j && j.error) || '请检查照片、时间与坐标'), true);
@@ -577,13 +585,22 @@ const NOTE_EDITOR_JS = `
   var published = (window.__NOTE_BOOT && window.__NOTE_BOOT.status) === 'published';
   var LS_KEY = 'sfn-note-' + (slug || 'new');
   var timer = null, saving = false, previewing = false, dirty = false;
+  var saveChain = Promise.resolve(), saveQueued = false;
+
+  function readJson(r) {
+    return r.text().then(function (t) {
+      try { return JSON.parse(t); } catch (e) { return { ok: false, error: '服务异常（' + r.status + '）' }; }
+    });
+  }
 
   function setStatus(html, err) {
     if (statusEl) { statusEl.innerHTML = html; statusEl.className = err ? 'err' : ''; }
     if (barStatus) { barStatus.innerHTML = html; barStatus.style.color = err ? 'var(--terra)' : 'var(--faint)'; }
   }
   function setPubBtn() {
-    $('#btn-publish-note').textContent = published && !dirty ? '已发布 ✓' : (published ? '更新' : '发布');
+    var btn = $('#btn-publish-note');
+    if (published && !dirty) { btn.textContent = '已发布 ✓'; btn.disabled = true; }
+    else { btn.textContent = published ? '更新' : '发布'; btn.disabled = false; }
   }
   function payload() { return { title: title.value, subtitle: sub.value, body_md: body.value }; }
   function lsSave() { try { localStorage.setItem(LS_KEY, JSON.stringify(payload())); } catch (e) {} }
@@ -604,33 +621,37 @@ const NOTE_EDITOR_JS = `
       });
   }
   function saveNow(silent) {
-    if (saving) return Promise.resolve();
+    if (saving) { saveQueued = true; return saveChain; } // 已有保存 in-flight：登记尾随保存，避免发布与保存竞态
     saving = true;
     var ensure = slug ? Promise.resolve(slug) : create();
-    return ensure.then(function (s) {
+    saveChain = ensure.then(function (s) {
       if (!s) { setStatus('创建失败', true); saving = false; return; }
       var p = payload();
       p.related_observation_public_ids = ($('#n-related') && $('#n-related').value) || '';
       return fetch('/studio/api/notes/' + s, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p),
       })
-        .then(function (r) { return r.json(); })
+        .then(readJson)
         .then(function (j) {
-          saving = false;
           if (j.ok) {
-            var t = j.saved_at || '';
-            setStatus(published && dirty ? '有未发布修改' : '已保存 ' + t, false);
             if (published) { dirty = true; setStatus('有未发布修改'); }
+            else setStatus('已保存 ' + (j.saved_at || ''));
             lsClear();
-          } else setStatus('保存失败', true);
+          } else setStatus('保存失败：' + (j.error || ''), true);
+          setPubBtn();
         })
-        .catch(function () { saving = false; setStatus('暂时离线，内容留在本机', true); });
+        .catch(function () { setStatus('暂时离线，内容留在本机', true); });
+    }).then(function () {
+      saving = false;
+      if (saveQueued) { saveQueued = false; return saveNow(silent); }
     });
+    return saveChain;
   }
   function schedule() {
     dirty = true;
     if (published) setStatus('有未发布修改');
     else setStatus('正在保存…');
+    setPubBtn();
     lsSave();
     clearTimeout(timer);
     timer = setTimeout(function () { saveNow(true); }, 1400);
@@ -769,13 +790,15 @@ const NOTE_EDITOR_JS = `
     btn.disabled = true;
     setStatus('正在发布…');
     saveNow(true).then(function () {
-      return fetch('/studio/api/notes/' + slug + '/publish', { method: 'POST' }).then(function (r) { return r.json(); });
+      if (!slug) { btn.disabled = false; setStatus('保存失败，无法发布', true); return; }
+      return fetch('/studio/api/notes/' + slug + '/publish', { method: 'POST' }).then(readJson);
     }).then(function (j) {
+      if (!j) return; // 保存失败分支已处理
       btn.disabled = false;
       if (j && j.ok) {
         published = true; dirty = false;
         setPubBtn();
-        setStatus('已发布 ✓ <a href="' + j.public_url + '" target="_blank" rel="noopener">查看 →</a>');
+        setStatus('已发布 ✓ <a href="' + escHtml(j.public_url || '') + '" target="_blank" rel="noopener">查看 →</a>');
         lsClear();
       } else setStatus('无法发布：' + ((j && j.error) || ''), true);
     }).catch(function () { btn.disabled = false; setStatus('发布失败（网络），请重试', true); });

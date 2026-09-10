@@ -131,7 +131,8 @@ export interface MediaRecord {
   id: string;
   /** 稳定公开编号 CSFN-M-NNNNNN，一经分配永不变、不含学名/文件名/地名 */
   public_id: string;
-  observation_id: string;
+  /** 札记独立插图不挂观察（Studio 导出 observation_id: null），仅服务札记正文 */
+  observation_id: string | null;
   source_original: string;
   view_type: MediaViewType;
   caption: string | null;

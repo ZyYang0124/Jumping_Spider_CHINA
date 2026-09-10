@@ -29,10 +29,12 @@ export async function buildExportZip(env: Env): Promise<Uint8Array> {
   const mediaOut: unknown[] = [];
   const identificationsOut: unknown[] = [];
   const originalFiles: Record<string, Uint8Array> = {};
+  const exportedMediaIds = new Set<string>();
 
   for (const o of observations) {
     const mediaRows = await all<any>(env.DB, 'SELECT * FROM media WHERE observation_id = ? ORDER BY sort_order', o.id);
     for (const m of mediaRows) {
+      exportedMediaIds.add(m.public_id);
       mediaOut.push({
         id: m.public_id,
         public_id: m.public_id,
@@ -109,6 +111,36 @@ export async function buildExportZip(env: Env): Promise<Uint8Array> {
   const posts = await all<any>(env.DB, "SELECT * FROM posts WHERE status = 'published' ORDER BY created_at DESC");
   const postsOut = [];
   for (const p of posts) {
+    const bodyMd = String(p.body_md ?? '');
+    // 札记独立插图（不挂观察）：出现在已发布正文的 media: 引用也要随包导出，
+    // observation_id 置 null（公开站 store 校验允许；仅服务札记正文，不出现在观察页）
+    for (const ref of bodyMd.matchAll(/!\[[^\]]*\]\(media:([^)\s]+)\)/g)) {
+      const pid = ref[1].trim();
+      if (exportedMediaIds.has(pid)) continue;
+      const m = await get<any>(env.DB, 'SELECT * FROM media WHERE public_id = ?', pid);
+      if (!m) continue;
+      mediaOut.push({
+        id: m.public_id,
+        public_id: m.public_id,
+        observation_id: null,
+        source_original: `media/originals/${m.public_id}${m.orig_ext}`,
+        view_type: m.view_type,
+        caption: m.caption,
+        sort_order: 1,
+        is_cover: false,
+        photographer_profile_id: null,
+        photographer_name: m.photographer_name,
+        license: m.license,
+        visibility: 'public',
+      });
+      exportedMediaIds.add(pid);
+      const obj = await env.MEDIA.get(`originals/${m.public_id}${m.orig_ext}`);
+      if (obj) originalFiles[`originals/${m.public_id}${m.orig_ext}`] = new Uint8Array(await obj.arrayBuffer());
+    }
+    // 封面：posts.cover_media_id → 媒体稳定编号（公开站 postCover 依赖此字段）
+    const coverRow = p.cover_media_id
+      ? await get<{ public_id: string }>(env.DB, 'SELECT public_id FROM media WHERE id = ?', p.cover_media_id)
+      : undefined;
     postsOut.push({
       id: `studio-post-${p.id}`,
       slug: p.slug,
@@ -117,8 +149,10 @@ export async function buildExportZip(env: Env): Promise<Uint8Array> {
       author_name: '杨智勇',
       created_at: p.created_at,
       published_at: p.published_at,
-      body_md: p.body_md,
-      body_html: await renderBody(env, String(p.body_md ?? '')),
+      cover_media_public_id: coverRow?.public_id ?? null,
+      related_observation_public_ids: JSON.parse(String(p.related_observation_public_ids ?? '[]')) as string[],
+      body_md: bodyMd,
+      body_html: await renderBody(env, bodyMd),
     });
   }
 
