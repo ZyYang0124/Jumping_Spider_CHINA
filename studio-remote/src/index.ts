@@ -26,6 +26,7 @@ import { parseExif } from './exif';
 import { renderArticle } from './article';
 import { buildResolvers } from './embeds';
 import { buildExportZip } from './export';
+import { syncToGitHub } from './github';
 import { esc, loginPage, mediaPage, noteEditorHtml, obsEditorHtml, page, STYLES, TAXA, homePage, draftsPage, relTime, type FeedItem } from './pages';
 import { invitePage } from './invites';
 import { OBS_EDITOR_SCRIPT, NOTE_EDITOR_SCRIPT, LOGIN_SCRIPT } from './editorjs';
@@ -500,7 +501,13 @@ app.post('/studio/api/observations/:public_id/publish', async (c) => {
     u.display_name,
   );
   await audit(c.env, u.display_name, 'observation', obs.public_id, 'publish');
-  return c.json({ ok: true, public_url: `/observations/${obs.public_id}/` });
+  // 规则 5/7：发布即自动提交仓库（push 触发公开站构建）；失败不影响本次发布，可手动重试
+  c.executionCtx.waitUntil(
+    syncToGitHub(c.env, obs.public_id).then((r) =>
+      audit(c.env, u.display_name, 'github-sync', obs.public_id, r.ok ? 'sync-ok: ' + r.detail : 'sync-fail: ' + r.detail),
+    ),
+  );
+  return c.json({ ok: true, public_url: `/observations/${obs.public_id}/`, sync: 'queued' });
 });
 
 app.post('/studio/api/observations/:public_id/private', async (c) => {
@@ -583,7 +590,13 @@ app.post('/studio/api/notes/:slug/publish', async (c) => {
   const cnt = await get<{ c: number }>(c.env.DB, "SELECT COUNT(*) AS c FROM revisions WHERE entity_type = 'post' AND entity_id = ?", post.slug);
   await run(c.env.DB, "INSERT INTO revisions (entity_type, entity_id, version, action, author) VALUES ('post', ?, ?, '发布札记', ?)", post.slug, (cnt?.c ?? 0) + 1, u.display_name);
   await audit(c.env, u.display_name, 'post', post.slug, 'publish');
-  return c.json({ ok: true, public_url: `/posts/${post.slug}/` });
+  // 同观察发布：自动同步仓库，push 触发公开站构建
+  c.executionCtx.waitUntil(
+    syncToGitHub(c.env, post.slug).then((r) =>
+      audit(c.env, u.display_name, 'github-sync', post.slug, r.ok ? 'sync-ok: ' + r.detail : 'sync-fail: ' + r.detail),
+    ),
+  );
+  return c.json({ ok: true, public_url: `/posts/${post.slug}/`, sync: 'queued' });
 });
 
 // 预览：真实 Article Renderer（与公开站导出共用）
@@ -719,6 +732,16 @@ app.post('/studio/invite', async (c) => {
 });
 
 // ---------- 导出（zip：JSON + 新增原图） ----------
+
+// 手动同步：把当前已发布内容整体提交到仓库并触发公开站构建（发布时自动做过，失败可在此重试）
+app.post('/studio/api/sync', async (c) => {
+  const u = user(c);
+  if (!sameOrigin(c.req.raw)) return c.json({ error: 'Forbidden' }, 403);
+  if (u.role !== 'owner') return c.json({ error: '只有站长可以同步' }, 403);
+  const r = await syncToGitHub(c.env);
+  await audit(c.env, u.display_name, 'github-sync', null, r.ok ? 'manual-ok: ' + r.detail : 'manual-fail: ' + r.detail);
+  return c.json(r, r.ok ? 200 : 500);
+});
 
 app.get('/studio/export', async (c) => {
   const u = requireOwner(c);

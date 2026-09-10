@@ -23,7 +23,17 @@ const README = `Salticid Notes · Field Studio 导出包
 坐标口径（Studio SOP §7）：观察坐标全量精确公开；未发布记录不会出现在导出中。
 `;
 
-export async function buildExportZip(env: Env): Promise<Uint8Array> {
+export interface ExportData {
+  observationsJson: string;
+  locationsJson: string;
+  mediaJson: string;
+  identificationsJson: string;
+  postsJson: string;
+  /** key 形如 originals/SFN-M-000001.jpg */
+  originals: Record<string, Uint8Array>;
+}
+
+export async function collectExport(env: Env): Promise<ExportData> {
   const observations = await all(env.DB, "SELECT * FROM observations WHERE status = 'published' AND visibility = 'public' ORDER BY public_id");
 
   const mediaOut: unknown[] = [];
@@ -156,14 +166,28 @@ export async function buildExportZip(env: Env): Promise<Uint8Array> {
     });
   }
 
-  const j = (v: unknown) => strToU8(JSON.stringify(v, null, 2) + '\n');
+  const j = (v: unknown) => JSON.stringify(v, null, 2) + '\n';
+  return {
+    observationsJson: j(observationsOut),
+    locationsJson: j(locationsOut),
+    mediaJson: j(mediaOut),
+    identificationsJson: j(identificationsOut),
+    postsJson: j(postsOut),
+    originals: originalFiles,
+  };
+}
+
+/** 打包为 zip 下载（手动导出备份用） */
+export async function buildExportZip(env: Env): Promise<Uint8Array> {
+  const data = await collectExport(env);
+  const u8 = (s: string) => strToU8(s);
   return zipSync({
     'README.txt': strToU8(README),
-    'studio-observations.json': j(observationsOut),
-    'studio-locations.json': j(locationsOut),
-    'studio-media.json': j(mediaOut),
-    'studio-identifications.json': j(identificationsOut),
-    'studio-posts.json': j(postsOut),
-    ...originalFiles,
+    'studio-observations.json': u8(data.observationsJson),
+    'studio-locations.json': u8(data.locationsJson),
+    'studio-media.json': u8(data.mediaJson),
+    'studio-identifications.json': u8(data.identificationsJson),
+    'studio-posts.json': u8(data.postsJson),
+    ...Object.fromEntries(Object.entries(data.originals).map(([k, v]) => [k, v])),
   });
 }

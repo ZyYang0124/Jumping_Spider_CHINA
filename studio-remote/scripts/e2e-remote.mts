@@ -21,15 +21,27 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 let cookie = '';
 async function req(path: string, opts: any = {}): Promise<Response> {
-  const res = await fetch(BASE + path, {
-    ...opts,
-    headers: { ...(opts.headers ?? {}), ...(cookie ? { Cookie: cookie } : {}) },
-  });
-  for (const c of (res.headers as any).getSetCookie?.() ?? []) {
-    const kv = String(c).split(';')[0];
-    if (kv.startsWith('studio_session=')) cookie = kv;
+  // wrangler dev 本地偶发连接抖动（热重载/workerd 重启）：仅对传输层错误重试
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(BASE + path, {
+        ...opts,
+        headers: { ...(opts.headers ?? {}), ...(cookie ? { Cookie: cookie } : {}) },
+      });
+      for (const c of (res.headers as any).getSetCookie?.() ?? []) {
+        const kv = String(c).split(';')[0];
+        if (kv.startsWith('studio_session=')) cookie = kv;
+      }
+      return res;
+    } catch (e: any) {
+      lastErr = e;
+      const msg = String(e?.cause?.code ?? e?.code ?? e);
+      if (!/ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED/.test(msg)) throw e;
+      await sleep(1500);
+    }
   }
-  return res;
+  throw lastErr;
 }
 
 // 浏览器端 canvas 派生图的本地等价物（sharp 生成同样的分组字段）

@@ -7,6 +7,8 @@ export interface Env {
   STUDIO_SESSION_SECRET?: string;
   RESEND_API_KEY?: string;
   MAIL_FROM?: string;
+  /** 发布自动同步到 GitHub 仓库用（规则 5/7）；未配置时发布仍可用，仅不同步 */
+  GITHUB_TOKEN?: string;
 }
 
 export type Row = Record<string, any>;

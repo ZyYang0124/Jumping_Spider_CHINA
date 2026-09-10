@@ -509,9 +509,32 @@ export function homePage(user: StudioUser, recent: FeedItem[]): string {
     ${feedHtml(recent, '还没有记录。从上面两张卡片开始。')}
     <a class="all-link" href="/studio/drafts">全部草稿与发布 →</a>
     <div class="home-foot">
-      ${user.role === 'owner' ? '<a href="/studio/export">导出备份（zip）</a>' : ''}
+      ${user.role === 'owner' ? '<a href="/studio/export">导出备份（zip）</a><a href="#" id="btn-sync">同步到公开站</a><span id="sync-status"></span>' : ''}
     </div>
-  </div>`, user);
+  </div>
+  ${
+    user.role === 'owner'
+      ? `<script>
+  (function () {
+    var btn = document.getElementById('btn-sync');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var st = document.getElementById('sync-status');
+      btn.style.pointerEvents = 'none';
+      st.textContent = '同步中…';
+      fetch('/studio/api/sync', { method: 'POST' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          st.textContent = j.ok ? '已同步 ✓（公开站构建约 1-2 分钟后上线）' : '同步失败：' + (j.detail || '');
+          btn.style.pointerEvents = '';
+        })
+        .catch(function () { st.textContent = '网络异常，请重试'; btn.style.pointerEvents = ''; });
+    });
+  })();
+  </script>`
+      : ''
+  }`, user);
 }
 
 export function draftsPage(user: StudioUser, drafts: FeedItem[], published: FeedItem[]): string {

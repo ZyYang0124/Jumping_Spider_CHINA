@@ -569,7 +569,8 @@ const OBS_EDITOR_JS = `
         published = true; dirtySincePublish = false;
         lastPublishedSnapshot = snapshotNow();
         setPublishButton();
-        setStatus('已发布 ✓ <a href="' + escHtml(j.public_url || '') + '" target="_blank" rel="noopener">查看 →</a>', false, true);
+        var syncNote = j.sync === 'queued' ? ' · 公开站自动同步中' : '';
+        setStatus('已发布 ✓ <a href="' + escHtml(j.public_url || '') + '" target="_blank" rel="noopener">查看 →</a>' + syncNote, false, true);
         lsClear();
       } else {
         setStatus('无法发布：' + ((j && j.error) || '请检查照片、时间与坐标'), true);
@@ -822,7 +823,8 @@ const NOTE_EDITOR_JS = `
         published = true; dirty = false;
         lastPublishedSnapshot = snapshotNow();
         setPubBtn();
-        setStatus('已发布 ✓ <a href="' + escHtml(j.public_url || '') + '" target="_blank" rel="noopener">查看 →</a>');
+        var syncNote = j.sync === 'queued' ? ' · 公开站自动同步中' : '';
+        setStatus('已发布 ✓ <a href="' + escHtml(j.public_url || '') + '" target="_blank" rel="noopener">查看 →</a>' + syncNote);
         lsClear();
       } else setStatus('无法发布：' + ((j && j.error) || ''), true);
     }).catch(function () { btn.disabled = false; setStatus('发布失败（网络），请重试', true); });

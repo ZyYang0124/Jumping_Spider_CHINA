@@ -52,12 +52,16 @@ npx wrangler d1 execute salticid-studio --remote \
 - `CLOUDFLARE_API_TOKEN`（权限：Workers Scripts:Edit、D1:Edit、R2:Edit、Zone → Workers Routes:Edit、Account Settings:Read）
 - `CLOUDFLARE_ACCOUNT_ID`
 
-## 日常流（手机野外记录 → 家里发布上线）
+## 日常流（手机野外记录 → 自动上线）
 
 1. 野外：手机打开 `https://studio.salticidnotes.cn/studio`，拍照记录、autosave、直接发布；
-2. 家里：登录 Studio → 「下载导出包（zip）」→ 解压，把 `studio-*.json` 放进 `src/data/`、
-   `originals/*` 放进 `media/originals/`；
-3. `npm run build && npm run test:privacy` 通过后 commit + push —— Cloudflare 构建公开站上线。
+2. **点发布即完成**：发布动作会自动把已发布内容提交到 GitHub 仓库（`src/data/studio-*.json` +
+   新增 `media/originals/`），push 自动触发公开站构建，约 1-2 分钟后上线。所有人（站长与受邀伙伴）相同；
+3. 失败重试：工作台首页底部「同步到公开站」按钮可随时手动重试；
+   「导出备份（zip）」保留作为手动备份通道。
+
+自动同步需要 Worker secret `GITHUB_TOKEN`（对仓库有 Contents: Read/Write 权限的 token；
+`wrangler secret put GITHUB_TOKEN`）。未配置时发布不受影响，仅不同步。
 
 ## 开发与测试
 
@@ -71,6 +75,6 @@ npx tsx scripts/e2e-remote.mts <wrangler日志路径>           # 场景 A/B/C/D
 
 ## 已知限制（与本地版一致 + 远程特有）
 
-- 发布上线仍需第 2-3 步的导出-构建-推送（远程导出为 zip 人工入库；GitHub API 自动入库是 v2 候选）。
+- 发布上线已自动化（发布即自动提交仓库并触发构建）；导出 zip 保留为手动备份通道。
 - 浏览器端派生图不含 AVIF 时（旧浏览器）自动只出 WebP/JPG，公开站构建时 process-media 仍会补齐全部格式。
 - 删除媒体仅删 D1 行与本地预览，R2 原图永不删除（规则 20）；编号永不复用（规则 19）。
