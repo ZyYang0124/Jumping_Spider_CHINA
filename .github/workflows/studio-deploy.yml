@@ -17,7 +17,7 @@ jobs:
     concurrency: studio-deploy
     steps:
       - uses: actions/checkout@v4
-      - name: Guard - 未配置 secrets 时跳过（配置后自动生效）
+      - name: Guard - 未配置 secrets 时告警并跳过（配置后自动生效）
         id: guard
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -25,7 +25,10 @@ jobs:
         run: |
           if [ -z "$CF_TOKEN" ] || [ -z "$CF_ACCOUNT" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "未配置 CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID，跳过 Studio 自动部署。"
+            echo "::warning::本次 push 未部署 Studio：仓库 Secrets 缺少 CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID（Settings → Secrets and variables → Actions）"
+            echo "### ⚠️ 本次 push 未部署 Studio" >> "$GITHUB_STEP_SUMMARY"
+            echo "仓库 Secrets 缺少 **CLOUDFLARE_API_TOKEN** / **CLOUDFLARE_ACCOUNT_ID**，wrangler deploy 已跳过。" >> "$GITHUB_STEP_SUMMARY"
+            echo "到 GitHub 仓库 Settings → Secrets and variables → Actions 配置后，push 才会真正部署。" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
