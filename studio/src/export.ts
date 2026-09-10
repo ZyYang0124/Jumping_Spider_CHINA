@@ -128,7 +128,7 @@ export function exportForStaticSite(db: Database): { observations: number; media
       id: `studio-post-${p.id}`,
       slug: p.slug,
       title: p.title,
-      author_name: '杨智勇',
+      author_name: '站长',
       created_at: p.created_at,
       cover_media_public_id: cover?.public_id ?? null,
       related_observation_public_ids: JSON.parse(String(p.related_observation_public_ids ?? '[]')),

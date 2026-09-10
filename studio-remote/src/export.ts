@@ -146,7 +146,7 @@ export async function buildExportZip(env: Env): Promise<Uint8Array> {
       slug: p.slug,
       title: p.title,
       subtitle: p.subtitle,
-      author_name: '杨智勇',
+      author_name: '站长',
       created_at: p.created_at,
       published_at: p.published_at,
       cover_media_public_id: coverRow?.public_id ?? null,

@@ -93,7 +93,7 @@ export function findOrCreateUserByEmail(
     | undefined;
   if (existing) return existing;
   const isOwner = process.env.OWNER_EMAIL && email.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase();
-  const displayName = isOwner ? '杨智勇' : email.split('@')[0];
+  const displayName = isOwner ? '站长' : email.split('@')[0];
   const info = db
     .prepare('INSERT INTO users (email, display_name, role) VALUES (?, ?, ?)')
     .run(email.toLowerCase(), displayName, isOwner ? 'owner' : 'contributor');
