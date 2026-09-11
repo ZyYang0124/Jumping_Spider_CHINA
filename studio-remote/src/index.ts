@@ -172,15 +172,19 @@ app.get('/studio', async (c) => {
   return c.html(homePage(u, items));
 });
 
-async function recentItems(env: Env, userId: number, limit: number): Promise<FeedItem[]> {
+async function recentItems(env: Env, userId: number, limit: number, includeAll = false): Promise<FeedItem[]> {
+  const scope = includeAll ? '' : 'AND o.created_by = ?';
+  const params: unknown[] = includeAll ? [] : [userId];
   const obsRows = await all<any>(
     env.DB,
-    `SELECT o.public_id, o.status, o.updated_at, o.published_at, i.display_identification
+    `SELECT o.public_id, o.status, o.updated_at, o.published_at, o.created_by,
+            u.display_name AS author, i.display_identification
      FROM observations o
      LEFT JOIN identifications i ON i.observation_id = o.id AND i.is_current = 1
-     WHERE o.created_by = ? AND o.status IN ('draft','published','private','archived')
-     ORDER BY COALESCE(o.published_at, o.updated_at) DESC LIMIT 40`,
-    userId,
+     LEFT JOIN users u ON u.id = o.created_by
+     WHERE o.status IN ('draft','published','private','archived') ${scope}
+     ORDER BY COALESCE(o.published_at, o.updated_at) DESC LIMIT 60`,
+    ...params,
   );
   const noteRows = await all<any>(
     env.DB,
@@ -198,7 +202,7 @@ async function recentItems(env: Env, userId: number, limit: number): Promise<Fee
   for (const o of obsRows) {
     const published = o.status === 'published';
     const ts = toTs(published ? o.published_at || o.updated_at : o.updated_at);
-    items.push({ kind: 'obs', publicId: o.public_id, href: `/studio/observations/${o.public_id}/edit`, title: o.display_identification || o.public_id, status: o.status, timeText: relTime(new Date(ts).toISOString()), ts });
+    items.push({ kind: 'obs', publicId: o.public_id, href: `/studio/observations/${o.public_id}/edit`, title: o.display_identification || o.public_id, status: o.status, author: o.author, timeText: relTime(new Date(ts).toISOString()), ts });
   }
   for (const n of noteRows) {
     const published = n.status === 'published';
@@ -211,8 +215,8 @@ async function recentItems(env: Env, userId: number, limit: number): Promise<Fee
 
 app.get('/studio/drafts', async (c) => {
   const u = user(c);
-  const items = await recentItems(c.env, u.id, 100);
-  return c.html(draftsPage(u, items));
+  const items = await recentItems(c.env, u.id, 100, u.role === 'owner');
+  return c.html(draftsPage(u, items, u.role === 'owner'));
 });
 
 // ---------- 观察：JSON API ----------
@@ -336,6 +340,28 @@ app.patch('/studio/api/observations/:public_id', async (c) => {
       typeof b.species_evidence === 'string' ? b.species_evidence : 'field',
       u.display_name,
     );
+  }
+  // 地点补挂（§72）：仍无地点但填写了地点信息 → 自动建点并挂接（同名同地直接复用）
+  const rowNow = await get<any>(
+    c.env.DB,
+    'SELECT place_id, country_name, admin1, admin2, locality, site_name, exact_latitude, exact_longitude, elevation_m FROM observations WHERE id = ?',
+    obs.id,
+  );
+  if (rowNow && rowNow.place_id == null) {
+    const hasInfo = [rowNow.admin1, rowNow.admin2, rowNow.locality, rowNow.site_name].some((v) => v != null && v !== '');
+    if (hasInfo) {
+      const place = await findOrCreatePlace(
+        c.env,
+        {
+          country: rowNow.country_name, admin1: rowNow.admin1, admin2: rowNow.admin2, locality: rowNow.locality,
+          site_name: rowNow.site_name, latitude: rowNow.exact_latitude, longitude: rowNow.exact_longitude,
+          elevation_m: rowNow.elevation_m,
+        },
+        u.display_name,
+      );
+      await run(c.env.DB, 'UPDATE observations SET place_id = ? WHERE id = ?', place.id, obs.id);
+      await audit(c.env, u.display_name, 'place', String(place.id), 'place.auto-linked', { observation: obs.public_id });
+    }
   }
   // 已发布记录的显式保存（保存修改）：立即更新公开页面（§6/§29）；autosave 静默，不刷审计与同步
   if (obs.status === 'published' && b.explicit === true && sets.length) {
@@ -477,6 +503,31 @@ app.post('/studio/api/observations/:public_id/photos/order', async (c) => {
 });
 
 // 发布（§42 校验：日期 + 坐标 + 至少一张照片；物种允许 Unknown → Salticidae sp.）
+/** 地点查找或创建：同名同省同市即视为同一地点（§17 去重）；返回既有或新建的地点行。 */
+async function findOrCreatePlace(
+  env: Env,
+  p: { country?: string | null; admin1?: string | null; admin2?: string | null; locality?: string | null; site_name?: string | null; latitude?: number | null; longitude?: number | null; elevation_m?: number | null },
+  actor: string,
+): Promise<{ id: number; name: string }> {
+  const name = (p.locality || p.admin2 || p.admin1 || '未命名地点').slice(0, 120);
+  const existing = await get<any>(
+    env.DB,
+    "SELECT id, name FROM places WHERE merged_into_id IS NULL AND name = ? AND COALESCE(admin1, '') = ? AND COALESCE(admin2, '') = ?",
+    name, p.admin1 ?? '', p.admin2 ?? '',
+  );
+  if (existing) return existing;
+  await run(
+    env.DB,
+    `INSERT INTO places (name, country, admin1, admin2, locality, site_name, latitude, longitude, elevation_m, created_by)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    name, p.country ?? '', p.admin1 ?? '', p.admin2 ?? '', p.locality ?? '', p.site_name ?? '',
+    p.latitude ?? null, p.longitude ?? null, p.elevation_m ?? null, actor,
+  );
+  const row = await get<any>(env.DB, 'SELECT id, name FROM places WHERE id = last_insert_rowid()');
+  await audit(env, actor, 'place', String(row!.id), 'place.created', { name: row!.name });
+  return row!;
+}
+
 // ---------- 状态机（发布=立即公开）：status 是生命周期唯一真源，visibility 由状态派生 ----------
 
 type ObsStatus = 'draft' | 'published' | 'private' | 'archived';
@@ -743,6 +794,7 @@ app.get('/studio/quality', async (c) => {
   const u = user(c);
   if (u.role !== 'owner') return c.text('只有站长可以查看数据质量。', 403);
   const today = new Date().toISOString().slice(0, 10);
+  const editUrl = (publicId: string) => `/studio/observations/${publicId}/edit`;
   const future = await all<any>(c.env.DB, "SELECT public_id, observed_at FROM observations WHERE observed_at > ? AND status != 'archived' ORDER BY observed_at", today);
   const noPlace = await all<any>(c.env.DB, "SELECT public_id, status FROM observations WHERE place_id IS NULL AND status != 'archived' ORDER BY public_id");
   const noGps = await all<any>(c.env.DB, "SELECT public_id FROM observations WHERE (exact_latitude IS NULL OR exact_longitude IS NULL) AND status = 'published' ORDER BY public_id");
@@ -750,20 +802,21 @@ app.get('/studio/quality', async (c) => {
   const unidentified = await all<any>(c.env.DB, "SELECT o.public_id FROM observations o LEFT JOIN identifications i ON i.observation_id = o.id AND i.is_current = 1 WHERE o.status = 'published' AND i.id IS NULL ORDER BY o.public_id");
   const noPhotographer = await all<any>(c.env.DB, "SELECT public_id FROM media WHERE photographer_name IS NULL AND visibility = 'public'");
   const noCover = await all<any>(c.env.DB, "SELECT o.public_id FROM observations o WHERE o.status = 'published' AND NOT EXISTS (SELECT 1 FROM media m WHERE m.observation_id = o.id AND m.is_cover = 1)");
-  const sections = [
-    { label: '未来日期', rows: future.map((r) => `${r.public_id}（${r.observed_at}）`), hint: '确认是误填就改掉；确实要提前发布的可以保留。' },
-    { label: '未挂接地点', rows: noPlace.map((r) => `${r.public_id}（${STATUS_ZH[r.status] ?? r.status}）`), hint: '在编辑页的地点搜索里选择或新建。' },
-    { label: '已发布但缺 GPS', rows: noGps.map((r) => r.public_id), hint: '有可靠坐标再补；没有就不显示坐标。' },
-    { label: '疑似重复地点', rows: dupPlaces.map((r) => `${r.name} ×${r.c}（id：${r.ids}）`), hint: '同名地点建议在「地点管理」里合并。' },
-    { label: '已发布但未鉴定', rows: unidentified.map((r) => r.public_id), hint: '未知是一等公民，不急。' },
-    { label: '公开影像缺摄影者', rows: noPhotographer.map((r) => r.public_id), hint: '每张照片都该有署名。' },
-    { label: '已发布但无封面图', rows: noCover.map((r) => r.public_id), hint: '没有封面不影响公开，但列表里不好看。' },
+  type QRow = { text: string; href?: string };
+  const sections: { label: string; hint: string; rows: QRow[] }[] = [
+    { label: '未来日期', hint: '确认是误填就改掉；确实要提前发布的可以保留。', rows: future.map((r) => ({ text: `${r.public_id}（${r.observed_at}）`, href: editUrl(r.public_id) })) },
+    { label: '未挂接地点', hint: '在编辑页的地点搜索里选择或新建。', rows: noPlace.map((r) => ({ text: `${r.public_id}（${r.status}）`, href: editUrl(r.public_id) })) },
+    { label: '已发布但缺 GPS', hint: '有可靠坐标再补；没有就不显示坐标。', rows: noGps.map((r) => ({ text: r.public_id, href: editUrl(r.public_id) })) },
+    { label: '疑似重复地点', hint: '同名地点建议在「地点管理」里合并。', rows: dupPlaces.map((r) => ({ text: `${r.name} ×${r.c}`, href: '/studio/places-manage' })) },
+    { label: '已发布但未鉴定', hint: '未知是一等公民，不急。', rows: unidentified.map((r) => ({ text: r.public_id, href: editUrl(r.public_id) })) },
+    { label: '公开影像缺摄影者', hint: '每张照片都该有署名。', rows: noPhotographer.map((r) => ({ text: r.public_id, href: editUrl(r.obs ?? r.public_id) })) },
+    { label: '已发布但无封面图', hint: '没有封面不影响公开，但列表里不好看。', rows: noCover.map((r) => ({ text: r.public_id, href: editUrl(r.public_id) })) },
   ];
   const body = sections
     .map(
       (sec) => `<section class="field">
         <label>${esc(sec.label)}（${sec.rows.length}）</label>
-        ${sec.rows.length ? `<div class="q-rows">${sec.rows.map((r) => `<div class="q-row">${esc(r)}</div>`).join('')}</div>` : '<p class="empty">没有问题 ✓</p>'}
+        ${sec.rows.length ? `<div class="q-rows">${sec.rows.map((r) => `<div class="q-row">${r.href ? `<a href="${r.href}">${esc(r.text)} →</a>` : esc(r.text)}</div>`).join('')}</div>` : '<p class="empty">没有问题 ✓</p>'}
         <span class="hint">${esc(sec.hint)}</span>
       </section>`,
     )

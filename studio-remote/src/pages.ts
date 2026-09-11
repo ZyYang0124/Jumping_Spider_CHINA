@@ -323,6 +323,8 @@ details.more .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 22px
 .q-rows { border:1px solid var(--line-soft); border-radius:10px; background:#fff; padding:6px 0; max-width:520px; }
 .q-row { padding:7px 16px; font-size:13.5px; color:var(--ink); border-bottom:1px solid var(--line-soft); }
 .q-row:last-child { border-bottom:none; }
+.q-row a { color: var(--ink); text-decoration: none; }
+.q-row a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .pm-row { display:flex; align-items:center; justify-content:space-between; gap:16px; border:1px solid var(--line-soft); border-radius:12px; background:#fff; padding:14px 18px; margin-bottom:12px; }
 .pm-main b { font-family:var(--serif); font-weight:400; font-size:17px; }
 .pm-sub { display:block; font-size:12.5px; color:var(--faint); margin-top:2px; }
@@ -511,6 +513,8 @@ export interface FeedItem {
   href: string;
   title: string;
   status: 'draft' | 'published' | 'private' | 'archived';
+  /** 站长视图：记录创建者昵称 */
+  author?: string;
   timeText: string;
   /** 排序键：源时间戳（毫秒） */
   ts: number;
@@ -518,13 +522,13 @@ export interface FeedItem {
 
 const STATUS_ZH: Record<string, string> = { draft: '草稿', published: '已发布', private: '私密', archived: '已归档' };
 
-function feedHtml(items: FeedItem[], emptyHtml: string): string {
+function feedHtml(items: FeedItem[], emptyHtml: string, showAuthor = false): string {
   if (!items.length) return `<p class="empty">${emptyHtml}</p>`;
   return `<ul class="feed">${items
     .map(
       (it) => `<li><a href="${esc(it.href)}">
       <span class="t">${esc(it.title)}</span>
-      <span class="meta">${it.kind === 'obs' ? '观察' : '札记'} · <span class="${it.status === 'draft' ? 'st-draft' : 'st-pub'}">${STATUS_ZH[it.status] ?? it.status}</span> · ${esc(it.timeText)}</span>
+      <span class="meta">${it.kind === 'obs' ? '观察' : '札记'} · ${showAuthor && it.author ? esc(it.author) + ' · ' : ''}<span class="${it.status === 'draft' ? 'st-draft' : 'st-pub'}">${STATUS_ZH[it.status] ?? it.status}</span> · ${esc(it.timeText)}</span>
     </a></li>`,
     )
     .join('')}</ul>`;
@@ -575,7 +579,7 @@ export function homePage(user: StudioUser, recent: FeedItem[]): string {
 }
 
 // 记录列表（§16-§20）：四状态分区 + 快捷动作。发布=立即公开；归档不直接公开。
-export function draftsPage(user: StudioUser, items: FeedItem[]): string {
+export function draftsPage(user: StudioUser, items: FeedItem[], showAuthor = false): string {
   const by = (st: FeedItem['status']) => items.filter((i) => i.status === st);
   const sections: { label: string; empty: string; items: FeedItem[] }[] = [
     { label: '草稿', empty: '还没有草稿。<a href="/studio/observations/new">记录第一次相遇</a> 或 <a href="/studio/notes/new">写一篇札记</a>。', items: by('draft') },
