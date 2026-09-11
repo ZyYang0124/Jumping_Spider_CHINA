@@ -16,6 +16,8 @@ async function gh(env: Env, path: string, init?: RequestInit): Promise<any> {
   const res = await fetch(API + path, {
     ...init,
     headers: {
+      // GitHub API 强制要求 User-Agent；Workers fetch 无默认 UA
+      'User-Agent': 'salticid-notes-studio',
       Authorization: `Bearer ${env.GITHUB_TOKEN}`,
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
