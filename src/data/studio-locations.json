@@ -60,6 +60,18 @@
     "elevation_m": null
   },
   {
+    "id": "loc-studio-18",
+    "country_code": "",
+    "country_name": "中国",
+    "admin1": "北京",
+    "admin2": null,
+    "locality": null,
+    "site_name": null,
+    "latitude": 24.55562,
+    "longitude": 100.965,
+    "elevation_m": null
+  },
+  {
     "id": "loc-studio-19",
     "country_code": "",
     "country_name": "中国",
