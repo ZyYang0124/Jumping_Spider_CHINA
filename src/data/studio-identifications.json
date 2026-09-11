@@ -36,18 +36,6 @@
     "is_current": true
   },
   {
-    "id": "studio-4",
-    "observation_id": "studio-16",
-    "taxon_id": "tax-salticidae",
-    "display_identification": "Salticidae sp.",
-    "identified_by_profile_id": null,
-    "identified_by_text": "咩咩",
-    "identified_at": "2026-09-10",
-    "evidence": "field",
-    "remarks": null,
-    "is_current": true
-  },
-  {
     "id": "studio-5",
     "observation_id": "studio-17",
     "taxon_id": "tax-salticidae",

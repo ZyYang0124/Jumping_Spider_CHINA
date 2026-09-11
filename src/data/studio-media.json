@@ -98,20 +98,6 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000009",
-    "public_id": "SFN-M-000009",
-    "observation_id": "studio-16",
-    "source_original": "media/originals/SFN-M-000009.png",
-    "view_type": "live_dorsal",
-    "caption": null,
-    "sort_order": 1,
-    "is_cover": true,
-    "photographer_profile_id": null,
-    "photographer_name": "咩咩",
-    "license": "all_rights_reserved",
-    "visibility": "public"
-  },
-  {
     "id": "SFN-M-000056",
     "public_id": "SFN-M-000056",
     "observation_id": "studio-17",

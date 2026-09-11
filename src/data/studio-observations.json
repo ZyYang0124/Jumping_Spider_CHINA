@@ -2,6 +2,7 @@
   {
     "id": "studio-12",
     "public_id": "SFN-2026-000001",
+    "place_id": "place-2",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2026-09-07",
@@ -23,6 +24,7 @@
   {
     "id": "studio-13",
     "public_id": "SFN-2026-000002",
+    "place_id": "place-3",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2026-09-06",
@@ -44,6 +46,7 @@
   {
     "id": "studio-14",
     "public_id": "SFN-2026-000003",
+    "place_id": "place-2",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2026-09-07",
@@ -63,29 +66,9 @@
     "trip_id": null
   },
   {
-    "id": "studio-16",
-    "public_id": "SFN-2026-000005",
-    "created_by": "prof-zhiyong",
-    "observer": "prof-zhiyong",
-    "observed_at": "2026-10-10",
-    "observed_at_precision": "day",
-    "location_id": "loc-studio-16",
-    "sex": "unknown",
-    "life_stage": "unknown",
-    "count": null,
-    "habitat": null,
-    "microhabitat": null,
-    "behavior": null,
-    "plant": null,
-    "weather": null,
-    "field_note": "顶顶顶顶顶顶顶顶顶顶顶",
-    "status": "published",
-    "visibility": "public",
-    "trip_id": null
-  },
-  {
     "id": "studio-17",
     "public_id": "SFN-2026-000026",
+    "place_id": "place-2",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2026-09-07",
@@ -107,6 +90,7 @@
   {
     "id": "studio-18",
     "public_id": "SFN-2026-000027",
+    "place_id": "place-1",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2026-09-08",
@@ -128,6 +112,7 @@
   {
     "id": "studio-19",
     "public_id": "SFN-2026-000028",
+    "place_id": null,
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2026-09-11",
