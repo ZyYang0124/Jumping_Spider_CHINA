@@ -71,27 +71,34 @@ export async function syncToGitHub(env: Env, label = ''): Promise<SyncResult> {
 
     // 并发发布：ref 更新撞车（422）时重读最新 ref 重试，最多 3 次
     let lastError: unknown = null;
+    const bad = (step: string, got: unknown): Error =>
+      new Error(`[step ${step}] 响应异常：${JSON.stringify(got)?.slice(0, 300)}`);
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const ref = await gh(env, `/repos/${REPO}/git/ref/heads/${BRANCH}`);
+        if (!ref?.object?.sha) throw bad('ref', ref);
         const baseCommit = await gh(env, `/repos/${REPO}/commits/${ref.object.sha}`);
+        if (!baseCommit?.tree?.sha) throw bad('base-commit', baseCommit);
         const tree: { path: string; mode: '100644'; type: 'blob'; sha: string }[] = [];
         for (const f of files) {
           const blob = await gh(env, `/repos/${REPO}/git/blobs`, {
             method: 'POST',
             body: JSON.stringify({ content: f.content, encoding: f.encoding }),
           });
+          if (!blob?.sha) throw bad(`blob ${f.path}`, blob);
           tree.push({ path: f.path, mode: '100644', type: 'blob', sha: blob.sha });
         }
         const newTree = await gh(env, `/repos/${REPO}/git/trees`, {
           method: 'POST',
           body: JSON.stringify({ base_tree: baseCommit.tree.sha, tree }),
         });
+        if (!newTree?.sha) throw bad('tree', newTree);
         const message = `studio: 自动同步发布内容${label ? `（${label}）` : ''}\n\n由 Field Studio 发布动作自动提交；push 触发公开站构建（规则 5/7）。`;
         const newCommit = await gh(env, `/repos/${REPO}/git/commits`, {
           method: 'POST',
           body: JSON.stringify({ message, tree: newTree.sha, parents: [ref.object.sha] }),
         });
+        if (!newCommit?.sha) throw bad('commit', newCommit);
         await gh(env, `/repos/${REPO}/git/refs/heads/${BRANCH}`, {
           method: 'PATCH',
           body: JSON.stringify({ sha: newCommit.sha, force: false }),
