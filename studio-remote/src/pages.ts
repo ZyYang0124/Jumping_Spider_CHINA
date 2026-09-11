@@ -440,8 +440,9 @@ export function page(
   <nav>
     <a href="/studio/observations/new">记录</a>
     <a href="/studio/notes/new">札记</a>
-    <a href="/studio/drafts">草稿</a>
+    <a href="/studio/drafts">记录</a>
     <a href="/studio/media">媒体</a>
+    <a href="/studio/profile">个人资料</a>
     ${user?.role === 'owner' ? '<a href="/studio/invite">邀请</a>' : ''}
   </nav>
   <div class="right">

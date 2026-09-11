@@ -329,6 +329,8 @@ export interface PublicContributor {
   slug: string;
   title: string | null;
   bio: string | null;
+  /** 伙伴自助上传的代表照片（Studio 个人资料同步；可空） */
+  photo: { thumb: string; medium: string; large: string } | null;
   observationCount: number;
   regions: string[];
   favorite: { thumb: string; medium: string; large: string } | null;
@@ -348,6 +350,11 @@ export function getPublicContributors(): PublicContributor[] {
         const r = shortRegion(o.location);
         if (!regions.includes(r)) regions.push(r);
       }
+      const photoMedia =
+        'photo_media_public_id' in p && p.photo_media_public_id
+          ? media.find((m) => m.public_id === p.photo_media_public_id && m.visibility === 'public')
+          : undefined;
+      const photo = photoMedia ? publicMediaFromRecord(photoMedia) : null;
       const favoriteMedia = p.favorite_media_id ? mediaById.get(p.favorite_media_id) : undefined;
       const favorite =
         favoriteMedia &&
@@ -370,6 +377,7 @@ export function getPublicContributors(): PublicContributor[] {
         slug: p.slug!,
         title: p.title,
         bio: p.bio,
+        photo,
         observationCount: own.length,
         regions,
         favorite,

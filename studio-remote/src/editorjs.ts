@@ -922,7 +922,66 @@ const NOTE_EDITOR_JS = `
 })();
 `;
 
-// ==================== 汇总 ====================
+// ==================== 个人资料 ====================
+
+export const PROFILE_SCRIPT = UPLOAD_LIB + `
+(function () {
+  function $(s) { return document.querySelector(s); }
+  function readJson(r) {
+    return r.text().then(function (t) {
+      try { return JSON.parse(t); } catch (e) { return { ok: false, error: '服务异常' }; }
+    });
+  }
+  function setStatus(s, isErr) {
+    var el = $('#profile-status');
+    if (el) { el.textContent = s; el.style.color = isErr ? 'var(--terra)' : 'var(--faint)'; }
+  }
+  var photoPublicId = null;
+  var slot = $('#photo-slot');
+
+  slot.addEventListener('click', function () {
+    var inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'image/jpeg,image/png';
+    inp.addEventListener('change', function () {
+      var f = inp.files[0];
+      if (!f) return;
+      setStatus('正在处理照片…');
+      window.__sfnPrepareUpload(f).then(function (prepared) {
+        var fd = new FormData();
+        window.__sfnAppendUpload(fd, prepared);
+        return fetch('/studio/api/media/upload', { method: 'POST', body: fd }).then(readJson);
+      }).then(function (j) {
+        if (!j || !j.ok) { setStatus('照片上传失败', true); return; }
+        photoPublicId = j.public_id;
+        slot.innerHTML = '<img src="/media/derivatives/' + j.public_id + '-480.jpg" alt="" />';
+        slot.removeAttribute('data-empty');
+        setStatus('照片已上传 · 记得点「保存资料」');
+      }).catch(function () { setStatus('照片处理失败', true); });
+    });
+    inp.click();
+  });
+
+  $('#btn-save-profile').addEventListener('click', function () {
+    var btn = $('#btn-save-profile');
+    var name = $('#p-name').value.trim();
+    if (!name) { setStatus('公开名称不能为空', true); return; }
+    btn.disabled = true;
+    setStatus('正在保存…');
+    fetch('/studio/api/profile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name: name, title: $('#p-title').value, bio: $('#p-bio').value, photo_public_id: photoPublicId }),
+    })
+      .then(readJson)
+      .then(function (j) {
+        btn.disabled = false;
+        if (j && j.ok) setStatus('已保存 · 主站伙伴页更新中（约 1-2 分钟）');
+        else setStatus('保存失败：' + ((j && j.error) || ''), true);
+      })
+      .catch(function () { btn.disabled = false; setStatus('网络异常，请重试', true); });
+  });
+})();
+`;
 
 export const LOGIN_SCRIPT = LOGIN_JS;
 export const OBS_EDITOR_SCRIPT = UPLOAD_LIB + OBS_EDITOR_JS;

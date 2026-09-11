@@ -68,7 +68,9 @@ export async function findOrCreateUserByEmail(env: Env, email: string): Promise<
   );
   if (existing) return existing;
   const isOwner = !!env.OWNER_EMAIL && e === env.OWNER_EMAIL.toLowerCase();
-  const displayName = isOwner ? '咩咩' : e.split('@')[0];
+  // 公开名：邀请时登记的 label 优先（§79），否则邮箱前缀
+  const inv = await get<{ label: string | null }>(env.DB, 'SELECT label FROM invitations WHERE lower(email) = ?', e);
+  const displayName = isOwner ? '咩咩' : (inv?.label?.trim() || e.split('@')[0]);
   const info = await env.DB.prepare('INSERT INTO users (email, display_name, role) VALUES (?, ?, ?)')
     .bind(e, displayName, isOwner ? 'owner' : 'contributor')
     .run();

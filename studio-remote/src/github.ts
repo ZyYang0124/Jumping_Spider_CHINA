@@ -45,6 +45,7 @@ export async function syncToGitHub(env: Env, label = ''): Promise<SyncResult> {
 
     const data = await collectExport(env);
     const jsonFiles: { path: string; content: string }[] = [
+      { path: 'src/data/studio-profiles.json', content: data.profilesJson },
       { path: 'src/data/studio-observations.json', content: data.observationsJson },
       { path: 'src/data/studio-locations.json', content: data.locationsJson },
       { path: 'src/data/studio-media.json', content: data.mediaJson },

@@ -29,7 +29,7 @@ import { buildExportZip } from './export';
 import { syncToGitHub } from './github';
 import { esc, loginPage, mediaPage, noteEditorHtml, obsEditorHtml, page, STYLES, TAXA, homePage, draftsPage, relTime, type FeedItem } from './pages';
 import { invitePage } from './invites';
-import { OBS_EDITOR_SCRIPT, NOTE_EDITOR_SCRIPT, LOGIN_SCRIPT } from './editorjs';
+import { OBS_EDITOR_SCRIPT, NOTE_EDITOR_SCRIPT, LOGIN_SCRIPT, PROFILE_SCRIPT } from './editorjs';
 
 const app = new Hono<{ Bindings: Env; Variables: { user: StudioUser } }>();
 
@@ -597,6 +597,85 @@ app.post('/studio/api/observations/:public_id/restore', async (c) => {
   if (obs.status !== 'archived') return c.json({ error: '只有已归档记录可以恢复' }, 400);
   await transitionObservation(c.env, obs, 'draft', u.display_name);
   return c.json({ ok: true, status: 'draft' });
+});
+
+// ---------- 个人资料（§26/§29：伙伴自助编辑公开资料与照片） ----------
+
+app.get('/studio/profile', async (c) => {
+  const u = user(c);
+  const prof = await get<any>(c.env.DB, 'SELECT title, bio, photo_media_id FROM user_profiles WHERE user_id = ?', u.id);
+  const photo = prof?.photo_media_id
+    ? await get<{ public_id: string }>(c.env.DB, 'SELECT public_id FROM media WHERE id = ?', prof.photo_media_id)
+    : undefined;
+  return c.html(
+    page('个人资料', `
+  <div class="wrap narrow">
+    <div class="hello-wrap"><h1>个人资料</h1><p>这些内容会随发布自动同步到主站的伙伴页。</p></div>
+    <section class="field">
+      <label>公开名称</label>
+      <input id="p-name" value="${esc(u.display_name)}" />
+      <span class="hint">主站署名用；修改后新发布的记录使用新名称。</span>
+    </section>
+    <section class="field">
+      <label>身份头衔</label>
+      <input id="p-title" value="${esc(prof?.title ?? '')}" placeholder="如：自然观察与摄影" />
+    </section>
+    <section class="field">
+      <label>简介</label>
+      <textarea id="p-bio" rows="4" placeholder="一两句话介绍你自己">${esc(prof?.bio ?? '')}</textarea>
+    </section>
+    <section class="field">
+      <label>代表照片</label>
+      <div class="photo-strip">
+        <div class="photo-slot" id="photo-slot"${photo ? '' : ' data-empty'}>${photo ? `<img src="/media/derivatives/${esc(photo.public_id)}-480.jpg" alt="" />` : '＋<span>点击上传</span>'}</div>
+        <span class="hint">点击上传或更换照片（JPG/PNG）</span>
+      </div>
+      <div class="field-error" id="photo-err"></div>
+    </section>
+    <div class="row-actions">
+      <button type="button" class="primary" id="btn-save-profile">保存资料</button>
+      <span id="profile-status" style="font-size:12.5px;color:var(--faint)"></span>
+    </div>
+  </div>
+  <script src="/studio-profile.js"></script>`, u),
+  );
+});
+
+app.get('/studio-profile.js', (c) =>
+  c.body(PROFILE_SCRIPT, 200, { 'Content-Type': 'text/javascript; charset=utf-8' }));
+
+app.post('/studio/api/profile', async (c) => {
+  const u = user(c);
+  if (!sameOrigin(c.req.raw)) return c.json({ error: 'Forbidden' }, 403);
+  const b = (await c.req.json()) as { display_name?: string; title?: string; bio?: string; photo_public_id?: string };
+  const displayName = String(b.display_name ?? '').trim().slice(0, 40);
+  if (!displayName) return c.json({ error: '公开名称不能为空' }, 400);
+  await run(c.env.DB, 'UPDATE users SET display_name = ? WHERE id = ?', displayName, u.id);
+  const title = String(b.title ?? '').trim().slice(0, 80) || null;
+  const bio = String(b.bio ?? '').trim().slice(0, 400) || null;
+  let photoMediaId: number | null = null;
+  if (b.photo_public_id && /^SFN-M-\d{6}$/.test(b.photo_public_id)) {
+    const m = await get<{ id: number }>(c.env.DB, 'SELECT id FROM media WHERE public_id = ?', b.photo_public_id);
+    photoMediaId = m?.id ?? null;
+  }
+  await run(
+    c.env.DB,
+    `INSERT INTO user_profiles (user_id, title, bio, photo_media_id, updated_at) VALUES (?,?,?,?,datetime('now'))
+     ON CONFLICT(user_id) DO UPDATE SET title = excluded.title, bio = excluded.bio,
+       photo_media_id = COALESCE(excluded.photo_media_id, user_profiles.photo_media_id), updated_at = datetime('now')`,
+    u.id,
+    title,
+    bio,
+    photoMediaId,
+  );
+  await audit(c.env, u.display_name, 'profile', String(u.id), 'profile.updated', { display_name: displayName });
+  // 公开资料改变主站伙伴页 → 自动同步（所有人可触发自己的同步）
+  c.executionCtx.waitUntil(
+    syncToGitHub(c.env, '个人资料').then((r) =>
+      audit(c.env, u.display_name, 'github-sync', 'profile', r.ok ? 'sync-ok: ' + r.detail : 'sync-fail: ' + r.detail),
+    ),
+  );
+  return c.json({ ok: true, sync: 'queued' });
 });
 
 // ---------- EXIF 预读 ----------

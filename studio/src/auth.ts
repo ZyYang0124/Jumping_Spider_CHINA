@@ -93,7 +93,11 @@ export function findOrCreateUserByEmail(
     | undefined;
   if (existing) return existing;
   const isOwner = process.env.OWNER_EMAIL && email.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase();
-  const displayName = isOwner ? '咩咩' : email.split('@')[0];
+  // 公开名：邀请时登记的 label 优先（§79），否则邮箱前缀
+  const inv = db.prepare('SELECT label FROM invitations WHERE lower(email) = ?').get(email.toLowerCase()) as
+    | { label: string | null }
+    | undefined;
+  const displayName = isOwner ? '咩咩' : (inv?.label?.trim() || email.split('@')[0]);
   const info = db
     .prepare('INSERT INTO users (email, display_name, role) VALUES (?, ?, ?)')
     .run(email.toLowerCase(), displayName, isOwner ? 'owner' : 'contributor');

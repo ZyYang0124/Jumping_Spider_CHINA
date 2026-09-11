@@ -48,6 +48,8 @@ export type TaxonStatus = 'accepted' | 'synonym' | 'provisional' | 'unresolved';
 
 export interface Profile {
   id: string;
+  /** Studio 自助资料同步的代表照片（可空） */
+  photo_media_public_id?: string | null;
   display_name: string;
   display_name_en: string | null;
   slug: string | null;

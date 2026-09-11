@@ -34,6 +34,30 @@ function loadStudio<T>(name: string): T[] {
 
 export const siteConfig = siteConfigJson as unknown as SiteConfig;
 export const profiles = profilesJson as unknown as Profile[];
+
+// Studio 自助资料（studio-profiles.json，发布管线自动同步）按 id 覆盖手写档案；新档案追加
+for (const sp of loadStudio<Partial<Profile> & { id: string }>('profiles')) {
+  const base = profiles.find((p) => p.id === sp.id);
+  if (base) {
+    base.display_name = sp.display_name ?? base.display_name;
+    base.title = sp.title ?? base.title;
+    base.bio = sp.bio ?? base.bio;
+    base.photo_media_public_id = sp.photo_media_public_id ?? null;
+  } else {
+    profiles.push({
+      id: sp.id,
+      display_name: sp.display_name ?? sp.id,
+      display_name_en: null,
+      slug: null,
+      role: 'contributor',
+      profile_visibility: 'public',
+      title: sp.title ?? null,
+      bio: sp.bio ?? null,
+      favorite_media_id: null,
+      photo_media_public_id: sp.photo_media_public_id ?? null,
+    } as Profile);
+  }
+}
 export const taxa = taxaJson as unknown as Taxon[];
 export const locations = [
   ...(locationsJson as unknown as LocationRecord[]),

@@ -21,6 +21,11 @@ const identified = allPublicObservations.filter((o) => o.identification?.identif
   <div class="container">
     <div class="page-title">
       <h1>{c.name}{c.nameEn ? <span style="font-size: 0.5em; color: var(--faint); margin-left: 12px; letter-spacing: 0.12em;">{c.nameEn}</span> : null}</h1>
+      {c.photo && (
+        <figure style="margin: 18px 0 0;">
+          <img src={c.photo.large} alt={`${c.name} 的照片`} style="width: 100%; max-width: 520px; height: auto; border-radius: 4px;" loading="eager" />
+        </figure>
+      )}
       <p class="lede">
         {c.title ?? '跳蛛观察志的伙伴'}
         {c.bio ? <><br />{c.bio}</> : null}

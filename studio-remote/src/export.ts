@@ -8,6 +8,7 @@ import taxaJson from './taxa-data.json';
 const README = `Salticid Notes · Field Studio 导出包
 
 内容：
+  studio-profiles.json          → src/data/studio-profiles.json
   studio-observations.json     → src/data/studio-observations.json
   studio-locations.json        → src/data/studio-locations.json
   studio-media.json            → src/data/studio-media.json
@@ -23,7 +24,15 @@ const README = `Salticid Notes · Field Studio 导出包
 坐标口径（Studio SOP §7）：观察坐标全量精确公开；未发布记录不会出现在导出中。
 `;
 
+// 授权邮箱 ↔ 稳定公开档案（§26/§28）；观察归属按创建者邮箱映射到对应档案
+export const EMAIL_PROFILE: Record<string, string> = {
+  'yangzy0124@gmail.com': 'prof-zhiyong',
+  'wayhungwang@163.com': 'prof-hamu',
+  'nyarlatis@163.com': 'prof-yi',
+};
+
 export interface ExportData {
+  profilesJson: string;
   observationsJson: string;
   locationsJson: string;
   mediaJson: string;
@@ -40,6 +49,14 @@ export async function collectExport(env: Env): Promise<ExportData> {
   const identificationsOut: unknown[] = [];
   const originalFiles: Record<string, Uint8Array> = {};
   const exportedMediaIds = new Set<string>();
+
+  // 观察归属：按创建者邮箱映射稳定档案；未知邮箱回落站长档案
+  const creatorProfile = new Map<number, string>();
+  for (const o of observations) {
+    if (creatorProfile.has(o.created_by)) continue;
+    const u = await get<{ email: string | null }>(env.DB, 'SELECT email FROM users WHERE id = ?', o.created_by);
+    creatorProfile.set(o.created_by, (u?.email && EMAIL_PROFILE[u.email.toLowerCase()]) || 'prof-zhiyong');
+  }
 
   for (const o of observations) {
     const mediaRows = await all<any>(env.DB, 'SELECT * FROM media WHERE observation_id = ? ORDER BY sort_order', o.id);
@@ -86,8 +103,8 @@ export async function collectExport(env: Env): Promise<ExportData> {
   const observationsOut = observations.map((o: any) => ({
     id: `studio-${o.id}`,
     public_id: o.public_id,
-    created_by: 'prof-zhiyong',
-    observer: 'prof-zhiyong',
+    created_by: creatorProfile.get(o.id) ?? 'prof-zhiyong',
+    observer: creatorProfile.get(o.id) ?? 'prof-zhiyong',
     observed_at: o.observed_at,
     observed_at_precision: o.observed_at_precision,
     location_id: `loc-studio-${o.id}`,
@@ -166,8 +183,54 @@ export async function collectExport(env: Env): Promise<ExportData> {
     });
   }
 
+  // 伙伴公开资料（§26/§29）：每位有授权邮箱的账号导出稳定档案；代表照片随包入库
+  const users = await all<any>(
+    env.DB,
+    `SELECT u.id, u.email, u.display_name, p.title, p.bio, p.photo_media_id
+     FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id
+     WHERE u.email IS NOT NULL`,
+  );
+  const profilesOut: unknown[] = [];
+  for (const u of users) {
+    const email = String(u.email ?? '').toLowerCase();
+    const profileId = EMAIL_PROFILE[email] ?? 'prof-u' + u.id;
+    let photoPublicId: string | null = null;
+    if (u.photo_media_id) {
+      const m = await get<any>(env.DB, 'SELECT public_id, orig_ext FROM media WHERE id = ?', u.photo_media_id);
+      if (m && !exportedMediaIds.has(m.public_id)) {
+        photoPublicId = m.public_id;
+        mediaOut.push({
+          id: m.public_id,
+          public_id: m.public_id,
+          observation_id: null,
+          source_original: `media/originals/${m.public_id}${m.orig_ext}`,
+          view_type: 'live_portrait',
+          caption: null,
+          sort_order: 1,
+          is_cover: false,
+          photographer_profile_id: null,
+          photographer_name: u.display_name,
+          license: m.license ?? 'all_rights_reserved',
+          visibility: 'public',
+        });
+        exportedMediaIds.add(m.public_id);
+        const obj = await env.MEDIA.get(`originals/${m.public_id}${m.orig_ext}`);
+        if (obj) originalFiles[`originals/${m.public_id}${m.orig_ext}`] = new Uint8Array(await obj.arrayBuffer());
+      }
+    }
+    profilesOut.push({
+      id: profileId,
+      display_name: u.display_name,
+      display_name_en: null,
+      title: u.title ?? null,
+      bio: u.bio ?? null,
+      photo_media_public_id: photoPublicId,
+    });
+  }
+
   const j = (v: unknown) => JSON.stringify(v, null, 2) + '\n';
   return {
+    profilesJson: j(profilesOut),
     observationsJson: j(observationsOut),
     locationsJson: j(locationsOut),
     mediaJson: j(mediaOut),
@@ -183,6 +246,7 @@ export async function buildExportZip(env: Env): Promise<Uint8Array> {
   const u8 = (s: string) => strToU8(s);
   return zipSync({
     'README.txt': strToU8(README),
+    'studio-profiles.json': u8(data.profilesJson),
     'studio-observations.json': u8(data.observationsJson),
     'studio-locations.json': u8(data.locationsJson),
     'studio-media.json': u8(data.mediaJson),

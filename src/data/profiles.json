@@ -11,28 +11,6 @@
     "favorite_media_id": "m-45d28a3b"
   },
   {
-    "id": "prof-taoli",
-    "display_name": "涛",
-    "display_name_en": null,
-    "slug": "field-partner",
-    "role": "contributor",
-    "profile_visibility": "public",
-    "title": "自然观察与摄影",
-    "bio": "自然史摄影爱好者，长期关注华南的跳蛛与叶甲。鹦哥岭雨后那对翠蛛的求偶与交配，是本站收到的一份礼物。",
-    "favorite_media_id": "m-745a0476"
-  },
-  {
-    "id": "prof-private-friend",
-    "display_name": "（一位选择不公开主页的朋友）",
-    "display_name_en": null,
-    "slug": null,
-    "role": "contributor",
-    "profile_visibility": "private",
-    "title": null,
-    "bio": null,
-    "favorite_media_id": null
-  },
-  {
     "id": "prof-hamu",
     "display_name": "哈姆",
     "display_name_en": null,
@@ -51,6 +29,28 @@
     "role": "contributor",
     "profile_visibility": "public",
     "title": "自然观察与摄影",
+    "bio": null,
+    "favorite_media_id": null
+  },
+  {
+    "id": "prof-taoli",
+    "display_name": "涛",
+    "display_name_en": null,
+    "slug": "field-partner",
+    "role": "contributor",
+    "profile_visibility": "public",
+    "title": "自然观察与摄影",
+    "bio": "自然史摄影爱好者，长期关注华南的跳蛛与叶甲。鹦哥岭雨后那对翠蛛的求偶与交配，是本站收到的一份礼物。",
+    "favorite_media_id": "m-745a0476"
+  },
+  {
+    "id": "prof-private-friend",
+    "display_name": "（一位选择不公开主页的朋友）",
+    "display_name_en": null,
+    "slug": null,
+    "role": "contributor",
+    "profile_visibility": "private",
+    "title": null,
     "bio": null,
     "favorite_media_id": null
   }
