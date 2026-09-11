@@ -1,7 +1,7 @@
 [
   {
-    "id": "studio-12",
-    "observation_id": "studio-18",
+    "id": "studio-1",
+    "observation_id": "studio-12",
     "taxon_id": "tax-salticidae",
     "display_identification": "Salticidae sp.",
     "identified_by_profile_id": null,
@@ -12,8 +12,8 @@
     "is_current": true
   },
   {
-    "id": "studio-13",
-    "observation_id": "studio-19",
+    "id": "studio-2",
+    "observation_id": "studio-13",
     "taxon_id": "tax-salticidae",
     "display_identification": "Salticidae sp.",
     "identified_by_profile_id": null,
@@ -24,13 +24,37 @@
     "is_current": true
   },
   {
-    "id": "studio-14",
-    "observation_id": "studio-20",
+    "id": "studio-3",
+    "observation_id": "studio-14",
     "taxon_id": "tax-salticidae",
     "display_identification": "Salticidae sp.",
     "identified_by_profile_id": null,
     "identified_by_text": "站长",
     "identified_at": "2026-09-08",
+    "evidence": "field",
+    "remarks": null,
+    "is_current": true
+  },
+  {
+    "id": "studio-4",
+    "observation_id": "studio-16",
+    "taxon_id": "tax-salticidae",
+    "display_identification": "Salticidae sp.",
+    "identified_by_profile_id": null,
+    "identified_by_text": "站长",
+    "identified_at": "2026-09-10",
+    "evidence": "field",
+    "remarks": null,
+    "is_current": true
+  },
+  {
+    "id": "studio-5",
+    "observation_id": "studio-17",
+    "taxon_id": "tax-salticidae",
+    "display_identification": "Salticidae sp.",
+    "identified_by_profile_id": null,
+    "identified_by_text": "站长",
+    "identified_at": "2026-09-10",
     "evidence": "field",
     "remarks": null,
     "is_current": true
