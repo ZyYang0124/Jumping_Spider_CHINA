@@ -68,3 +68,11 @@ export function shortRegion(loc: { country_name: string; admin1: string }): stri
 export function coordLabel(loc: { latitude: number | null; longitude: number | null }): string | null {
   return loc.latitude != null && loc.longitude != null ? '精确坐标公开' : null;
 }
+
+/** 十进制度 + 半球字母：南纬/西经为负，显示为 S/W（§66） */
+export function formatLat(latitude: number): string {
+  return `${Math.abs(latitude).toFixed(5)}° ${latitude >= 0 ? 'N' : 'S'}`;
+}
+export function formatLng(longitude: number): string {
+  return `${Math.abs(longitude).toFixed(5)}° ${longitude >= 0 ? 'E' : 'W'}`;
+}

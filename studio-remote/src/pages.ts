@@ -751,11 +751,11 @@ export function obsEditorHtml(
       <div class="species-pop" id="place-pop"></div>
       <span class="hint" id="place-hint"></span>
       <div class="coords-row" style="margin-top:10px">
-        <span class="coord"><input data-field="latitude" inputmode="decimal" placeholder="21.927381" /><em>N</em></span>
-        <span class="coord"><input data-field="longitude" inputmode="decimal" placeholder="101.256742" /><em>E</em></span>
+        <span class="coord"><input data-field="latitude" inputmode="decimal" placeholder="21.927381" /><em id="lat-hemi">N</em></span>
+        <span class="coord"><input data-field="longitude" inputmode="decimal" placeholder="101.256742" /><em id="lng-hemi">E</em></span>
         <button type="button" class="ghost" id="btn-map">在地图上调整</button>
       </div>
-      <span class="hint">支持粘贴「21.927381, 101.256742」自动填入 · 精确坐标将随观察公开</span>
+      <span class="hint">支持粘贴「纬度, 经度」自动填入 · 南半球/西半球用负值（如 -33.9）· 精确坐标将随观察公开</span>
       <div id="map-box" hidden></div>
       <div class="row2" style="margin-top:16px">
         <div class="field"><input data-field="admin1" placeholder="省 / 州（云南 · 西双版纳…）" /></div>

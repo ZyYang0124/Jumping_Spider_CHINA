@@ -449,6 +449,18 @@ const OBS_EDITOR_JS = `
     placeSearch.addEventListener('blur', function () { setTimeout(function () { placePop.classList.remove('open'); }, 180); });
     refreshPlaceHint();
   }
+  // 半球字母跟随输入符号：北纬 N/南纬 S，东经 E/西经 W
+  function updateHemi() {
+    var lh = $('#lat-hemi'), lh2 = $('#lng-hemi');
+    if (lh) lh.textContent = parseFloat(latEl.value) < 0 ? 'S' : 'N';
+    if (lh2) lh2.textContent = parseFloat(lngEl.value) < 0 ? 'W' : 'E';
+  }
+  [latEl, lngEl].forEach(function (el) {
+    el.addEventListener('input', updateHemi);
+    el.addEventListener('change', updateHemi);
+  });
+  updateHemi();
+
   function tryParsePair(text) {
     var m = String(text).match(/(-?\\d+(?:\\.\\d+)?)\\s*[,，\\s]\\s*(-?\\d+(?:\\.\\d+)?)/);
     if (!m) return false;
