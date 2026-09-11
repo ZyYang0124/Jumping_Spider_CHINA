@@ -106,7 +106,12 @@ export function thumbUrl(m: MediaRow): string {
 /** 文章引用 URL：最接近 1280 且不超过的 jpg 档；不足则最大档 */
 export function articleUrl(m: MediaRow): string {
   const variants = safeVariants(m.variants);
-  const jpgs = variants.filter((v) => v.endsWith('.jpg')).map((v) => parseInt(v, 10)).sort((a, b) => a - b);
+  const jpgs = variants
+    .filter((v) => v.endsWith('.jpg'))
+    .map((v) => parseInt(v, 10))
+    .sort((a, b) => a - b)
+    // 原图宽度上限保护：不允许引用超过原图宽度的档位（避免公开站生成不存在的文件）
+    .filter((w) => m.width == null || w <= m.width);
   if (jpgs.length === 0) return thumbUrl(m);
   const fit = jpgs.filter((w) => w <= 1280);
   const w = (fit.length ? fit : jpgs)[(fit.length ? fit : jpgs).length - 1];
