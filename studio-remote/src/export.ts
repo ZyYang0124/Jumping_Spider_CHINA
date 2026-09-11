@@ -32,6 +32,7 @@ export const EMAIL_PROFILE: Record<string, string> = {
 };
 
 export interface ExportData {
+  placesJson: string;
   profilesJson: string;
   observationsJson: string;
   locationsJson: string;
@@ -103,6 +104,7 @@ export async function collectExport(env: Env): Promise<ExportData> {
   const observationsOut = observations.map((o: any) => ({
     id: `studio-${o.id}`,
     public_id: o.public_id,
+    place_id: o.place_id ? `place-${o.place_id}` : null,
     created_by: creatorProfile.get(o.id) ?? 'prof-zhiyong',
     observer: creatorProfile.get(o.id) ?? 'prof-zhiyong',
     observed_at: o.observed_at,
@@ -183,6 +185,27 @@ export async function collectExport(env: Env): Promise<ExportData> {
     });
   }
 
+  // 地点实体（§14/§19）：合并跳转关系一并导出
+  const placesRows = await all<any>(
+    env.DB,
+    `SELECT id, name, country, admin1, admin2, locality, site_name, latitude, longitude, elevation_m, description, merged_into_id
+     FROM places ORDER BY id`,
+  );
+  const placesJsonOut = placesRows.map((p: any) => ({
+    id: `place-${p.id}`,
+    name: p.name,
+    country: p.country ?? '',
+    admin1: p.admin1 ?? '',
+    admin2: p.admin2 ?? '',
+    locality: p.locality ?? '',
+    site_name: p.site_name ?? '',
+    latitude: p.latitude,
+    longitude: p.longitude,
+    elevation_m: p.elevation_m,
+    description: p.description ?? null,
+    merged_into_id: p.merged_into_id ? `place-${p.merged_into_id}` : null,
+  }));
+
   // 伙伴公开资料（§26/§29）：每位有授权邮箱的账号导出稳定档案；代表照片随包入库
   const users = await all<any>(
     env.DB,
@@ -230,6 +253,7 @@ export async function collectExport(env: Env): Promise<ExportData> {
 
   const j = (v: unknown) => JSON.stringify(v, null, 2) + '\n';
   return {
+    placesJson: j(placesJsonOut),
     profilesJson: j(profilesOut),
     observationsJson: j(observationsOut),
     locationsJson: j(locationsOut),
@@ -246,6 +270,7 @@ export async function buildExportZip(env: Env): Promise<Uint8Array> {
   const u8 = (s: string) => strToU8(s);
   return zipSync({
     'README.txt': strToU8(README),
+    'studio-places.json': u8(data.placesJson),
     'studio-profiles.json': u8(data.profilesJson),
     'studio-observations.json': u8(data.observationsJson),
     'studio-locations.json': u8(data.locationsJson),

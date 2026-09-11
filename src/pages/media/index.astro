@@ -21,36 +21,48 @@ archive.sort((a, b) => b.media.public_id.localeCompare(a.media.public_id));
       </p>
     </div>
 
-    {archive.map(({ media, observationPublicId, display }) => (
-      <a class="archive-card" href={media.detail_url}>
-        <div class="frame">
-          <PictureImage media={media} sizes="(max-width: 700px) 44vw, 240px" alt={media.caption ?? media.public_id} />
-        </div>
-        <div class="meta">
-          <div class="pid">{media.public_id}</div>
-          <div class="name">
-            {display ? <span set:html={sciNameHtml(display, 'species')} /> : <span>未鉴定的跳蛛</span>}
+    <div class="media-tools">
+      <input id="media-q" placeholder="搜索编号 / 物种 / 摄影者 / 地点 / 年份" autocomplete="off" />
+      <select id="media-vt">
+        <option value="">全部类型</option>
+        {Object.entries(VIEW_TYPE_ZH).map(([v, label]) => <option value={v}>{label}</option>)}
+      </select>
+    </div>
+
+    <div class="archive-grid">
+      {archive.map(({ media, observationPublicId, display }) => (
+        <a
+          class="archive-card"
+          href={media.detail_url}
+          data-q={`${media.public_id} ${display ?? ''} ${media.photographer ?? ''} ${observationPublicId ?? ''} ${media.caption ?? ''}`.toLowerCase()}
+          data-vt={media.view_type}
+        >
+          <div class="frame">
+            <PictureImage media={media} sizes="(max-width: 700px) 44vw, 240px" alt={media.caption ?? media.public_id} />
           </div>
-          <div class="sub">
-            {VIEW_TYPE_ZH[media.view_type as keyof typeof VIEW_TYPE_ZH] ?? media.view_type} · © {media.photographer}
-            <br />
-            <span>{observationPublicId}</span>
+          <div class="meta">
+            <div class="pid">{media.public_id}</div>
+            <div class="name">
+              {display ? <span set:html={sciNameHtml(display, 'species')} /> : <span>未鉴定的跳蛛</span>}
+            </div>
+            <div class="sub">
+              {VIEW_TYPE_ZH[media.view_type as keyof typeof VIEW_TYPE_ZH] ?? media.view_type} · © {media.photographer}
+              <br />
+              <span>{observationPublicId}</span>
+            </div>
           </div>
-        </div>
-      </a>
-    ))}
+        </a>
+      ))}
+    </div>
   </div>
 </Base>
 
 <style>
-  /* 照片档案：按比例分桶的整齐网格。桶内统一框架，微小差异轻微居中裁切；
-     图片由 PictureImage 子组件渲染，规则必须 :global 才能命中。 */
   /* 照片档案：按编号排列（新发布在前）的整齐网格，统一框架居中裁切；
      图片由 PictureImage 子组件渲染，规则必须 :global 才能命中。 */
-  .bucket { padding: 18px 0 26px; }
   .archive-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-    gap: 22px; padding: 18px 0 40px;
+    gap: 22px; padding: 6px 0 40px;
   }
   .archive-card { display: block; }
   .archive-card .frame {
@@ -70,4 +82,33 @@ archive.sort((a, b) => b.media.public_id.localeCompare(a.media.public_id));
   .archive-card .name :global(i) { font-family: var(--serif); }
   .archive-card .sub { font-size: 12px; color: var(--faint); margin-top: 3px; line-height: 1.7; }
   @media (max-width: 640px) { .archive-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
+  /* 轻量检索（§43-45）：编号 / 物种 / 摄影者 / 年份，与类型筛选 */
+  .media-tools { display: flex; gap: 12px; margin: 6px 0 22px; }
+  .media-tools input {
+    flex: 1; max-width: 380px; font: inherit; font-size: 14px;
+    border: none; border-bottom: 1px solid var(--line); background: transparent;
+    padding: 8px 2px; color: var(--ink);
+  }
+  .media-tools input:focus { outline: none; border-bottom-color: var(--accent); }
+  .media-tools select { font: inherit; font-size: 13.5px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); padding: 7px 10px; }
 </style>
+
+<script>
+  (function () {
+    var q = document.getElementById('media-q');
+    var vt = document.getElementById('media-vt');
+    if (!q || !vt) return;
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.archive-card'));
+    function apply() {
+      var kw = q.value.trim().toLowerCase();
+      var t = vt.value;
+      cards.forEach(function (card) {
+        var okKw = !kw || (card.getAttribute('data-q') || '').indexOf(kw) !== -1;
+        var okT = !t || card.getAttribute('data-vt') === t;
+        card.style.display = okKw && okT ? '' : 'none';
+      });
+    }
+    q.addEventListener('input', apply);
+    vt.addEventListener('change', apply);
+  })();
+</script>

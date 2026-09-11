@@ -250,6 +250,7 @@ const OBS_EDITOR_JS = `
       if (!pid) { saving = false; return; }
       var payload = fields();
       payload.species_taxon_slug = taxonSlug();
+      payload.place_id = placeId;
       if (explicit) payload.explicit = true;
       var snap = JSON.stringify(payload);
       return fetch('/studio/api/observations/' + pid, {
@@ -379,6 +380,75 @@ const OBS_EDITOR_JS = `
 
   // ---- 坐标：粘贴自动解析 + 地图 ----
   var latEl = $('[data-field="latitude"]'), lngEl = $('[data-field="longitude"]');
+  // ---- 地点 ComboBox（§16-§18）：搜索已有 → 选中挂接；或直接填下方信息新建 ----
+  var placeId = boot.placeId || null;
+  var placeSearch = $('#place-search'), placePop = $('#place-pop');
+  function placeHintText() {
+    return placeId ? '已挂接地点，发布后归入该地点' : '未选择地点——下方手工填写的信息会在保存时自动创建地点';
+  }
+  function refreshPlaceHint() {
+    var el = $('#place-hint');
+    if (el) el.textContent = placeHintText();
+  }
+  function fillPlaceFields(p) {
+    if (!p) return;
+    var set = function (k, v) { var el = document.querySelector('[data-field="' + k + '"]'); if (el && v != null) el.value = v; };
+    set('country_name', p.country);
+    set('admin1', p.admin1); set('admin2', p.admin2);
+    set('locality', p.locality); set('site_name', p.site_name);
+    if (p.latitude != null) { latEl.value = p.latitude; }
+    if (p.longitude != null) { lngEl.value = p.longitude; }
+    scheduleSave();
+  }
+  function renderPlacePop(list) {
+    if (!placePop) return;
+    placePop.innerHTML = list.length
+      ? list.map(function (p) {
+          var sub = [p.admin1, p.admin2, p.locality].filter(Boolean).join(' · ');
+          return '<div class="opt place-opt" data-pid="' + p.id + '"><span class="cn">' + escHtml(p.name) + '</span>' +
+            (sub ? '<span class="sn">' + escHtml(sub) + '</span>' : '') + '</div>';
+        }).join('') + (placeSearch.value.trim() ? '<div class="opt place-new" data-new="1">＋ 新建地点「' + escHtml(placeSearch.value.trim()) + '」</div>' : '')
+      : (placeSearch.value.trim() ? '<div class="opt place-new" data-new="1">＋ 新建地点「' + escHtml(placeSearch.value.trim()) + '」</div>' : '');
+    placePop.classList.add('open');
+    Array.prototype.slice.call(placePop.querySelectorAll('.place-opt')).forEach(function (el) {
+      el.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        placeId = Number(el.getAttribute('data-pid'));
+        var p = list.filter(function (x) { return x.id === placeId; })[0];
+        if (p) fillPlaceFields(p);
+        placeSearch.value = p ? p.name : '';
+        placePop.classList.remove('open');
+        refreshPlaceHint();
+        scheduleSave();
+      });
+    });
+    Array.prototype.slice.call(placePop.querySelectorAll('.place-new')).forEach(function (el) {
+      el.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        placeId = null;
+        placePop.classList.remove('open');
+        refreshPlaceHint();
+        document.querySelector('[data-field="locality"]').focus();
+      });
+    });
+  }
+  if (placeSearch) {
+    var placeTimer = null;
+    placeSearch.addEventListener('input', function () {
+      placeId = null; // 手动改动即视为未挂接，保存时按下方信息自动建点
+      refreshPlaceHint();
+      clearTimeout(placeTimer);
+      placeTimer = setTimeout(function () {
+        var q = placeSearch.value.trim();
+        if (!q) { placePop.classList.remove('open'); return; }
+        fetch('/studio/api/places?q=' + encodeURIComponent(q)).then(readJson).then(function (j) {
+          if (j && j.ok) renderPlacePop(j.places || []);
+        }).catch(function () {});
+      }, 250);
+    });
+    placeSearch.addEventListener('blur', function () { setTimeout(function () { placePop.classList.remove('open'); }, 180); });
+    refreshPlaceHint();
+  }
   function tryParsePair(text) {
     var m = String(text).match(/(-?\\d+(?:\\.\\d+)?)\\s*[,，\\s]\\s*(-?\\d+(?:\\.\\d+)?)/);
     if (!m) return false;

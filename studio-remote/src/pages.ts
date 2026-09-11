@@ -311,6 +311,24 @@ details.more .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 22px
 }
 .status-menu button { display:block; width:100%; text-align:left; background:none; border:none; padding:8px 12px; font-size:13.5px; color:var(--ink); border-radius:8px; }
 .status-menu button:hover { background:var(--paper-deep); }
+.photo-strip { display:flex; align-items:center; gap:14px; }
+.photo-slot {
+  width:160px; height:200px; border:1.5px dashed var(--line); border-radius:12px;
+  display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px;
+  color:var(--faint); font-size:20px; cursor:pointer; overflow:hidden; background:#fff;
+}
+.photo-slot img { width:100%; height:100%; object-fit:cover; display:block; }
+.photo-slot span { font-size:12px; }
+.row-actions { display:flex; align-items:center; gap:14px; margin-top:8px; }
+.q-rows { border:1px solid var(--line-soft); border-radius:10px; background:#fff; padding:6px 0; max-width:520px; }
+.q-row { padding:7px 16px; font-size:13.5px; color:var(--ink); border-bottom:1px solid var(--line-soft); }
+.q-row:last-child { border-bottom:none; }
+.pm-row { display:flex; align-items:center; justify-content:space-between; gap:16px; border:1px solid var(--line-soft); border-radius:12px; background:#fff; padding:14px 18px; margin-bottom:12px; }
+.pm-main b { font-family:var(--serif); font-weight:400; font-size:17px; }
+.pm-sub { display:block; font-size:12.5px; color:var(--faint); margin-top:2px; }
+.pm-side { display:flex; align-items:center; gap:10px; }
+.pm-count { font-size:12.5px; color:var(--faint); }
+.pm-target { font:inherit; font-size:13px; padding:6px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
 
 /* ---- 札记：写作模式 ---- */
 .write-main { max-width:var(--w-note); margin:0 auto; padding:44px 24px 160px; }
@@ -443,7 +461,7 @@ export function page(
     <a href="/studio/drafts">记录</a>
     <a href="/studio/media">媒体</a>
     <a href="/studio/profile">个人资料</a>
-    ${user?.role === 'owner' ? '<a href="/studio/invite">邀请</a>' : ''}
+    ${user?.role === 'owner' ? '<a href="/studio/places-manage">地点管理</a><a href="/studio/quality">数据质量</a><a href="/studio/invite">邀请</a>' : ''}
   </nav>
   <div class="right">
     <a class="site" href="${SITE_URL}" target="_blank" rel="noopener">Salticid Notes ↗</a>
@@ -729,7 +747,10 @@ export function obsEditorHtml(
 
     <section class="field">
       <label>地点</label>
-      <div class="coords-row">
+      <input id="place-search" placeholder="搜索已有地点（名称 / 省市），或直接在下方填写" autocomplete="off" value="${esc(data.placeName ?? '')}" />
+      <div class="species-pop" id="place-pop"></div>
+      <span class="hint" id="place-hint"></span>
+      <div class="coords-row" style="margin-top:10px">
         <span class="coord"><input data-field="latitude" inputmode="decimal" placeholder="21.927381" /><em>N</em></span>
         <span class="coord"><input data-field="longitude" inputmode="decimal" placeholder="101.256742" /><em>E</em></span>
         <button type="button" class="ghost" id="btn-map">在地图上调整</button>
@@ -783,6 +804,8 @@ export function obsEditorHtml(
 
   <script>
     window.__EDITOR_BOOT = {
+      placeId: ${jsonForScript(data.placeId ?? null)},
+      placeName: ${jsonForScript(data.placeName ?? '')},
       publicId: ${jsonForScript(publicId)},
       status: ${jsonForScript(meta.status)},
       hasUnpublished: ${jsonForScript(meta.hasUnpublished)},

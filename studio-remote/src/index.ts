@@ -317,6 +317,15 @@ app.patch('/studio/api/observations/:public_id', async (c) => {
     sets.push("updated_at = datetime('now')");
     await run(c.env.DB, `UPDATE observations SET ${sets.join(', ')} WHERE id = ?`, ...vals, obs.id);
   }
+  // 地点引用：place_id 必须指向真实地点（§14/§15）
+  if (b.place_id !== undefined) {
+    const pid = b.place_id === null ? null : Number(b.place_id);
+    if (pid !== null) {
+      const exists = await get<any>(c.env.DB, 'SELECT id FROM places WHERE id = ? AND merged_into_id IS NULL', pid);
+      if (!exists) return c.json({ error: '地点不存在或已合并' }, 400);
+    }
+    await run(c.env.DB, 'UPDATE observations SET place_id = ? WHERE id = ?', pid, obs.id);
+  }
   if (typeof b.species_taxon_slug === 'string' && b.species_taxon_slug) {
     await upsertIdentification(
       c.env,
@@ -471,6 +480,7 @@ app.post('/studio/api/observations/:public_id/photos/order', async (c) => {
 // ---------- 状态机（发布=立即公开）：status 是生命周期唯一真源，visibility 由状态派生 ----------
 
 type ObsStatus = 'draft' | 'published' | 'private' | 'archived';
+const STATUS_ZH: Record<string, string> = { draft: '草稿', published: '已发布', private: '私密', archived: '已归档' };
 const VISIBILITY_BY_STATUS: Record<ObsStatus, 'public' | 'private'> = {
   draft: 'private',
   published: 'public',
@@ -678,7 +688,177 @@ app.post('/studio/api/profile', async (c) => {
   return c.json({ ok: true, sync: 'queued' });
 });
 
+// ---------- 地点实体（§14-§20）：搜索 / 新建（带去重）/ 合并 ----------
+
+app.get('/studio/api/places', async (c) => {
+  user(c);
+  const q = (c.req.query('q') ?? '').trim();
+  const rows = q
+    ? await all<any>(
+        c.env.DB,
+        `SELECT p.*, (SELECT COUNT(*) FROM observations o WHERE o.place_id = p.id AND o.status != 'archived') usage
+         FROM places p
+         WHERE p.merged_into_id IS NULL AND (p.name LIKE ? OR p.locality LIKE ? OR p.admin1 LIKE ? OR p.admin2 LIKE ?)
+         ORDER BY p.name LIMIT 20`,
+        `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`,
+      )
+    : await all<any>(
+        c.env.DB,
+        `SELECT p.*, (SELECT COUNT(*) FROM observations o WHERE o.place_id = p.id AND o.status != 'archived') usage
+         FROM places p WHERE p.merged_into_id IS NULL ORDER BY p.name LIMIT 20`,
+      );
+  return c.json({ ok: true, places: rows });
+});
+
+app.post('/studio/api/places', async (c) => {
+  const u = user(c);
+  if (!sameOrigin(c.req.raw)) return c.json({ error: 'Forbidden' }, 403);
+  const b = (await c.req.json()) as Record<string, string | number | null>;
+  const name = String(b.name ?? '').trim().slice(0, 120);
+  if (!name) return c.json({ error: '地点名称不能为空' }, 400);
+  const admin1 = String(b.admin1 ?? '').trim().slice(0, 60) || null;
+  const admin2 = String(b.admin2 ?? '').trim().slice(0, 60) || null;
+  const locality = String(b.locality ?? '').trim().slice(0, 120) || null;
+  // §17 去重提示：同省同市同名 → 返回已有地点
+  const dup = await get<any>(c.env.DB, "SELECT id, name, admin1, admin2, locality FROM places WHERE merged_into_id IS NULL AND name = ? AND COALESCE(admin1, '') = ? AND COALESCE(admin2, '') = ?", name, admin1 ?? '', admin2 ?? '');
+  if (dup) return c.json({ ok: false, duplicate: true, existing: dup, error: '已存在相同地点，请直接选择' }, 409);
+  const lat = b.latitude != null && b.latitude !== '' ? Number(b.latitude) : null;
+  const lng = b.longitude != null && b.longitude !== '' ? Number(b.longitude) : null;
+  const elev = b.elevation_m != null && b.elevation_m !== '' ? Number(b.elevation_m) : null;
+  await run(
+    c.env.DB,
+    `INSERT INTO places (name, country, admin1, admin2, locality, site_name, latitude, longitude, elevation_m, created_by)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    name, String(b.country ?? '中国') || null, admin1, admin2, locality,
+    String(b.site_name ?? '').trim().slice(0, 120) || null, lat, lng, elev, u.id,
+  );
+  const row = await get<any>(c.env.DB, 'SELECT id, name, admin1, admin2, locality, site_name, latitude, longitude, elevation_m FROM places WHERE id = last_insert_rowid()');
+  await audit(c.env, u.display_name, 'place', String(row!.id), 'place.created', { name });
+  return c.json({ ok: true, place: row });
+});
+
+// ---------- 数据质量（§13，quality control 而非审核） ----------
+
+app.get('/studio/quality', async (c) => {
+  const u = user(c);
+  if (u.role !== 'owner') return c.text('只有站长可以查看数据质量。', 403);
+  const today = new Date().toISOString().slice(0, 10);
+  const future = await all<any>(c.env.DB, "SELECT public_id, observed_at FROM observations WHERE observed_at > ? AND status != 'archived' ORDER BY observed_at", today);
+  const noPlace = await all<any>(c.env.DB, "SELECT public_id, status FROM observations WHERE place_id IS NULL AND status != 'archived' ORDER BY public_id");
+  const noGps = await all<any>(c.env.DB, "SELECT public_id FROM observations WHERE (exact_latitude IS NULL OR exact_longitude IS NULL) AND status = 'published' ORDER BY public_id");
+  const dupPlaces = await all<any>(c.env.DB, "SELECT name, COUNT(*) c, GROUP_CONCAT(id) ids FROM places WHERE merged_into_id IS NULL GROUP BY lower(name) HAVING c > 1");
+  const unidentified = await all<any>(c.env.DB, "SELECT o.public_id FROM observations o LEFT JOIN identifications i ON i.observation_id = o.id AND i.is_current = 1 WHERE o.status = 'published' AND i.id IS NULL ORDER BY o.public_id");
+  const noPhotographer = await all<any>(c.env.DB, "SELECT public_id FROM media WHERE photographer_name IS NULL AND visibility = 'public'");
+  const noCover = await all<any>(c.env.DB, "SELECT o.public_id FROM observations o WHERE o.status = 'published' AND NOT EXISTS (SELECT 1 FROM media m WHERE m.observation_id = o.id AND m.is_cover = 1)");
+  const sections = [
+    { label: '未来日期', rows: future.map((r) => `${r.public_id}（${r.observed_at}）`), hint: '确认是误填就改掉；确实要提前发布的可以保留。' },
+    { label: '未挂接地点', rows: noPlace.map((r) => `${r.public_id}（${STATUS_ZH[r.status] ?? r.status}）`), hint: '在编辑页的地点搜索里选择或新建。' },
+    { label: '已发布但缺 GPS', rows: noGps.map((r) => r.public_id), hint: '有可靠坐标再补；没有就不显示坐标。' },
+    { label: '疑似重复地点', rows: dupPlaces.map((r) => `${r.name} ×${r.c}（id：${r.ids}）`), hint: '同名地点建议在「地点管理」里合并。' },
+    { label: '已发布但未鉴定', rows: unidentified.map((r) => r.public_id), hint: '未知是一等公民，不急。' },
+    { label: '公开影像缺摄影者', rows: noPhotographer.map((r) => r.public_id), hint: '每张照片都该有署名。' },
+    { label: '已发布但无封面图', rows: noCover.map((r) => r.public_id), hint: '没有封面不影响公开，但列表里不好看。' },
+  ];
+  const body = sections
+    .map(
+      (sec) => `<section class="field">
+        <label>${esc(sec.label)}（${sec.rows.length}）</label>
+        ${sec.rows.length ? `<div class="q-rows">${sec.rows.map((r) => `<div class="q-row">${esc(r)}</div>`).join('')}</div>` : '<p class="empty">没有问题 ✓</p>'}
+        <span class="hint">${esc(sec.hint)}</span>
+      </section>`,
+    )
+    .join('');
+  return c.html(
+    page('数据质量', `
+  <div class="wrap">
+    <div class="hello-wrap"><h1>数据质量</h1><p>Quality control，不是审核——帮你找到需要补齐的记录。</p></div>
+    ${body}
+  </div>`, u),
+  );
+});
+
+// ---------- 地点管理（owner：合并重复地点，§20） ----------
+
+app.get('/studio/places-manage', async (c) => {
+  const u = user(c);
+  if (u.role !== 'owner') return c.text('只有站长可以管理地点。', 403);
+  const rows = await all<any>(
+    c.env.DB,
+    `SELECT p.*, (SELECT COUNT(*) FROM observations o WHERE o.place_id = p.id AND o.status != 'archived') usage
+     FROM places p WHERE p.merged_into_id IS NULL ORDER BY p.name`,
+  );
+  const options = rows
+    .map((x) => `<option value="${x.id}">${esc(x.name)}</option>`)
+    .join('');
+  const rowsHtml = rows
+    .map(
+      (p) => `<div class="pm-row">
+        <div class="pm-main"><b>${esc(p.name)}</b><span class="pm-sub">${esc([p.admin1, p.admin2, p.locality].filter(Boolean).join(' · ') || '—')}${p.latitude != null ? ' · ' + p.latitude + ', ' + p.longitude : ''}</span></div>
+        <div class="pm-side"><span class="pm-count">${p.usage} 条观察</span>
+          <select class="pm-target" data-from="${p.id}"><option value="">合并到…</option>${rows
+            .filter((x) => x.id !== p.id)
+            .map((x) => `<option value="${x.id}">${esc(x.name)}</option>`)
+            .join('')}</select>
+          <button type="button" class="act-btn" data-merge-from="${p.id}">合并</button>
+        </div>
+      </div>`,
+    )
+    .join('');
+  return c.html(
+    page('地点管理', `
+  <div class="wrap">
+    <div class="hello-wrap"><h1>地点管理</h1><p>同一个地方因为写法不同产生多条时，在这里合并。观察会整体迁移，不会丢。</p></div>
+    ${rows.length ? `<div class="place-manage">${rowsHtml}</div>` : '<p class="empty">还没有地点。</p>'}
+  </div>
+  <script>
+  (function () {
+    Array.prototype.slice.call(document.querySelectorAll('button[data-merge-from]')).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var from = b.getAttribute('data-merge-from');
+        var sel = document.querySelector('.pm-target[data-from="' + from + '"]');
+        var to = sel ? sel.value : '';
+        if (!to) { alert('先选择合并到的地点'); return; }
+        if (!confirm('确定合并？该地点的全部观察会迁移到目标地点。')) return;
+        b.disabled = true;
+        fetch('/studio/api/places/merge', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: Number(from), to: Number(to) }),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (j && j.ok) location.reload();
+            else { b.disabled = false; alert((j && j.error) || '合并失败'); }
+          })
+          .catch(function () { b.disabled = false; alert('网络异常，请重试'); });
+      });
+    });
+  })();
+  </script>`, u),
+  );
+});
+
+app.post('/studio/api/places/merge', async (c) => {
+  const u = user(c);
+  if (!sameOrigin(c.req.raw)) return c.json({ error: 'Forbidden' }, 403);
+  if (u.role !== 'owner') return c.json({ error: '只有站长可以合并地点' }, 403);
+  const b = (await c.req.json()) as { from?: number; to?: number };
+  const from = Number(b.from), to = Number(b.to);
+  if (!from || !to || from === to) return c.json({ error: '参数错误' }, 400);
+  const target = await get<any>(c.env.DB, 'SELECT id FROM places WHERE id = ? AND merged_into_id IS NULL', to);
+  if (!target) return c.json({ error: '目标地点不存在' }, 404);
+  await run(c.env.DB, 'UPDATE observations SET place_id = ? WHERE place_id = ?', to, from);
+  await run(c.env.DB, "UPDATE places SET merged_into_id = ?, updated_at = datetime('now') WHERE id = ?", to, from);
+  await audit(c.env, u.display_name, 'place', String(from), 'place.merged', { from, to });
+  c.executionCtx.waitUntil(
+    syncToGitHub(c.env, '地点合并').then((r) =>
+      audit(c.env, u.display_name, 'github-sync', 'places', r.ok ? 'sync-ok: ' + r.detail : 'sync-fail: ' + r.detail),
+    ),
+  );
+  return c.json({ ok: true });
+});
+
 // ---------- EXIF 预读 ----------
+
 
 app.post('/studio/api/exif-preview', async (c) => {
   const u = user(c);
@@ -788,12 +968,16 @@ app.get('/studio/observations/:public_id/edit', async (c) => {
   if (u.role !== 'owner' && obs.created_by !== u.id) return c.text('只能编辑自己的记录。', 403);
   const photos = await mediaForObservation(c.env, obs.id);
   const idn = await get<{ taxon_slug: string }>(c.env.DB, 'SELECT taxon_slug FROM identifications WHERE observation_id = ? AND is_current = 1', obs.id);
+  const place = obs.place_id
+    ? await get<{ name: string }>(c.env.DB, 'SELECT name FROM places WHERE id = ?', obs.place_id)
+    : undefined;
   const data = {
     ...obs,
     observed_at: String(obs.observed_at ?? '').slice(0, 10),
     latitude: obs.exact_latitude ?? '',
     longitude: obs.exact_longitude ?? '',
     species_taxon_slug: idn?.taxon_slug ?? '',
+    placeName: place?.name ?? '',
   };
   const grid = photos.map((p) => ({
     public_id: p.public_id, thumb: thumbUrl(p), caption: p.caption,

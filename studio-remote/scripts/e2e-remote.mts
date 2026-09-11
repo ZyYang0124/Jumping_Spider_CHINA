@@ -311,6 +311,60 @@ ok(
   `G9 列表页四状态分区齐全`,
 );
 
+// ---------- 场景 H：地点实体（搜索 / 新建 / 挂接 / 合并 / 质量页） ----------
+const searchRes = await (await req('/studio/api/places?q=' + encodeURIComponent('罗浮山'))).json();
+ok(Array.isArray(searchRes.places) && searchRes.places.length >= 1, `H1 地点搜索：${JSON.stringify(searchRes.places?.map((x: any) => x.name) ?? [])}`);
+
+const newPlace = await (await req('/studio/api/places', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: '南昆山', country: '中国', admin1: '广东省', admin2: '惠州市', locality: '南昆山', site_name: 'E2E 测试点', latitude: 23.65, longitude: 113.92, elevation_m: 800 }),
+})).json();
+ok(newPlace.duplicate === true && newPlace.existing?.id, `H2 新建地点触发去重提示（已存在 id=${newPlace.existing?.id}）`);
+
+const dupB = await (await req('/studio/api/places', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'E2E 测试地点甲', country: '中国', admin1: '广东省', admin2: '惠州市', locality: '南昆山' }),
+})).json();
+const testPlaceId = dupB.place?.id ?? dupB.existing?.id;
+ok((dupB.ok === true && dupB.place?.id) || dupB.duplicate === true, `H3 新建地点（重复时返回已有）：id=${testPlaceId}`);
+
+const attach = await (await req(`/studio/api/observations/${pidA}`, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ place_id: testPlaceId, explicit: true }),
+})).json();
+ok(attach.ok === true, `H4 观察挂接地点`);
+
+const badAttach = await req(`/studio/api/observations/${pidA}`, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ place_id: 999999 }),
+});
+ok(badAttach.status === 400, `H5 挂接不存在的地点被拒绝（400）`);
+
+const qpage = await req('/studio/quality');
+ok(qpage.status === 200, `H6 数据质量页可访问`);
+const mpPage = await req('/studio/places-manage');
+ok(mpPage.status === 200, `H7 地点管理页可访问`);
+
+const expPlaces = await req('/studio/export');
+const zipPlaces = unzipSync(new Uint8Array(await expPlaces.arrayBuffer()));
+ok(files_in(zipPlaces, 'studio-places.json'), `H8 导出包含 studio-places.json`);
+const placesJson = JSON.parse(new TextDecoder().decode(zipPlaces['studio-places.json']));
+ok(placesJson.some((p: any) => p.name === 'E2E 测试地点甲'), `H9 新建地点已导出`);
+
+// 合并：E2E 测试地点甲 → 罗浮山
+const luofushan = placesJson.find((p: any) => p.name === '罗浮山');
+const merge = await (await req('/studio/api/places/merge', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ from: testPlaceId, to: Number(luofushan.id.replace('place-', '')) }),
+})).json();
+ok(merge.ok === true, `H10 地点合并成功`);
+const mergedRow = d1(`SELECT place_id FROM observations WHERE public_id = '${pidA}'`)[0]?.place_id;
+ok(mergedRow === Number(luofushan.id.replace('place-', '')), `H11 合并后观察迁移到罗浮山`);
+
+function files_in(z: Record<string, Uint8Array>, name: string): boolean {
+  return name in z;
+}
+
+// ---------- 场景 F ----------
 // ---------- 场景 F ----------
 await req(`/studio/api/observations/${pidA}`, {
   method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ field_note: '编辑复核：补充生境描述（发布后修订）。' }),
