@@ -8,7 +8,9 @@ import { withBase } from '../lib/privacy';
 import { siteConfig } from '../lib/store';
 import { sciNameHtml, formatDate, shortRegion } from '../lib/format';
 
-const hero = allPublicObservations.find((o) => o.cover?.id === 'SFN-M-000008')?.cover ?? allPublicObservations[0]?.cover ?? null;
+// 首页大图轮播：最新发布的 5 张封面，自动轮换（§12 编辑条同源数据）
+const heroes = allPublicObservations.filter((o) => o.cover).slice(0, 5);
+const hero = heroes[0]?.cover ?? null;
 const heroPreload = hero
   ? {
       href: hero.medium,
@@ -23,9 +25,24 @@ const places = getLocalityCards().slice(0, 3);
 ---
 
 <Base preload={heroPreload ?? undefined}>
-  <section class="hero">
-    {hero && <img class="hero-photo" src={hero.large} alt="封面照片：求偶中的雄性翠蛛" fetchpriority="high" />}
+  <section class="hero" data-hero-carousel>
+    {heroes.map((h, i) => (
+      <img
+        class:list={['hero-photo', { 'is-active': i === 0 }]}
+        src={h.cover.large}
+        alt={`封面照片 · ${h.public_id}`}
+        loading={i === 0 ? 'eager' : 'lazy'}
+        fetchpriority={i === 0 ? 'high' : 'auto'}
+        data-hero-slide={i}
+        data-credit={h.cover.photographer ?? ''}
+      />
+    ))}
     <div class="veil"></div>
+    <div class="hero-dots">
+      {heroes.map((_, i) => (
+        <button type="button" class:list={['hero-dot', { on: i === 0 }]} data-hero-dot={i} aria-label={`切换到第 ${i + 1} 张封面`} />
+      ))}
+    </div>
     <div class="inner">
       <div class="kicker">始于 2023</div>
       <h1>{siteConfig.site_name}</h1>
@@ -35,8 +52,41 @@ const places = getLocalityCards().slice(0, 3);
         <a class="btn" href={withBase('/trips/')}>阅读野外调查</a>
       </div>
     </div>
-    {hero && <span class="hero-credit">© {hero.photographer}</span>}
+    {hero && <span class="hero-credit">© <span data-hero-credit>{hero.photographer}</span></span>}
   </section>
+
+  <script data-astro-rerun>
+    (function () {
+      function init() {
+        var hero = document.querySelector('[data-hero-carousel]');
+        if (!hero || hero.dataset.carouselBound) return;
+        hero.dataset.carouselBound = '1';
+        var slides = Array.prototype.slice.call(hero.querySelectorAll('[data-hero-slide]'));
+        var dots = Array.prototype.slice.call(hero.querySelectorAll('[data-hero-dot]'));
+        var credit = hero.querySelector('[data-hero-credit]');
+        if (slides.length < 2) { if (dots.length) dots.forEach(function (d) { d.remove(); }); return; }
+        var i = 0, timer = null;
+        var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        function show(n) {
+          i = (n + slides.length) % slides.length;
+          slides.forEach(function (s, k) { s.classList.toggle('is-active', k === i); });
+          dots.forEach(function (d, k) { d.classList.toggle('on', k === i); });
+          if (credit) credit.textContent = slides[i].getAttribute('data-credit') || '';
+        }
+        function stop() { if (timer) { clearInterval(timer); timer = null; } }
+        function play() { if (!reduce && !timer) timer = setInterval(function () { show(i + 1); }, 6000); }
+        dots.forEach(function (d, k) {
+          d.addEventListener('click', function () { show(k); stop(); play(); });
+        });
+        hero.addEventListener('mouseenter', stop);
+        hero.addEventListener('mouseleave', play);
+        show(0);
+        play();
+      }
+      init();
+      document.addEventListener('astro:page-load', init);
+    })();
+  </script>
 
   <div class="container-wide">
     <!-- 最近的相遇：紧凑 editorial strip（§12/§13） -->
