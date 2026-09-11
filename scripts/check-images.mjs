@@ -36,7 +36,7 @@ for (const file of htmlFiles) {
 let missing = 0;
 let checked = 0;
 for (const [url, pages] of urls) {
-  const path = url.split('?')[0];
+  const path = url.replace(/^https?:\/\/[^/]+/, '').split('?')[0];
   const fsPath = join(DIST, decodeURIComponent(path));
   checked += 1;
   if (!existsSync(fsPath)) {

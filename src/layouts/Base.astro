@@ -16,7 +16,7 @@ interface Props {
 
 const { title, description = siteConfig.subtitle, preload, ogImage } = Astro.props;
 const SITE_URL = 'https://salticidnotes.cn';
-const ogImageAbs = ogImage ? SITE_URL + withBase(ogImage) : SITE_URL + withBase('/media/derivatives/m-3047463f-1280.jpg');
+const ogImageAbs = ogImage ? SITE_URL + withBase(ogImage) : SITE_URL + withBase('/media/derivatives/SFN-M-000008-1280.jpg');
 const pageTitle = title ? `${title} · ${siteConfig.site_name}` : `${siteConfig.site_name} | ${siteConfig.site_name_en}`;
 
 const nav = [

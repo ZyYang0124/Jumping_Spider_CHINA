@@ -8,7 +8,7 @@ import { withBase } from '../lib/privacy';
 import { siteConfig } from '../lib/store';
 import { sciNameHtml, formatDate, shortRegion } from '../lib/format';
 
-const hero = allPublicObservations.find((o) => o.cover?.id === 'm-3047463f')?.cover ?? allPublicObservations[0]?.cover ?? null;
+const hero = allPublicObservations.find((o) => o.cover?.id === 'SFN-M-000008')?.cover ?? allPublicObservations[0]?.cover ?? null;
 const heroPreload = hero
   ? {
       href: hero.medium,

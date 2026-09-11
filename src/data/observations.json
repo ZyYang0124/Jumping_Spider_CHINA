@@ -1,7 +1,7 @@
 [
   {
     "id": "obs-2023-001",
-    "public_id": "CSFN-2023-000001",
+    "public_id": "SFN-2023-000001",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2023-05-02",
@@ -19,7 +19,7 @@
   },
   {
     "id": "obs-2023-002",
-    "public_id": "CSFN-2023-000002",
+    "public_id": "SFN-2023-000002",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2023-05-03",
@@ -37,7 +37,7 @@
   },
   {
     "id": "obs-2023-003",
-    "public_id": "CSFN-2023-000003",
+    "public_id": "SFN-2023-000003",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2023-07-14",
@@ -55,7 +55,7 @@
   },
   {
     "id": "obs-2023-004",
-    "public_id": "CSFN-2023-000004",
+    "public_id": "SFN-2023-000004",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2023-07-16",
@@ -73,7 +73,7 @@
   },
   {
     "id": "obs-2023-005",
-    "public_id": "CSFN-2023-000005",
+    "public_id": "SFN-2023-000005",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2023-05-02",
@@ -91,7 +91,7 @@
   },
   {
     "id": "obs-2023-006",
-    "public_id": "CSFN-2023-000006",
+    "public_id": "SFN-2023-000006",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2023-06-21",
@@ -109,7 +109,7 @@
   },
   {
     "id": "obs-2023-007",
-    "public_id": "CSFN-2023-000007",
+    "public_id": "SFN-2023-000007",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2023-06-21",
@@ -127,7 +127,7 @@
   },
   {
     "id": "obs-2023-008",
-    "public_id": "CSFN-2023-000008",
+    "public_id": "SFN-2023-000008",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2023-11-11",
@@ -145,7 +145,7 @@
   },
   {
     "id": "obs-2023-009",
-    "public_id": "CSFN-2023-000009",
+    "public_id": "SFN-2023-000009",
     "created_by": "prof-taoli",
     "observer": "prof-taoli",
     "observed_at": "2023-08-12",
@@ -163,7 +163,7 @@
   },
   {
     "id": "obs-2023-010",
-    "public_id": "CSFN-2023-000010",
+    "public_id": "SFN-2023-000010",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2023-09-30",
@@ -181,7 +181,7 @@
   },
   {
     "id": "obs-2023-011",
-    "public_id": "CSFN-2023-000011",
+    "public_id": "SFN-2023-000011",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2023-08-13",
@@ -199,7 +199,7 @@
   },
   {
     "id": "obs-2024-001",
-    "public_id": "CSFN-2024-000001",
+    "public_id": "SFN-2024-000001",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2024-07-18",
@@ -217,7 +217,7 @@
   },
   {
     "id": "obs-2024-002",
-    "public_id": "CSFN-2024-000002",
+    "public_id": "SFN-2024-000002",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2024-07-20",
@@ -235,7 +235,7 @@
   },
   {
     "id": "obs-2024-003",
-    "public_id": "CSFN-2024-000003",
+    "public_id": "SFN-2024-000003",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2024-05-01",
@@ -253,7 +253,7 @@
   },
   {
     "id": "obs-2023-012",
-    "public_id": "CSFN-2023-000012",
+    "public_id": "SFN-2023-000012",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2023-10-14",
@@ -271,7 +271,7 @@
   },
   {
     "id": "obs-2023-013",
-    "public_id": "CSFN-2023-000013",
+    "public_id": "SFN-2023-000013",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2023-10-14",
@@ -289,7 +289,7 @@
   },
   {
     "id": "obs-2023-014",
-    "public_id": "CSFN-2023-000014",
+    "public_id": "SFN-2023-000014",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2023-07-17",
@@ -307,7 +307,7 @@
   },
   {
     "id": "obs-2024-004",
-    "public_id": "CSFN-2024-000004",
+    "public_id": "SFN-2024-000004",
     "created_by": "prof-zhiyong",
     "observer": "prof-zhiyong",
     "observed_at": "2024-07-19",
@@ -325,7 +325,7 @@
   },
   {
     "id": "obs-2024-005",
-    "public_id": "CSFN-2024-000005",
+    "public_id": "SFN-2024-000005",
     "created_by": "prof-taoli",
     "observer": "prof-taoli",
     "observed_at": "2024-08-03",

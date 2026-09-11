@@ -98,7 +98,7 @@ function validate(): void {
 
   for (const o of observations) {
     if (publicIds.has(o.public_id)) fail(`public_id 重复：${o.public_id}`);
-    if (!/^(CSFN|SFN)-\d{4}-\d{6}$/.test(o.public_id)) fail(`public_id 格式非法：${o.public_id}（不得包含学名/地名/人名）`);
+    if (!/^SFN-\d{4}-\d{6}$/.test(o.public_id)) fail(`public_id 格式非法：${o.public_id}（不得包含学名/地名/人名）`);
     publicIds.add(o.public_id);
     if (!observationIds.has(o.id)) fail(`观察 ${o.public_id} 自引用异常`);
     if (!profileIds.has(o.observer)) fail(`观察 ${o.public_id} 的 observer 不存在`);
@@ -122,7 +122,7 @@ function validate(): void {
   for (const m of media) {
     // observation_id 为 null 仅限札记独立插图（Studio 导出；只服务札记正文，不挂观察）
     if (m.observation_id !== null && !observationIds.has(m.observation_id)) fail(`媒体 ${m.id} 指向不存在的观察`);
-    if (!/^(CSFN|SFN)-M-\d{6}$/.test(m.public_id)) fail(`媒体 ${m.id} 的 public_id 格式非法：${m.public_id}`);
+    if (!/^SFN-M-\d{6}$/.test(m.public_id)) fail(`媒体 ${m.id} 的 public_id 格式非法：${m.public_id}`);
     if (mediaPublicIds.has(m.public_id)) fail(`媒体 public_id 重复：${m.public_id}`);
     mediaPublicIds.add(m.public_id);
     if (m.photographer_profile_id && !profileIds.has(m.photographer_profile_id)) {
