@@ -106,7 +106,8 @@ a:hover { color: var(--terra); }
   height: 58px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
 }
-.brand { display: flex; align-items: baseline; gap: 10px; text-decoration: none; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.brand .brand-mark { flex: none; }
 .brand .zh { font-family: var(--serif); font-size: 19px; font-weight: 700; letter-spacing: 0.06em; }
 .brand .en { font-size: 10.5px; color: var(--faint); letter-spacing: 0.16em; text-transform: uppercase; }
 .site-nav { display: flex; gap: 4px; font-size: var(--text-small); color: var(--muted); }

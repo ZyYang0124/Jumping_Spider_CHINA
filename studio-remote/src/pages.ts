@@ -470,7 +470,7 @@ export function page(
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} · Studio</title><link rel="stylesheet" href="/studio.css"></head>
+<title>${esc(title)} · Studio</title><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="stylesheet" href="/studio.css"></head>
 <body><header class="shell${opts.editor ? ' editor-mode' : ''}">${head}</header>${body}</body></html>`;
 }
 
