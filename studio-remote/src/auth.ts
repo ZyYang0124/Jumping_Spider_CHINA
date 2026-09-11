@@ -68,7 +68,7 @@ export async function findOrCreateUserByEmail(env: Env, email: string): Promise<
   );
   if (existing) return existing;
   const isOwner = !!env.OWNER_EMAIL && e === env.OWNER_EMAIL.toLowerCase();
-  const displayName = isOwner ? '站长' : e.split('@')[0];
+  const displayName = isOwner ? '咩咩' : e.split('@')[0];
   const info = await env.DB.prepare('INSERT INTO users (email, display_name, role) VALUES (?, ?, ?)')
     .bind(e, displayName, isOwner ? 'owner' : 'contributor')
     .run();

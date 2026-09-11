@@ -339,19 +339,17 @@
     ]
   },
   "SFN-M-000002": {
-    "width": 1200,
-    "height": 1500,
+    "width": 480,
+    "height": 268,
     "variants": [
-      480,
-      768
+      480
     ]
   },
   "SFN-M-000005": {
-    "width": 1200,
-    "height": 1500,
+    "width": 480,
+    "height": 709,
     "variants": [
-      480,
-      768
+      480
     ]
   },
   "SFN-M-000003": {
@@ -363,8 +361,8 @@
     ]
   },
   "SFN-M-000004": {
-    "width": 1200,
-    "height": 1500,
+    "width": 1279,
+    "height": 1888,
     "variants": [
       480,
       768
@@ -379,6 +377,40 @@
     ]
   },
   "SFN-M-000007": {
+    "width": 1279,
+    "height": 1888,
+    "variants": [
+      480,
+      768
+    ]
+  },
+  "SFN-M-000009": {
+    "width": 2734,
+    "height": 1529,
+    "variants": [
+      480,
+      768,
+      1280,
+      1920
+    ]
+  },
+  "SFN-M-000056": {
+    "width": 1200,
+    "height": 1500,
+    "variants": [
+      480,
+      768
+    ]
+  },
+  "SFN-M-000057": {
+    "width": 1200,
+    "height": 1500,
+    "variants": [
+      480,
+      768
+    ]
+  },
+  "SFN-M-000066": {
     "width": 1200,
     "height": 1500,
     "variants": [

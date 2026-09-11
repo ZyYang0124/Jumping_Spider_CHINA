@@ -464,6 +464,12 @@ a:hover { color: var(--terra); }
 .site-footer { border-top: 1px solid var(--line); margin-top: var(--s-9); background: var(--paper-deep); }
 .site-footer .inner { max-width: var(--content); margin: 0 auto; padding: 34px 24px 38px; text-align: center; }
 .site-footer .mark { display: flex; justify-content: center; margin-bottom: 18px; opacity: 0.85; }
+/* 红栏杆 motif：footer 中一枚克制的短红线（§8/§102） */
+.site-footer[data-railing] .mark { position: relative; padding-top: 14px; }
+.site-footer[data-railing] .mark::before {
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 56px; height: 2px; background: var(--terra);
+}
 .site-footer .fn { font-family: var(--serif); font-size: 20px; color: var(--ink); letter-spacing: 0.08em; }
 .site-footer .fen { font-size: 11px; color: var(--faint); letter-spacing: 0.3em; text-transform: uppercase; margin-top: 4px; }
 .site-footer .motto { color: var(--muted); font-size: 13.5px; margin: 14px auto 18px; max-width: 480px; }

@@ -8,6 +8,8 @@ import { sciNameHtml } from '../../lib/format';
 import { VIEW_TYPE_ZH } from '../../lib/labels';
 
 const archive = getAllPublicMedia();
+// 按编号排序，新发布的在前；统一框架居中裁切，保持档案整齐
+archive.sort((a, b) => b.media.public_id.localeCompare(a.media.public_id));
 ---
 
 <Base title="照片档案" description="全部公开影像的可引用档案——每张照片都有稳定编号与出处。">
@@ -19,44 +21,53 @@ const archive = getAllPublicMedia();
       </p>
     </div>
 
-    <div class="archive-grid" style="padding: 30px 0 60px;">
-      {archive.map(({ media, observationUrl, observationPublicId, display }) => (
-        <a class="archive-card" href={media.detail_url}>
-          <div class="frame">
-            <PictureImage media={media} sizes="(max-width: 700px) 44vw, 200px" alt={media.caption ?? media.public_id} />
+    {archive.map(({ media, observationPublicId, display }) => (
+      <a class="archive-card" href={media.detail_url}>
+        <div class="frame">
+          <PictureImage media={media} sizes="(max-width: 700px) 44vw, 240px" alt={media.caption ?? media.public_id} />
+        </div>
+        <div class="meta">
+          <div class="pid">{media.public_id}</div>
+          <div class="name">
+            {display ? <span set:html={sciNameHtml(display, 'species')} /> : <span>未鉴定的跳蛛</span>}
           </div>
-          <div class="meta">
-            <div class="pid">{media.public_id}</div>
-            <div class="name">
-              {display ? <span set:html={sciNameHtml(display, 'species')} /> : <span>未鉴定的跳蛛</span>}
-            </div>
-            <div class="sub">
-              {VIEW_TYPE_ZH[media.view_type as keyof typeof VIEW_TYPE_ZH] ?? media.view_type} · © {media.photographer}
-              <br />
-              <span>{observationPublicId}</span>
-            </div>
+          <div class="sub">
+            {VIEW_TYPE_ZH[media.view_type as keyof typeof VIEW_TYPE_ZH] ?? media.view_type} · © {media.photographer}
+            <br />
+            <span>{observationPublicId}</span>
           </div>
-        </a>
-      ))}
-    </div>
+        </div>
+      </a>
+    ))}
   </div>
 </Base>
 
 <style>
-  /* 自然史摄影档案：controlled masonry（§39）——保留每张照片的原始构图，不裁切主体 */
-  .archive-grid { columns: 240px; column-gap: 20px; }
-  .archive-card {
-    break-inside: avoid; display: block; margin-bottom: 26px;
+  /* 照片档案：按比例分桶的整齐网格。桶内统一框架，微小差异轻微居中裁切；
+     图片由 PictureImage 子组件渲染，规则必须 :global 才能命中。 */
+  /* 照片档案：按编号排列（新发布在前）的整齐网格，统一框架居中裁切；
+     图片由 PictureImage 子组件渲染，规则必须 :global 才能命中。 */
+  .bucket { padding: 18px 0 26px; }
+  .archive-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 22px; padding: 18px 0 40px;
   }
-  .archive-card .frame { overflow: hidden; background: var(--paper-deep); border-radius: var(--radius-img, 2px); }
-  .archive-card img { width: 100%; height: auto; display: block; transition: transform 0.5s var(--ease-out, ease); }
+  .archive-card { display: block; }
+  .archive-card .frame {
+    aspect-ratio: 4 / 5; overflow: hidden;
+    background: var(--paper-deep); border-radius: var(--radius-img, 2px);
+  }
+  .archive-card :global(img) {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    transition: transform 0.5s var(--ease-out, ease);
+  }
   @media (hover: hover) and (pointer: fine) {
-    .archive-card:hover img { transform: scale(1.015); }
+    .archive-card:hover :global(img) { transform: scale(1.015); }
   }
   .archive-card .meta { padding: 8px 2px 0; }
   .archive-card .pid { font-size: 11px; color: var(--faint); letter-spacing: 0.14em; }
   .archive-card .name { font-size: 14.5px; margin-top: 2px; }
   .archive-card .name :global(i) { font-family: var(--serif); }
   .archive-card .sub { font-size: 12px; color: var(--faint); margin-top: 3px; line-height: 1.7; }
-  @media (max-width: 640px) { .archive-grid { columns: 2; column-gap: 14px; } .archive-card { margin-bottom: 20px; } }
+  @media (max-width: 640px) { .archive-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
 </style>

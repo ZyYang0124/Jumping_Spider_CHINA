@@ -59,7 +59,7 @@ const postsOut = posts.map((p) => {
     slug: p.slug,
     title: p.title,
     subtitle: p.subtitle,
-    author_name: '站长',
+    author_name: '咩咩',
     created_at: p.created_at,
     published_at: p.published_at,
     cover_media_public_id: null,

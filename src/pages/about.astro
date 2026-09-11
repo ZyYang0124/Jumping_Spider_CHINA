@@ -5,7 +5,7 @@ import { siteConfig } from '../lib/store';
 import { withBase } from '../lib/privacy';
 ---
 
-<Base title="关于" description="关于跳蛛观察志：定位、原则与隐私承诺。">
+<Base title="关于" description="关于跳蛛观察志：定位、原则与版权说明。">
   <div class="container">
     <div class="page-title">
       <h1>关于本站</h1>
@@ -15,46 +15,45 @@ import { withBase } from '../lib/privacy';
         不是「世界上有哪些跳蛛」，而是「我们在哪里、什么时候、以怎样的方式，遇见过这些跳蛛」。
       </div>
 
-      <h2>这是什么</h2>
+      <h2>我们记录什么</h2>
       <p>
-        {siteConfig.site_name}（{siteConfig.site_name_en}）是一个由站长与受邀专业伙伴共同维护的个人策展自然史项目，记录我们在野外与日常观察中遇见的跳蛛：活体照片、生境、行为、野外笔记，以及少量的标本与分类学信息。地理范围不限中国——无论记录来自哪里，都以同样的标准呈现。
+        {siteConfig.site_name}（{siteConfig.site_name_en}）记录咩咩和伙伴们在野外及日常生活中与跳蛛相遇时留下的照片、地点、观察和自然史笔记，以及少量的标本与分类学信息。这里不是一份完整的跳蛛名录，网站的边界由我们真正遇见过什么决定。
       </p>
       <p>
-        它<strong>不是</strong>任何地区的跳蛛完整名录，也不是 GBIF、iNaturalist 或 World Spider Catalog 的替代品，更不是公共鉴定平台。本站的边界由「我们实际观察过什么」决定——没有观察过的物种完全可以不出现。
+        它<strong>不是</strong>任何地区的跳蛛完整名录，也不是 GBIF、iNaturalist 或 World Spider Catalog 的替代品，更不是公共鉴定平台。
       </p>
       <p>
         本站的最高结构原则是：<strong>每条记录都始于一次观察，而不是一个物种条目。</strong>物种页面永远由观察记录聚合而成；鉴定可以随研究深入而改变，观察的永久编号与链接始终不变。
       </p>
 
-      <h2>怎样运转</h2>
+      <h2>谁在记录</h2>
       <p>
-        本站不设公开注册。伙伴由站长逐一邀请，均为可信任的专业跳蛛研究者或自然观察者；他们在 Field Studio 中直接发布自己的观察与影像，质量依赖受邀身份、实名署名与完整的鉴定修订历史，而非审核流程。站长对全站内容承担科学编辑责任。
+        咩咩、哈姆、义、涛，都是受邀伙伴。大家均为可信任的专业研究者或长期自然观察者，通过 Field Studio 直接记录与发布自己的观察，不设审核环节；每条记录保留清晰的观察者、摄影者、鉴定者与后续修订历史。如果你是专业研究者或资深自然观察者，希望以伙伴身份加入，可以通过
+        <a href="https://github.com/ZyYang0124/Salticid_Notes" style="text-decoration: underline;">GitHub</a> 联系我们。
       </p>
 
-      <h2>隐私承诺</h2>
+      <h2>鉴定会变化</h2>
       <p>
-        本站记录跳蛛观察，坐标属于自然史记录本身——所有已发布观察的精确坐标都直接公开，在数据层完成整理，公开照片一律剥离 EXIF（含 GPS）。
+        分类学认识会随着标本检查、新文献和后续研究变化。观察记录本身不会因为鉴定改变而消失，因此本站保留必要的鉴定修订历史。
       </p>
 
-      <h2>数据与可移植性</h2>
+      <h2>地点与坐标</h2>
       <p>
-        观察数据以结构化形式保存（可导出 CSV / JSON），网站永远不会是野外数据的唯一副本。当前版本为纯静态构建，数据库层的完整实现（投稿工作流、审核后台 Field Studio）按开发规划在后续阶段接入。
+        对具有精确坐标的已发布观察，本站直接公开其经纬度。没有可靠坐标的记录不会猜测或补造位置。
       </p>
 
-      <h2>投稿</h2>
+      <h2>图片与版权</h2>
       <p>
-        如果你是专业研究者或资深自然观察者，希望以伙伴身份加入本站，写信到 <a href="mailto:yangzy0124@gmail.com" style="text-decoration: underline;">yangzy0124@gmail.com</a>。你保留照片版权与署名。
+        页脚的「© 红栏杆」是本站的品牌版权表达；单张照片的版权依然属于它的摄影者，并在每张照片旁逐张署名。
       </p>
 
-      <h2 id="colophon">Colophon</h2>
+      <h2 id="colophon">技术与开放</h2>
       <p class="colophon">
-        本站使用 <code>Astro</code> 构建的纯静态站点，源数据为类型化 JSON（<code>src/data/</code>），
-        经构建期隐私管线（<code>src/lib/privacy.ts</code>）脱敏后生成页面与公开 JSON；
-        媒体派生图由 <code>sharp</code> 生成并剥离全部 EXIF。
+        网站由 <code>Astro</code> 构建，部署于 <code>Cloudflare</code>；影像原件存放于 Cloudflare R2，
+        页面只用经过 <code>sharp</code> 重编码、剥离全部 EXIF（含 GPS）的派生图。
+        源码与数据开源于
+        <a href="https://github.com/ZyYang0124/Salticid_Notes" style="text-decoration: underline;">GitHub</a>，
         每次发布运行公开数据安全测试（<code>npm run test:privacy</code>）。
-        部署于 GitHub Pages，源码开源于
-        <a href="https://github.com/ZyYang0124/Salticid_Notes" style="text-decoration: underline;">GitHub</a>。
-        投稿工作流与审核后台（Field Studio）按规划在后续阶段接入。
       </p>
 
       <h2>免责声明</h2>
