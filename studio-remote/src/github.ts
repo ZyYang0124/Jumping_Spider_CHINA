@@ -77,7 +77,8 @@ export async function syncToGitHub(env: Env, label = ''): Promise<SyncResult> {
       try {
         const ref = await gh(env, `/repos/${REPO}/git/ref/heads/${BRANCH}`);
         if (!ref?.object?.sha) throw bad('ref', ref);
-        const baseCommit = await gh(env, `/repos/${REPO}/commits/${ref.object.sha}`);
+        // 注意用 git data API 的 commit 端点（小响应，必有 tree）；/commits/{sha} 的表示形式不稳定
+        const baseCommit = await gh(env, `/repos/${REPO}/git/commits/${ref.object.sha}`);
         if (!baseCommit?.tree?.sha) throw bad('base-commit', baseCommit);
         const tree: { path: string; mode: '100644'; type: 'blob'; sha: string }[] = [];
         for (const f of files) {
