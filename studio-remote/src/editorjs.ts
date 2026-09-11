@@ -150,12 +150,19 @@ const OBS_EDITOR_JS = `
   function $all(s) { return Array.prototype.slice.call(document.querySelectorAll(s)); }
   var statusEl = $('#save-status'), barStatus = $('#bar-status');
   var publicId = boot.publicId || null;
-  var published = boot.status === 'published';
-  var dirtySincePublish = false;
+  var status = boot.status || 'draft'; // draft | published | private | archived（发布=立即公开，§1）
   var LS_KEY = 'sfn-obs-' + (boot.publicId || 'new');
   var saveTimer = null, saving = false, offline = false;
   var saveChain = Promise.resolve(), saveQueued = false;
   var photos = $all('#photo-grid .photo').map(function (n) { return n.getAttribute('data-pid'); });
+  // 发布时刻的内容快照：之后的保存若与快照一致，不再提示「主站未同步」
+  var lastPublishedSnapshot = null;
+  function snapshotNow() {
+    var p = fields();
+    p.species_taxon_slug = taxonSlug();
+    return JSON.stringify(p);
+  }
+  function isPublished() { return status === 'published'; }
 
   function readJson(r) {
     return r.text().then(function (t) {
@@ -166,11 +173,42 @@ const OBS_EDITOR_JS = `
     if (statusEl) { if (isHtml) { statusEl.innerHTML = s; } else { statusEl.textContent = s; } statusEl.className = err ? 'err' : ''; }
     if (barStatus) { if (isHtml) { barStatus.innerHTML = s; } else { barStatus.textContent = s; } barStatus.style.color = err ? 'var(--terra)' : 'var(--faint)'; }
   }
-  function setPublishButton() {
-    var btn = $('#btn-publish');
-    if (!btn) return;
-    if (published && !dirtySincePublish) { btn.textContent = '已发布 ✓'; btn.disabled = true; }
-    else { btn.textContent = published ? '更新' : '发布'; btn.disabled = false; }
+  // 操作区状态机（§3/§6）：draft=[保存草稿][发布]；published=[保存修改][⋯]；
+  // private=[保存][发布]；archived=[恢复为草稿][保存]
+  function updateActions() {
+    var pub = $('#btn-publish'), draft = $('#btn-savedraft'), more = $('#btn-more'), hint = $('#pub-hint');
+    if (!pub) return;
+    if (status === 'published') {
+      pub.textContent = '保存修改'; pub.disabled = false;
+      draft.hidden = true; if (more) more.hidden = false;
+      if (hint) hint.hidden = true;
+    } else if (status === 'private') {
+      pub.textContent = '发布'; pub.disabled = false;
+      draft.textContent = '保存'; draft.hidden = false;
+      if (more) more.hidden = true;
+      if (hint) hint.hidden = true;
+    } else if (status === 'archived') {
+      pub.textContent = '恢复为草稿'; pub.disabled = false;
+      draft.textContent = '保存'; draft.hidden = false;
+      if (more) more.hidden = true;
+      if (hint) hint.hidden = true;
+    } else {
+      pub.textContent = '发布'; pub.disabled = false;
+      draft.textContent = '保存草稿'; draft.hidden = false;
+      if (more) more.hidden = true;
+      if (hint) hint.hidden = false;
+    }
+  }
+  function postAction(act) {
+    var m = $('#status-menu');
+    if (m) m.hidden = true;
+    return fetch('/studio/api/observations/' + publicId + '/' + act, { method: 'POST' })
+      .then(readJson)
+      .then(function (j) {
+        if (j && j.ok) location.reload();
+        else setStatus('操作失败：' + ((j && j.error) || ''), true);
+      })
+      .catch(function () { setStatus('网络异常，请重试', true); });
   }
   function fields() {
     var o = {};
@@ -204,7 +242,7 @@ const OBS_EDITOR_JS = `
       });
   }
 
-  function saveNow(silent) {
+  function saveNow(silent, explicit) {
     if (saving) { saveQueued = true; return saveChain; } // 已有保存 in-flight：登记尾随保存，避免发布与保存竞态
     saving = true;
     var ensure = publicId ? Promise.resolve(publicId) : create();
@@ -212,6 +250,7 @@ const OBS_EDITOR_JS = `
       if (!pid) { saving = false; return; }
       var payload = fields();
       payload.species_taxon_slug = taxonSlug();
+      if (explicit) payload.explicit = true;
       var snap = JSON.stringify(payload);
       return fetch('/studio/api/observations/' + pid, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -220,8 +259,11 @@ const OBS_EDITOR_JS = `
         .then(function (j) {
           if (j.ok) {
             offline = false;
-            setStatus('已保存 ' + (j.saved_at || ''));
-            if (published && snap !== lastPublishedSnapshot) { dirtySincePublish = true; setPublishButton(); setStatus('有未发布修改'); }
+            if (isPublished()) {
+              // 已发布记录：内容与主站快照不一致时，提醒点「保存修改」同步主站
+              if (snap !== lastPublishedSnapshot) setStatus('已保存 · 主站未同步，点「保存修改」更新');
+              else setStatus('已保存 ' + (j.saved_at || ''));
+            } else setStatus('已保存 ' + (j.saved_at || ''));
             lsClear();
           } else setStatus('保存失败：' + (j.error || ''), true);
         })
@@ -231,7 +273,7 @@ const OBS_EDITOR_JS = `
         });
     }).then(function () {
       saving = false;
-      if (saveQueued) { saveQueued = false; return saveNow(silent); }
+      if (saveQueued) { saveQueued = false; return saveNow(silent, explicit); }
     });
     return saveChain;
   }
@@ -267,9 +309,8 @@ const OBS_EDITOR_JS = `
         setStatus('已恢复上次未保存的内容');
       }
     } catch (e) {}
-  } else if (published) {
-    setPublishButton();
   }
+  updateActions();
   $all('[data-field]').forEach(function (el) { el.addEventListener('input', scheduleSave); });
 
   // ---- 物种选择器 ----
@@ -550,27 +591,52 @@ const OBS_EDITOR_JS = `
     el.addEventListener('input', function () { el.dataset.touched = '1'; });
   });
 
-  // ---- 发布 / 保存草稿 / 快捷键 ----
+  // ---- 发布 / 保存 / 快捷键（发布 = 立即公开上线） ----
   $('#btn-savedraft').addEventListener('click', function () {
-    saveNow(true).then(function () { location.href = '/studio'; });
+    // published：仅保存内容并同步主站；private/archived：保存但保持不公开
+    saveNow(true, isPublished()).then(function () {
+      if (isPublished() && !offline) return fetch('/studio/api/sync', { method: 'POST' }).then(readJson).then(function (j) {
+        if (j && j.ok) setStatus('已保存 · 主站已更新');
+        return null;
+      }).catch(function () { return null; });
+      return null;
+    }).then(function () { location.href = '/studio'; });
   });
   $('#btn-publish').addEventListener('click', function () {
     var btn = $('#btn-publish');
     btn.disabled = true;
-    setStatus('正在检查…');
-    saveNow(true).then(function () {
+    // 已归档：恢复为草稿（§20，不直接公开）
+    if (status === 'archived') {
+      postAction('restore').then(function () { updateActions(); });
+      return;
+    }
+    var publishing = status !== 'published'; // draft/private → 发布上线；published → 保存修改
+    setStatus(publishing ? '正在检查…' : '正在保存…');
+    saveNow(true, !publishing).then(function () {
       if (!publicId) { btn.disabled = false; setStatus('保存失败，无法发布', true); return; }
-      setStatus('正在准备图片…');
-      return fetch('/studio/api/observations/' + publicId + '/publish', { method: 'POST' }).then(readJson);
+      if (publishing) {
+        return fetch('/studio/api/observations/' + publicId + '/publish', { method: 'POST' }).then(readJson);
+      }
+      // 保存修改：显式保存已在 PATCH 中带 explicit，服务端负责审计与同步
+      return fetch('/studio/api/observations/' + publicId, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ explicit: true }),
+      }).then(readJson).then(function (j) {
+        btn.disabled = false;
+        if (j && j.ok && j.sync === 'queued') setStatus('已保存 · 主站更新中');
+        else if (j && j.ok) setStatus('已保存 ' + (j.saved_at || ''));
+        else setStatus('保存失败：' + ((j && j.error) || ''), true);
+        updateActions();
+        return null;
+      });
     }).then(function (j) {
-      if (!j) return; // 保存失败分支已处理
+      if (!j) return; // 保存失败/保存修改分支已处理
       btn.disabled = false;
       if (j && j.ok) {
-        published = true; dirtySincePublish = false;
+        status = 'published';
         lastPublishedSnapshot = snapshotNow();
-        setPublishButton();
+        updateActions();
         var syncNote = j.sync === 'queued' ? ' · 公开站自动同步中' : '';
-        setStatus('已发布 ✓ <a href="' + escHtml(j.public_url || '') + '" target="_blank" rel="noopener">查看 →</a>' + syncNote, false, true);
+        setStatus('已发布 ✓ <a href="' + escHtml(j.public_url || '') + '" target="_blank" rel="noopener">查看公开页面 →</a>' + syncNote, false, true);
         lsClear();
       } else {
         setStatus('无法发布：' + ((j && j.error) || '请检查照片、时间与坐标'), true);
@@ -580,6 +646,17 @@ const OBS_EDITOR_JS = `
       setStatus('发布失败（网络），请重试', true);
     });
   });
+  // 次级菜单：设为私密 / 归档（仅 published 出现 ⋯）
+  var moreBtn = $('#btn-more'), menu = $('#status-menu');
+  if (moreBtn && menu) {
+    moreBtn.addEventListener('click', function () { menu.hidden = !menu.hidden; });
+    document.addEventListener('click', function (e) {
+      if (!menu.hidden && !menu.contains(e.target) && e.target !== moreBtn) menu.hidden = true;
+    });
+    Array.prototype.slice.call(menu.querySelectorAll('button')).forEach(function (b) {
+      b.addEventListener('click', function () { b.disabled = true; postAction(b.getAttribute('data-act')); });
+    });
+  }
   document.addEventListener('keydown', function (e) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') $('#btn-publish').click();
   });
@@ -613,7 +690,7 @@ const NOTE_EDITOR_JS = `
   function setPubBtn() {
     var btn = $('#btn-publish-note');
     if (published && !dirty) { btn.textContent = '已发布 ✓'; btn.disabled = true; }
-    else { btn.textContent = published ? '更新' : '发布'; btn.disabled = false; }
+    else { btn.textContent = published ? '保存修改' : '发布'; btn.disabled = false; }
   }
   function payload() { return { title: title.value, subtitle: sub.value, body_md: body.value }; }
   // 发布时刻的内容快照：之后的保存若与快照一致，不再误报「有未发布修改」
@@ -640,7 +717,7 @@ const NOTE_EDITOR_JS = `
         return slug;
       });
   }
-  function saveNow(silent) {
+  function saveNow(silent, explicit) {
     if (saving) { saveQueued = true; return saveChain; } // 已有保存 in-flight：登记尾随保存，避免发布与保存竞态
     saving = true;
     var ensure = slug ? Promise.resolve(slug) : create();
@@ -648,6 +725,7 @@ const NOTE_EDITOR_JS = `
       if (!s) { setStatus('创建失败', true); saving = false; return; }
       var p = payload();
       p.related_observation_public_ids = ($('#n-related') && $('#n-related').value) || '';
+      if (explicit) p.explicit = true;
       var snap = JSON.stringify(p);
       return fetch('/studio/api/notes/' + s, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p),
@@ -655,7 +733,7 @@ const NOTE_EDITOR_JS = `
         .then(readJson)
         .then(function (j) {
           if (j.ok) {
-            if (published && snap !== lastPublishedSnapshot) { dirty = true; setStatus('有未发布修改'); }
+            if (published && snap !== lastPublishedSnapshot) { dirty = true; setStatus('已保存 · 主站未同步，点「保存修改」更新'); }
             else if (!published) setStatus('已保存 ' + (j.saved_at || ''));
             lsClear();
           } else setStatus('保存失败：' + (j.error || ''), true);
@@ -812,6 +890,18 @@ const NOTE_EDITOR_JS = `
   $('#btn-publish-note').addEventListener('click', function () {
     var btn = $('#btn-publish-note');
     btn.disabled = true;
+    if (published) {
+      // 保存修改：显式保存已发布札记并同步主站（§6/§29）
+      setStatus('正在保存…');
+      saveNow(true, true).then(function () {
+        return fetch('/studio/api/sync', { method: 'POST' }).then(readJson).catch(function () { return { ok: false, detail: '网络异常' }; });
+      }).then(function (r) {
+        btn.disabled = false;
+        if (r && r.ok) { dirty = false; setPubBtn(); setStatus('已保存 · 主站更新中'); }
+        else setStatus('主站同步失败：' + ((r && r.detail) || '请用工作台「同步到公开站」重试'), true);
+      });
+      return;
+    }
     setStatus('正在发布…');
     saveNow(true).then(function () {
       if (!slug) { btn.disabled = false; setStatus('保存失败，无法发布', true); return; }

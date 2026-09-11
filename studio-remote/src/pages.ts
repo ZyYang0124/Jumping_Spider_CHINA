@@ -200,6 +200,17 @@ button.ghost:hover, a.ghost:hover { color:var(--ink); background:var(--paper-dee
 .feed a:hover { background:rgba(0,0,0,.02); }
 .feed .t { font-size:15.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .feed .meta { font-size:12.5px; color:var(--faint); white-space:nowrap; }
+.feed .feed-row { display:flex; align-items:center; gap:14px; }
+.feed .feed-row > a { flex:1; min-width:0; display:flex; align-items:baseline; gap:14px; text-decoration:none; transition:background var(--fast) ease; }
+.feed .feed-row:hover > a { background:rgba(0,0,0,.02); }
+.feed .acts { display:flex; gap:6px; flex:none; }
+.act-btn {
+  font-size:12px; color:var(--muted); text-decoration:none;
+  border:1px solid var(--line); border-radius:99px; padding:4px 12px; background:none;
+  transition:color var(--fast) ease, border-color var(--fast) ease;
+}
+.act-btn:hover { color:var(--ink); border-color:var(--faint); }
+button.act-btn { cursor:pointer; }
 .feed .st-draft { color:var(--terra); }
 .feed .st-pub { color:var(--accent); }
 .all-link { display:inline-block; margin-top:14px; font-size:13.5px; color:var(--muted); text-decoration:none; }
@@ -293,6 +304,13 @@ details.more .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 22px
 }
 .bottombar .spacer { flex:1; }
 .bottombar .pub-hint { font-size:12px; color:var(--faint); margin-right:auto; }
+.status-menu {
+  position:fixed; right:max(20px, calc(50vw - 480px)); bottom:58px; z-index:45;
+  background:#fff; border:1px solid var(--line); border-radius:10px;
+  box-shadow:0 6px 24px rgba(38,34,28,.10); padding:6px; min-width:132px;
+}
+.status-menu button { display:block; width:100%; text-align:left; background:none; border:none; padding:8px 12px; font-size:13.5px; color:var(--ink); border-radius:8px; }
+.status-menu button:hover { background:var(--paper-deep); }
 
 /* ---- 札记：写作模式 ---- */
 .write-main { max-width:var(--w-note); margin:0 auto; padding:44px 24px 160px; }
@@ -470,13 +488,16 @@ export function loginPage(opts: { devNotice: boolean }): string {
 
 export interface FeedItem {
   kind: 'obs' | 'note';
+  publicId: string;
   href: string;
   title: string;
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'private' | 'archived';
   timeText: string;
   /** 排序键：源时间戳（毫秒） */
   ts: number;
 }
+
+const STATUS_ZH: Record<string, string> = { draft: '草稿', published: '已发布', private: '私密', archived: '已归档' };
 
 function feedHtml(items: FeedItem[], emptyHtml: string): string {
   if (!items.length) return `<p class="empty">${emptyHtml}</p>`;
@@ -484,7 +505,7 @@ function feedHtml(items: FeedItem[], emptyHtml: string): string {
     .map(
       (it) => `<li><a href="${esc(it.href)}">
       <span class="t">${esc(it.title)}</span>
-      <span class="meta">${it.kind === 'obs' ? '观察' : '札记'} · <span class="${it.status === 'draft' ? 'st-draft' : 'st-pub'}">${it.status === 'draft' ? '草稿' : '已发布'}</span> · ${esc(it.timeText)}</span>
+      <span class="meta">${it.kind === 'obs' ? '观察' : '札记'} · <span class="${it.status === 'draft' ? 'st-draft' : 'st-pub'}">${STATUS_ZH[it.status] ?? it.status}</span> · ${esc(it.timeText)}</span>
     </a></li>`,
     )
     .join('')}</ul>`;
@@ -509,12 +530,11 @@ export function homePage(user: StudioUser, recent: FeedItem[]): string {
     ${feedHtml(recent, '还没有记录。从上面两张卡片开始。')}
     <a class="all-link" href="/studio/drafts">全部草稿与发布 →</a>
     <div class="home-foot">
-      ${user.role === 'owner' ? '<a href="/studio/export">导出备份（zip）</a><a href="#" id="btn-sync">同步到公开站</a><span id="sync-status"></span>' : ''}
+      <a href="#" id="btn-sync">同步到公开站</a><span id="sync-status"></span>
+      ${user.role === 'owner' ? '<a href="/studio/export">导出备份（zip）</a>' : ''}
     </div>
   </div>
-  ${
-    user.role === 'owner'
-      ? `<script>
+  <script>
   (function () {
     var btn = document.getElementById('btn-sync');
     if (!btn) return;
@@ -532,20 +552,78 @@ export function homePage(user: StudioUser, recent: FeedItem[]): string {
         .catch(function () { st.textContent = '网络异常，请重试'; btn.style.pointerEvents = ''; });
     });
   })();
-  </script>`
-      : ''
-  }`, user);
+  </script>`, user);
 }
 
-export function draftsPage(user: StudioUser, drafts: FeedItem[], published: FeedItem[]): string {
-  return page('草稿', `
+// 记录列表（§16-§20）：四状态分区 + 快捷动作。发布=立即公开；归档不直接公开。
+export function draftsPage(user: StudioUser, items: FeedItem[]): string {
+  const by = (st: FeedItem['status']) => items.filter((i) => i.status === st);
+  const sections: { label: string; empty: string; items: FeedItem[] }[] = [
+    { label: '草稿', empty: '还没有草稿。<a href="/studio/observations/new">记录第一次相遇</a> 或 <a href="/studio/notes/new">写一篇札记</a>。', items: by('draft') },
+    { label: '已发布', empty: '还没有发布过。', items: by('published') },
+    { label: '私密', empty: '没有私密记录。', items: by('private') },
+    { label: '已归档', empty: '没有已归档的记录。', items: by('archived') },
+  ];
+  const actions = (it: FeedItem): string => {
+    const id = esc(it.publicId);
+    const api = (act: string) => `/studio/api/${it.kind === 'obs' ? 'observations' : 'notes'}/${id}/${act}`;
+    const btn = (act: string, label: string) => `<button type="button" class="act-btn" data-api="${api(act)}">${label}</button>`;
+    const edit = `<a class="act-btn" href="${esc(it.href)}">编辑</a>`;
+    if (it.kind === 'note') {
+      if (it.status === 'draft') return edit + btn('publish', '发布');
+      return edit + `<a class="act-btn" href="${SITE_URL}/posts/${id}/" target="_blank" rel="noopener">查看</a>`;
+    }
+    if (it.status === 'draft') return edit + btn('publish', '发布');
+    if (it.status === 'published') {
+      return (
+        edit +
+        `<a class="act-btn" href="${SITE_URL}/observations/${id}/" target="_blank" rel="noopener">查看</a>` +
+        btn('private', '设为私密') +
+        btn('archive', '归档')
+      );
+    }
+    if (it.status === 'private') return edit + btn('publish', '发布');
+    return edit + btn('restore', '恢复为草稿');
+  };
+  const section = (s: { label: string; empty: string; items: FeedItem[] }): string => `
+    <h2 class="kicker">${s.label}</h2>
+    ${
+      s.items.length
+        ? `<ul class="feed">${s.items
+            .map(
+              (it) => `<li><div class="feed-row">
+        <a href="${esc(it.href)}">
+          <span class="t">${esc(it.title)}</span>
+          <span class="meta">${it.kind === 'obs' ? '观察' : '札记'} · <span class="${it.status === 'draft' ? 'st-draft' : 'st-pub'}">${STATUS_ZH[it.status]}</span> · ${esc(it.timeText)}</span>
+        </a>
+        <div class="acts">${actions(it)}</div>
+      </div></li>`,
+            )
+            .join('')}</ul>`
+        : `<p class="empty">${s.empty}</p>`
+    }
+  `;
+  return page('记录', `
   <div class="wrap">
-    <div class="hello-wrap"><h1>草稿</h1><p>没写完的都在这里。</p></div>
-    <h2 class="kicker">草稿</h2>
-    ${feedHtml(drafts, '还没有草稿。<a href="/studio/observations/new">记录第一次相遇</a> 或 <a href="/studio/notes/new">写一篇札记</a>。')}
-    <h2 class="kicker">已发布</h2>
-    ${feedHtml(published, '还没有发布过。')}
-  </div>`, user);
+    <div class="hello-wrap"><h1>记录</h1><p>草稿、已发布、私密与已归档都在这里。</p></div>
+    ${sections.map(section).join('')}
+  </div>
+  <script>
+  (function () {
+    Array.prototype.slice.call(document.querySelectorAll('button[data-api]')).forEach(function (b) {
+      b.addEventListener('click', function () {
+        b.disabled = true;
+        fetch(b.getAttribute('data-api'), { method: 'POST' })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (j && j.ok) location.reload();
+            else { b.disabled = false; alert((j && j.error) || '操作失败'); }
+          })
+          .catch(function () { b.disabled = false; alert('网络异常，请重试'); });
+      });
+    });
+  })();
+  </script>`, user);
 }
 
 // ---------- 媒体页 ----------
@@ -692,8 +770,14 @@ export function obsEditorHtml(
   <div class="bottombar">
     <span id="bar-status" style="font-size:12.5px;color:var(--faint)"></span>
     <span class="spacer"></span>
+    <span class="pub-hint" id="pub-hint"${meta.status !== 'draft' ? ' hidden' : ''}>发布后将立即显示在主站</span>
+    <div class="status-menu" id="status-menu" hidden>
+      <button type="button" data-act="private">设为私密</button>
+      <button type="button" data-act="archived">归档</button>
+    </div>
+    <button type="button" class="ghost" id="btn-more" hidden>⋯</button>
     <button type="button" class="ghost" id="btn-savedraft">保存草稿</button>
-    <button type="button" class="primary" id="btn-publish">${published ? '更新' : '发布'}</button>
+    <button type="button" class="primary" id="btn-publish">${meta.status === 'archived' ? '恢复为草稿' : meta.status === 'published' ? '保存修改' : '发布'}</button>
   </div>
 
   <script>
@@ -773,7 +857,7 @@ export function noteEditorHtml(slug: string | null, data: Record<string, any>): 
     <span id="bar-status" style="font-size:12.5px;color:var(--faint)"></span>
     <span class="spacer"></span>
     <button type="button" class="ghost" id="btn-preview2">预 览</button>
-    <button type="button" class="primary" id="btn-publish-note">${published ? '更新' : '发布'}</button>
+    <button type="button" class="primary" id="btn-publish-note">${published ? '保存修改' : '发布'}</button>
   </div>
 
   <input type="hidden" id="n-slug" value="${esc(slug ?? '')}" />

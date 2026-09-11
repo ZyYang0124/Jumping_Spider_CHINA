@@ -173,30 +173,20 @@ app.get('/studio', async (c) => {
 });
 
 async function recentItems(env: Env, userId: number, limit: number): Promise<FeedItem[]> {
-  const obsDrafts = await all<any>(
+  const obsRows = await all<any>(
     env.DB,
-    `SELECT o.public_id, o.updated_at, i.display_identification
+    `SELECT o.public_id, o.status, o.updated_at, o.published_at, i.display_identification
      FROM observations o
      LEFT JOIN identifications i ON i.observation_id = o.id AND i.is_current = 1
-     WHERE o.created_by = ? AND o.status = 'draft' ORDER BY o.updated_at DESC LIMIT 20`,
+     WHERE o.created_by = ? AND o.status IN ('draft','published','private','archived')
+     ORDER BY COALESCE(o.published_at, o.updated_at) DESC LIMIT 40`,
     userId,
   );
-  const obsPub = await all<any>(
+  const noteRows = await all<any>(
     env.DB,
-    `SELECT o.public_id, o.published_at, o.updated_at, i.display_identification
-     FROM observations o
-     LEFT JOIN identifications i ON i.observation_id = o.id AND i.is_current = 1
-     WHERE o.created_by = ? AND o.status = 'published' ORDER BY o.published_at DESC LIMIT 20`,
-    userId,
-  );
-  const noteDrafts = await all<any>(
-    env.DB,
-    "SELECT slug, title, updated_at FROM posts WHERE author_id = ? AND status = 'draft' ORDER BY updated_at DESC LIMIT 20",
-    userId,
-  );
-  const notePub = await all<any>(
-    env.DB,
-    "SELECT slug, title, published_at, updated_at FROM posts WHERE author_id = ? AND status = 'published' ORDER BY published_at DESC LIMIT 20",
+    `SELECT slug, title, status, updated_at, published_at FROM posts
+     WHERE author_id = ? AND status IN ('draft','published')
+     ORDER BY COALESCE(published_at, updated_at) DESC LIMIT 40`,
     userId,
   );
   const toTs = (v: unknown): number => {
@@ -205,18 +195,24 @@ async function recentItems(env: Env, userId: number, limit: number): Promise<Fee
     return Number.isNaN(t) ? 0 : t;
   };
   const items: FeedItem[] = [];
-  for (const o of obsDrafts) items.push({ kind: 'obs', href: `/studio/observations/${o.public_id}/edit`, title: o.display_identification || o.public_id, status: 'draft', timeText: relTime(o.updated_at), ts: toTs(o.updated_at) });
-  for (const o of obsPub) items.push({ kind: 'obs', href: `/studio/observations/${o.public_id}/edit`, title: o.display_identification || o.public_id, status: 'published', timeText: relTime(o.published_at || o.updated_at), ts: toTs(o.published_at || o.updated_at) });
-  for (const n of noteDrafts) items.push({ kind: 'note', href: `/studio/notes/${n.slug}/edit`, title: n.title || '未命名札记', status: 'draft', timeText: relTime(n.updated_at), ts: toTs(n.updated_at) });
-  for (const n of notePub) items.push({ kind: 'note', href: `/studio/notes/${n.slug}/edit`, title: n.title || '未命名札记', status: 'published', timeText: relTime(n.published_at || n.updated_at), ts: toTs(n.published_at || n.updated_at) });
+  for (const o of obsRows) {
+    const published = o.status === 'published';
+    const ts = toTs(published ? o.published_at || o.updated_at : o.updated_at);
+    items.push({ kind: 'obs', publicId: o.public_id, href: `/studio/observations/${o.public_id}/edit`, title: o.display_identification || o.public_id, status: o.status, timeText: relTime(new Date(ts).toISOString()), ts });
+  }
+  for (const n of noteRows) {
+    const published = n.status === 'published';
+    const ts = toTs(published ? n.published_at || n.updated_at : n.updated_at);
+    items.push({ kind: 'note', publicId: n.slug, href: `/studio/notes/${n.slug}/edit`, title: n.title || '未命名札记', status: published ? 'published' : 'draft', timeText: relTime(new Date(ts).toISOString()), ts });
+  }
   items.sort((a, b) => b.ts - a.ts);
   return items.slice(0, limit);
 }
 
 app.get('/studio/drafts', async (c) => {
   const u = user(c);
-  const items = await recentItems(c.env, u.id, 50);
-  return c.html(draftsPage(u, items.filter((i) => i.status === 'draft'), items.filter((i) => i.status === 'published')));
+  const items = await recentItems(c.env, u.id, 100);
+  return c.html(draftsPage(u, items));
 });
 
 // ---------- 观察：JSON API ----------
@@ -331,6 +327,16 @@ app.patch('/studio/api/observations/:public_id', async (c) => {
       typeof b.species_evidence === 'string' ? b.species_evidence : 'field',
       u.display_name,
     );
+  }
+  // 已发布记录的显式保存（保存修改）：立即更新公开页面（§6/§29）；autosave 静默，不刷审计与同步
+  if (obs.status === 'published' && b.explicit === true && sets.length) {
+    await audit(c.env, u.display_name, 'observation', obs.public_id, 'observation.updated', { fields: Object.keys(b).filter((k) => OBS_FIELDS.has(k)) });
+    c.executionCtx.waitUntil(
+      syncToGitHub(c.env, obs.public_id).then((r) =>
+        audit(c.env, u.display_name, 'github-sync', obs.public_id, r.ok ? 'sync-ok: ' + r.detail : 'sync-fail: ' + r.detail),
+      ),
+    );
+    return c.json({ ok: true, saved_at: new Date().toISOString().slice(11, 19), sync: 'queued' });
   }
   return c.json({ ok: true, saved_at: new Date().toISOString().slice(11, 19) });
 });
@@ -462,6 +468,56 @@ app.post('/studio/api/observations/:public_id/photos/order', async (c) => {
 });
 
 // 发布（§42 校验：日期 + 坐标 + 至少一张照片；物种允许 Unknown → Salticidae sp.）
+// ---------- 状态机（发布=立即公开）：status 是生命周期唯一真源，visibility 由状态派生 ----------
+
+type ObsStatus = 'draft' | 'published' | 'private' | 'archived';
+const VISIBILITY_BY_STATUS: Record<ObsStatus, 'public' | 'private'> = {
+  draft: 'private',
+  published: 'public',
+  private: 'private',
+  archived: 'private',
+};
+const STATUS_AUDIT: Record<ObsStatus, string> = {
+  draft: 'observation.restored',
+  published: 'observation.published',
+  private: 'observation.made_private',
+  archived: 'observation.archived',
+};
+
+/** 唯一的状态转换入口：写状态、派生 visibility、级联媒体可见性、
+ *  保留首次 published_at（保存修改不改变发布时间，§6）、记录带 prev/new 的审计。 */
+async function transitionObservation(
+  env: Env,
+  obs: { id: number; public_id: string; status: string },
+  to: ObsStatus,
+  actor: string,
+): Promise<void> {
+  const from = obs.status;
+  const visibility = VISIBILITY_BY_STATUS[to];
+  await run(
+    env.DB,
+    `UPDATE observations SET status = ?, visibility = ?, updated_at = datetime('now'),
+       published_at = CASE WHEN ? = 'published' AND COALESCE(published_at, '') = '' THEN datetime('now') ELSE published_at END
+     WHERE id = ?`,
+    to,
+    visibility,
+    to,
+    obs.id,
+  );
+  await run(env.DB, 'UPDATE media SET visibility = ? WHERE observation_id = ?', visibility, obs.id);
+  await audit(env, actor, 'observation', obs.public_id, STATUS_AUDIT[to], { from, to });
+}
+
+/** 进入或离开 published 都会改变公开站内容 → 自动同步仓库（§24：内容流与代码部署分离） */
+function queueSyncIfAffectsSite(c: any, env: Env, publicId: string, from: string, to: string): void {
+  if (from !== 'published' && to !== 'published') return;
+  c.executionCtx.waitUntil(
+    syncToGitHub(env, publicId).then((r) =>
+      audit(env, 'system', 'github-sync', publicId, r.ok ? 'sync-ok: ' + r.detail : 'sync-fail: ' + r.detail),
+    ),
+  );
+}
+
 app.post('/studio/api/observations/:public_id/publish', async (c) => {
   const u = user(c);
   if (!sameOrigin(c.req.raw)) return c.text('Forbidden', 403);
@@ -477,7 +533,7 @@ app.post('/studio/api/observations/:public_id/publish', async (c) => {
 
   await run(
     c.env.DB,
-    "UPDATE observations SET status = 'published', visibility = 'public', published_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+    "UPDATE observations SET status = 'published', visibility = 'public', updated_at = datetime('now'), published_at = COALESCE(NULLIF(published_at, ''), datetime('now')) WHERE id = ?",
     obs.id,
   );
   await run(c.env.DB, "UPDATE media SET visibility = 'public' WHERE observation_id = ?", obs.id);
@@ -500,26 +556,47 @@ app.post('/studio/api/observations/:public_id/publish', async (c) => {
     JSON.stringify({ at: new Date().toISOString() }),
     u.display_name,
   );
-  await audit(c.env, u.display_name, 'observation', obs.public_id, 'publish');
+  await audit(c.env, u.display_name, 'observation', obs.public_id, 'observation.published', { from: obs.status, to: 'published' });
   // 规则 5/7：发布即自动提交仓库（push 触发公开站构建）；失败不影响本次发布，可手动重试
   c.executionCtx.waitUntil(
     syncToGitHub(c.env, obs.public_id).then((r) =>
       audit(c.env, u.display_name, 'github-sync', obs.public_id, r.ok ? 'sync-ok: ' + r.detail : 'sync-fail: ' + r.detail),
     ),
   );
-  return c.json({ ok: true, public_url: `/observations/${obs.public_id}/`, sync: 'queued' });
+  return c.json({ ok: true, public_url: `/observations/${obs.public_id}/`, status: 'published', sync: 'queued' });
 });
 
 app.post('/studio/api/observations/:public_id/private', async (c) => {
   const u = user(c);
   if (!sameOrigin(c.req.raw)) return c.text('Forbidden', 403);
-  const obs = await get<any>(c.env.DB, 'SELECT id, created_by, public_id FROM observations WHERE public_id = ?', c.req.param('public_id'));
+  const obs = await get<any>(c.env.DB, 'SELECT id, created_by, public_id, status FROM observations WHERE public_id = ?', c.req.param('public_id'));
   if (!obs) return c.json({ error: '未找到' }, 404);
   if (u.role !== 'owner' && obs.created_by !== u.id) return c.text('只能操作自己的记录。', 403);
-  await run(c.env.DB, "UPDATE observations SET status = 'private', visibility = 'private' WHERE id = ?", obs.id);
-  await run(c.env.DB, "UPDATE media SET visibility = 'private' WHERE observation_id = ?", obs.id);
-  await audit(c.env, u.display_name, 'observation', obs.public_id, 'set-private');
-  return c.json({ ok: true });
+  await transitionObservation(c.env, obs, 'private', u.display_name);
+  queueSyncIfAffectsSite(c, c.env, obs.public_id, obs.status, 'private');
+  return c.json({ ok: true, status: 'private' });
+});
+
+app.post('/studio/api/observations/:public_id/archive', async (c) => {
+  const u = user(c);
+  if (!sameOrigin(c.req.raw)) return c.text('Forbidden', 403);
+  const obs = await get<any>(c.env.DB, 'SELECT id, created_by, public_id, status FROM observations WHERE public_id = ?', c.req.param('public_id'));
+  if (!obs) return c.json({ error: '未找到' }, 404);
+  if (u.role !== 'owner' && obs.created_by !== u.id) return c.text('只能操作自己的记录。', 403);
+  await transitionObservation(c.env, obs, 'archived', u.display_name);
+  queueSyncIfAffectsSite(c, c.env, obs.public_id, obs.status, 'archived');
+  return c.json({ ok: true, status: 'archived' });
+});
+
+app.post('/studio/api/observations/:public_id/restore', async (c) => {
+  const u = user(c);
+  if (!sameOrigin(c.req.raw)) return c.text('Forbidden', 403);
+  const obs = await get<any>(c.env.DB, 'SELECT id, created_by, public_id, status FROM observations WHERE public_id = ?', c.req.param('public_id'));
+  if (!obs) return c.json({ error: '未找到' }, 404);
+  if (u.role !== 'owner' && obs.created_by !== u.id) return c.text('只能操作自己的记录。', 403);
+  if (obs.status !== 'archived') return c.json({ error: '只有已归档记录可以恢复' }, 400);
+  await transitionObservation(c.env, obs, 'draft', u.display_name);
+  return c.json({ ok: true, status: 'draft' });
 });
 
 // ---------- EXIF 预读 ----------
@@ -574,6 +651,16 @@ app.patch('/studio/api/notes/:slug', async (c) => {
     JSON.stringify(related),
     post.id,
   );
+  // 已发布札记的显式保存：审计 + 立即同步主站（§29）
+  if (post.status === 'published' && body.explicit === true) {
+    await audit(c.env, u.display_name, 'post', post.slug, 'post.updated', {});
+    c.executionCtx.waitUntil(
+      syncToGitHub(c.env, post.slug).then((r) =>
+        audit(c.env, u.display_name, 'github-sync', post.slug, r.ok ? 'sync-ok: ' + r.detail : 'sync-fail: ' + r.detail),
+      ),
+    );
+    return c.json({ ok: true, saved_at: new Date().toISOString().slice(11, 19), sync: 'queued' });
+  }
   return c.json({ ok: true, saved_at: new Date().toISOString().slice(11, 19) });
 });
 
@@ -737,7 +824,6 @@ app.post('/studio/invite', async (c) => {
 app.post('/studio/api/sync', async (c) => {
   const u = user(c);
   if (!sameOrigin(c.req.raw)) return c.json({ error: 'Forbidden' }, 403);
-  if (u.role !== 'owner') return c.json({ error: '只有站长可以同步' }, 403);
   const r = await syncToGitHub(c.env);
   await audit(c.env, u.display_name, 'github-sync', null, r.ok ? 'manual-ok: ' + r.detail : 'manual-fail: ' + r.detail);
   return c.json(r, r.ok ? 200 : 500);

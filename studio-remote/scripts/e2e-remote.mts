@@ -263,6 +263,54 @@ ok(!!noteMedia && noteMedia.observation_id === null, 'D6 导出札记独立插�
 ok(Object.keys(zip2).includes(`originals/${noteImgId}.jpg`), 'D6 札记插图原图已打包');
 ok(!!p0 && String(p0.body_html).includes(`/media/derivatives/${noteImgId}-`), 'D6 正文引用公开派生图路径');
 
+// ---------- 场景 G：状态机（发布=立即公开；私密/归档不公开；published_at 不可变） ----------
+// A 场景已发布 pidA：记录首次 published_at
+const pa1 = d1(`SELECT published_at FROM observations WHERE public_id = '${pidA}'`)[0]?.published_at;
+ok(!!pa1, `G0 已发布记录有 published_at（${pa1}）`);
+// 保存修改（explicit PATCH）不得改变 published_at
+await req(`/studio/api/observations/${pidA}`, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ field_note: 'G 场景：保存修改不改变发布时间。', explicit: true }),
+});
+const pa2 = d1(`SELECT published_at FROM observations WHERE public_id = '${pidA}'`)[0]?.published_at;
+ok(pa2 === pa1, `G1 保存修改后 published_at 不变`);
+
+// 设为私密 → 立即退出导出（公开站下线）
+await req(`/studio/api/observations/${pidA}/private`, { method: 'POST' });
+const privRow = d1(`SELECT status, visibility FROM observations WHERE public_id = '${pidA}'`)[0];
+ok(privRow.status === 'private' && privRow.visibility === 'private', `G2 设为私密：status/visibility 一致`);
+const expPriv = await req('/studio/export');
+const zipPriv = unzipSync(new Uint8Array(await expPriv.arrayBuffer()));
+const privObs = JSON.parse(new TextDecoder().decode(zipPriv['studio-observations.json'])) as any[];
+ok(!privObs.some((o) => o.public_id === pidA), `G3 私密记录不进入公开导出`);
+
+// 再次发布 → 重新公开，且 published_at 保持首次值
+const repub = await (await req(`/studio/api/observations/${pidA}/publish`, { method: 'POST' })).json();
+const pa3 = d1(`SELECT published_at FROM observations WHERE public_id = '${pidA}'`)[0]?.published_at;
+ok(repub.ok === true && pa3 === pa1, `G4 私密→发布：重新公开且 published_at 保持首次值`);
+
+// 归档 → 退出公开；恢复为草稿 → 不公开
+await req(`/studio/api/observations/${pidA}/archive`, { method: 'POST' });
+const archRow = d1(`SELECT status, visibility FROM observations WHERE public_id = '${pidA}'`)[0];
+ok(archRow.status === 'archived' && archRow.visibility === 'private', `G5 归档：status/visibility 一致`);
+const expArch = await req('/studio/export');
+const zipArch = unzipSync(new Uint8Array(await expArch.arrayBuffer()));
+const archObs = JSON.parse(new TextDecoder().decode(zipArch['studio-observations.json'])) as any[];
+ok(!archObs.some((o) => o.public_id === pidA), `G6 已归档记录不进入公开导出`);
+await req(`/studio/api/observations/${pidA}/restore`, { method: 'POST' });
+const restored = d1(`SELECT status FROM observations WHERE public_id = '${pidA}'`)[0]?.status;
+ok(restored === 'draft', `G7 恢复为草稿`);
+// 恢复后重新发布，保持编号与公开状态（F1 依赖 pidA 为 published）
+const repub2 = await (await req(`/studio/api/observations/${pidA}/publish`, { method: 'POST' })).json();
+ok(repub2.ok === true, `G8 恢复后重新发布`);
+
+// 列表页四状态分区（草稿/已发布/私密/已归档）
+const draftsPage = await (await req('/studio/drafts')).text();
+ok(
+  ['草稿', '已发布', '私密', '已归档'].every((k) => draftsPage.includes(k)),
+  `G9 列表页四状态分区齐全`,
+);
+
 // ---------- 场景 F ----------
 await req(`/studio/api/observations/${pidA}`, {
   method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ field_note: '编辑复核：补充生境描述（发布后修订）。' }),
