@@ -28,6 +28,24 @@ const traits: [string, string | null][] = [
   ['行为', obs.behavior],
 ];
 
+const photographer = obs.cover?.photographer ?? null;
+const shareData = {
+  publicId: obs.public_id,
+  display: obs.identification?.display ?? '未鉴定的跳蛛',
+  rank: obs.identification?.taxon_rank ?? null,
+  hasId: Boolean(obs.identification),
+  identifiedBy: obs.identification?.identified_by ?? null,
+  date: obs.observed_at,
+  placeLine: [loc.admin1, loc.admin2, loc.locality].filter(Boolean).join(' · ') || null,
+  country: loc.country_name ?? null,
+  elevation: loc.elevation_m,
+  lat: loc.latitude,
+  lng: loc.longitude,
+  photographer,
+  mediaUrl: (obs.cover ?? obs.media[0])?.large ?? null,
+  site: 'Salticid Notes · 跳蛛观察志',
+};
+
 const related = allPublicObservations
   .filter(
     (o) =>
@@ -167,6 +185,15 @@ const related = allPublicObservations
           )}
         </section>
 
+        <section class="side-block">
+          <h3 class="side-kicker">分 享</h3>
+          <div class="share-actions">
+            <button type="button" class="share-btn" data-card="postcard">导出明信片</button>
+            <button type="button" class="share-btn" data-card="idcard">物种身份卡</button>
+          </div>
+          <p class="side-footnote">生成精美卡片图片，适合分享传播。</p>
+        </section>
+
         {traits.some(([, v]) => v) && (
           <section class="side-block">
             <h3 class="side-kicker">观 察</h3>
@@ -188,6 +215,9 @@ const related = allPublicObservations
         </div>
       </section>
     )}
+
+    <script type="application/json" id="share-data" set:html={JSON.stringify(shareData)} />
+    <script is:inline src={withBase('/share-cards.js')}></script>
   </div>
 </Base>
 
@@ -222,3 +252,16 @@ const related = allPublicObservations
     if (e.key === 'Escape') closeHero();
   });
 </script>
+  </div>
+</Base>
+
+<style>
+  .share-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .share-btn {
+    font: inherit; font-size: 13.5px; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 99px; background: #fff;
+    padding: 7px 14px; cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease;
+  }
+  .share-btn:hover { color: var(--ink); border-color: var(--faint); }
+</style>
