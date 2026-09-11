@@ -236,10 +236,12 @@ export function toPublicObservation(o: Observation): PublicObservation {
 
 /** 公开观察列表（已发布 + 公开），按日期倒序。 */
 export function getPublicObservations(): PublicObservation[] {
+  /** 新发布的在前：主排序键为发布时间（后发布 → 列表更靠前），同批按编号倒序。 */
+  const pubKey = (o: (typeof observations)[number]) => `${o.published_at ?? o.observed_at} ${o.public_id}`;
   return observations
     .filter((o) => o.status === 'published' && o.visibility === 'public')
-    .map(toPublicObservation)
-    .sort((a, b) => b.observed_at.localeCompare(a.observed_at));
+    .sort((a, b) => pubKey(b).localeCompare(pubKey(a)))
+    .map(toPublicObservation);
 }
 
 /** 把媒体尺寸 manifest 合并进公开观察对象（构建期调用）。 */

@@ -335,12 +335,15 @@ export interface PublicContributor {
   regions: string[];
   favorite: { thumb: string; medium: string; large: string } | null;
   coverThumbs: { thumb: string; url: string; alt: string }[];
+  /** 展示顺序（跟随 profiles.json 定义） */
+  order: number;
 }
 
 export function getPublicContributors(): PublicContributor[] {
+  // 顺序按 profiles.json 的定义（咩咩 → 哈姆 → 义 → 涛 …），不按观察数
   return profiles
     .filter((p) => p.profile_visibility === 'public' && p.slug != null)
-    .map((p) => {
+    .map((p, idx) => {
       const own = allPublicObservations.filter(
         (o) => o.observer_name === p.display_name || o.identification?.identified_by === p.display_name,
       );
@@ -382,9 +385,10 @@ export function getPublicContributors(): PublicContributor[] {
         regions,
         favorite,
         coverThumbs,
+        order: idx,
       };
     })
-    .sort((a, b) => b.observationCount - a.observationCount);
+    .sort((a, b) => a.order - b.order);
 }
 
 export function getPublicContributor(slug: string): PublicContributor | undefined {
