@@ -58,5 +58,17 @@
     "latitude": 23.051944,
     "longitude": 113.125,
     "elevation_m": null
+  },
+  {
+    "id": "loc-studio-19",
+    "country_code": "",
+    "country_name": "中国",
+    "admin1": "",
+    "admin2": null,
+    "locality": null,
+    "site_name": null,
+    "latitude": 31.428663,
+    "longitude": 107.753906,
+    "elevation_m": null
   }
 ]
