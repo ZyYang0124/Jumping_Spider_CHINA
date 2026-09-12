@@ -22,6 +22,15 @@ const photographer = obs.cover?.photographer ?? null;
 // 身份卡画布导出需要物种级事实（§38）：相遇数/地区/年份区间
 const idGroup = obs.identification?.taxon_slug ? getSpeciesGroup(obs.identification.taxon_slug) : undefined;
 const idYears = idGroup ? idGroup.observations.map((o) => Number(o.observed_at.slice(0, 4))) : [];
+const idMonths = idGroup ? [...new Set(idGroup.observations.map((o) => Number(o.observed_at.slice(5, 7))))].sort((a, b) => a - b) : [];
+const monthsLine = idMonths.length
+  ? idMonths.length === 1
+    ? `相遇于 ${idMonths[0]} 月`
+    : `相遇于 ${idMonths[0]}—${idMonths[idMonths.length - 1]} 月`
+  : null;
+const speciesNote = idGroup?.personal_note
+  ? (idGroup.personal_note.length > 90 ? idGroup.personal_note.slice(0, 90) + '……' : idGroup.personal_note)
+  : null;
 const shareData = {
   publicId: obs.public_id,
   display: obs.identification?.display ?? '未鉴定的跳蛛',
@@ -41,6 +50,9 @@ const shareData = {
   encounters: idGroup ? `${idGroup.observations.length} 次相遇` : null,
   regionLine: idGroup && idGroup.regions.length ? idGroup.regions.filter(Boolean).slice(0, 2).join(' · ').replace(/^[· ]+/, '') + (idGroup.regions.length > 2 ? ` 等 ${idGroup.regions.length} 地` : '') : null,
   range: idYears.length ? `${Math.min(...idYears)}—${Math.max(...idYears)}` : null,
+  monthsLine,
+  habitatLine: obs.habitat ? `生境：${obs.habitat}` : null,
+  speciesNote,
   qrUrl: obs.identification?.taxon_slug ? `/species/${obs.identification.taxon_slug}/` : null,
 };
 

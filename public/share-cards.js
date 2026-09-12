@@ -53,6 +53,17 @@
     return size;
   }
 
+  // 按像素宽度折行（用于物种笔记等长文本）
+  function wrapText(ctx, text, maxWidth) {
+    var lines = [], line = '';
+    Array.prototype.slice.call(text).forEach(function (ch) {
+      if (ctx.measureText(line + ch).width > maxWidth && line) { lines.push(line); line = ch; }
+      else line += ch;
+    });
+    if (line) lines.push(line);
+    return lines;
+  }
+
   function fmtLat(v) { return Math.abs(v).toFixed(5) + '° ' + (v >= 0 ? 'N' : 'S'); }
   function fmtLng(v) { return Math.abs(v).toFixed(5) + '° ' + (v >= 0 ? 'E' : 'W'); }
 
@@ -151,11 +162,21 @@
     x.font = (D.rank === 'species' || D.rank === 'subspecies' ? 'italic ' : '') + '400 ' + nsize + 'px ' + SERIF;
     x.fillText(D.display, margin, top + 40);
     var y = top + 100;
-    // 事实行：相遇次数 / 地区 / 性别
+    // 事实行：相遇次数 / 地区 / 物候 / 性别 / 生境
     x.font = '26px ' + SANS; x.fillStyle = MUTED;
     if (D.encounters) { x.fillText(D.encounters, margin, y); y += 44; }
     if (D.regionLine) { x.fillText(D.regionLine, margin, y); y += 44; }
+    if (D.monthsLine) { x.fillText(D.monthsLine, margin, y); y += 44; }
     if (D.sexLine) { x.fillText(D.sexLine, margin, y); y += 44; }
+    if (D.habitatLine) { x.fillText(D.habitatLine, margin, y); y += 44; }
+    // 物种笔记（从野外笔记看，§34）：最多 3 行，serif
+    if (D.speciesNote) {
+      x.font = '27px ' + SERIF; x.fillStyle = INK;
+      var noteLines = wrapText(x, D.speciesNote, W - margin * 2 - 170).slice(0, 3);
+      y += 14;
+      noteLines.forEach(function (ln) { x.fillText(ln, margin, y); y += 42; });
+      if (D.speciesNote.length > 90) { x.font = '22px ' + SANS; x.fillStyle = FAINT; x.fillText('……完整笔记见物种页', margin, y); y += 36; }
+    }
     // 档案栏：年份区间 · 品牌 + 红栏杆线
     var stripY = H - margin - 96;
     x.strokeStyle = 'rgba(38,34,28,0.14)'; x.lineWidth = 1;
@@ -163,6 +184,9 @@
     x.font = '22px ' + SANS; x.fillStyle = FAINT;
     x.fillText(D.range || '', margin, stripY + 52);
     x.textAlign = 'right';
+    if (D.qrUrl) drawQR(x, location.origin + D.qrUrl, W - margin - 150, stripY - 170, 150);
+    x.textAlign = 'right';
+    x.fillStyle = FAINT;
     x.fillText('红栏杆跳蛛观察志', W - margin, stripY + 52);
     if (MARK) {
       var brandW = x.measureText('红栏杆跳蛛观察志').width;
@@ -171,7 +195,6 @@
     }
     x.fillStyle = RED; x.fillRect(W - margin - 120, stripY + 84, 120, 3);
     // 二维码：右上角纸贴片（扫码到物种页）
-    if (D.qrUrl) drawQR(x, location.origin + D.qrUrl, W - margin - 140, 60, 140);
     x.textAlign = 'left';
     return c;
   }
