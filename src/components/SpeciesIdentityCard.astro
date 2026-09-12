@@ -1,0 +1,76 @@
+---
+// 物种身份卡（§25-§57）：现代自然史收藏卡。
+// 系列严格同构（§51）：同比例、同文字区、同基线；整卡链到物种页（§53）。
+import PictureImage from './PictureImage.astro';
+import { withBase } from '../lib/privacy';
+import { sciNameHtml } from '../lib/format';
+import type { PublicMedia } from '../lib/privacy';
+
+interface Props {
+  display: string;
+  slug: string;
+  chineseName?: string | null;
+  count: number;
+  regions: string[];
+  /** 首末年份（有多年数据时显示于档案栏） */
+  range?: string | null;
+  photo?: PublicMedia | null;
+  /** 工作编号标记（§36：小字，非红色警告） */
+  working?: boolean;
+}
+
+const { display, slug, chineseName, count, regions, range = null, photo = null, working = false } = Astro.props;
+const regionLine =
+  regions.length === 0 ? null : regions.slice(0, 2).join(' · ') + (regions.length > 2 ? ` 等 ${regions.length} 地` : '');
+---
+
+<a class="sic" href={withBase(`/species/${slug}/`)}>
+  <div class="sic-photo">
+    {photo ? (
+      <PictureImage media={photo} sizes="(max-width: 900px) 44vw, 300px" alt={display} />
+    ) : (
+      <div class="sic-photo-empty"><span>{display}</span></div>
+    )}
+  </div>
+  <div class="sic-body">
+    <h3 class="sic-name"><span set:html={sciNameHtml(display, 'species')} /></h3>
+    {chineseName && <div class="sic-zh">{chineseName}</div>}
+    <div class="sic-facts">
+      <span>{count} 次相遇</span>
+      {regionLine && <span>{regionLine}</span>}
+    </div>
+    <div class="sic-strip">
+      <span>{range ?? ''}</span>
+      <span class="sic-strip-brand">{working ? '暂定 · 跳蛛观察志' : '跳蛛观察志'}</span>
+    </div>
+    <div class="sic-rail" aria-hidden="true"></div>
+  </div>
+</a>
+
+<style>
+  .sic {
+    display: flex; flex-direction: column; aspect-ratio: 3 / 4;
+    text-decoration: none; color: inherit; background: var(--paper);
+    border: 1px solid var(--line);
+  }
+  .sic .sic-photo { height: 55%; overflow: hidden; background: var(--paper-deep); }
+  .sic .sic-photo :global(img),
+  .sic .sic-photo :global(picture) { width: 100%; height: 100%; }
+  .sic .sic-photo :global(img) { object-fit: cover; display: block; transition: transform 0.2s ease; }
+  .sic:hover .sic-photo :global(img) { transform: scale(1.015); }
+  .sic-photo-empty {
+    height: 100%; display: flex; align-items: center; justify-content: center;
+    background: repeating-linear-gradient(0deg, transparent 0 14px, var(--line-soft) 14px 15px), var(--paper-deep);
+  }
+  .sic-photo-empty span { font-size: 13px; color: var(--faint); padding: 0 var(--s-4); text-align: center; }
+  .sic-body { flex: 1; display: flex; flex-direction: column; padding: var(--s-4) var(--s-5) 0; min-width: 0; }
+  .sic-name { font-family: var(--serif); font-weight: 400; font-size: 25px; line-height: 1.28; color: var(--ink); margin: 0; }
+  .sic-zh { font-size: 13.5px; color: var(--muted); margin-top: 2px; }
+  .sic-facts { display: flex; flex-direction: column; gap: 3px; margin-top: var(--s-3); font-size: 13px; color: var(--muted); }
+  .sic-strip {
+    margin-top: auto; display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3);
+    border-top: 1px solid var(--line-soft); padding: var(--s-3) 0;
+    font-size: 11.5px; letter-spacing: 0.1em; color: var(--faint); white-space: nowrap;
+  }
+  .sic-rail { height: 2px; background: var(--terra); width: 38%; }
+</style>

@@ -4,7 +4,7 @@ import Base from '../../layouts/Base.astro';
 import PictureImage from '../../components/PictureImage.astro';
 import ObsCard from '../../components/ObsCard.astro';
 import MediaGallery from '../../components/MediaGallery.astro';
-import { getObservation, allPublicObservations } from '../../lib/queries';
+import { getObservation, allPublicObservations, getSpeciesGroup } from '../../lib/queries';
 import { withBase } from '../../lib/privacy';
 import { SEX_ZH, LIFE_STAGE_ZH, EVIDENCE_ZH } from '../../lib/labels';
 import { formatDate, coordLabel, locationLine, sciNameHtml, formatLat, formatLng } from '../../lib/format';
@@ -19,6 +19,9 @@ if (!obs) return Astro.redirect(withBase('/observations/'));
 const loc = obs.location;
 
 const photographer = obs.cover?.photographer ?? null;
+// 身份卡画布导出需要物种级事实（§38）：相遇数/地区/年份区间
+const idGroup = obs.identification?.taxon_slug ? getSpeciesGroup(obs.identification.taxon_slug) : undefined;
+const idYears = idGroup ? idGroup.observations.map((o) => Number(o.observed_at.slice(0, 4))) : [];
 const shareData = {
   publicId: obs.public_id,
   display: obs.identification?.display ?? '未鉴定的跳蛛',
@@ -34,6 +37,10 @@ const shareData = {
   photographer,
   mediaUrl: (obs.cover ?? obs.media[0])?.large ?? null,
   site: 'Salticid Notes · 跳蛛观察志',
+  encounters: idGroup ? `${idGroup.observations.length} 次相遇` : null,
+  regionLine: idGroup && idGroup.regions.length ? idGroup.regions.filter(Boolean).slice(0, 2).join(' · ').replace(/^[· ]+/, '') + (idGroup.regions.length > 2 ? ` 等 ${idGroup.regions.length} 地` : '') : null,
+  range: idYears.length ? `${Math.min(...idYears)}—${Math.max(...idYears)}` : null,
+  qrUrl: obs.identification?.taxon_slug ? `/species/${obs.identification.taxon_slug}/` : null,
 };
 
 const related = allPublicObservations

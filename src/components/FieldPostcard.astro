@@ -1,0 +1,109 @@
+---
+// 自然史明信片（§3-§23）：「我曾经在那里」。
+// 正面 = B Editorial：照片 + 纸面页脚（地点/日期 + 编号 + 红栏杆细线）；
+// 有笔记时提供「查看背面」details 切换（键盘可达，§20/§72；无 3D 翻转）。
+import PictureImage from './PictureImage.astro';
+
+interface Props {
+  photo: { thumb: string; medium: string; large: string } | null;
+  place: string;
+  region?: string | null;
+  /** 年·月 式短日期（正面） */
+  date: string;
+  /** 完整日期（背面） */
+  dateFull?: string | null;
+  id?: string | null;
+  /** 背面短札记（60–120 字，取自真实记录，§13） */
+  note?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  href?: string;
+}
+
+const { photo, place, region = null, date, dateFull = null, id = null, note = null, lat = null, lng = null, href } = Astro.props;
+const noteText = note ? (note.length > 110 ? note.slice(0, 110) + '……' : note) : null;
+---
+
+<figure class="fpc">
+  <a class="fpc-front" href={href} style={href ? undefined : 'cursor: default;'}>
+    <div class="fpc-photo">
+      {photo && <PictureImage media={photo} sizes="(max-width: 700px) 92vw, 480px" alt={place} />}
+    </div>
+    <figcaption class="fpc-foot">
+      <span class="fpc-place">{place}</span>
+      <span class="fpc-date">{date}</span>
+      {id && <span class="fpc-id">{id}</span>}
+      <span class="fpc-rail" aria-hidden="true"></span>
+    </figcaption>
+  </a>
+
+  {noteText && (
+    <details class="fpc-backbox">
+      <summary>查看背面</summary>
+      <div class="fpc-back">
+        <div class="fpcb-note"><p>{noteText}</p></div>
+        <div class="fpcb-rule" aria-hidden="true"></div>
+        <div class="fpcb-meta">
+          <span class="fpcb-place">{place}</span>
+          {region && <span class="fpcb-sub">{region}</span>}
+          {dateFull && <span class="fpcb-sub">{dateFull}</span>}
+          {lat != null && lng != null && (
+            <span class="fpcb-coord">{lat.toFixed(5)}° N<br />{lng.toFixed(5)}° E</span>
+          )}
+          {id && <span class="fpcb-id">{id}</span>}
+          <span class="fpcb-brand"><span class="fpcb-rail" aria-hidden="true"></span>红栏杆</span>
+        </div>
+      </div>
+    </details>
+  )}
+</figure>
+
+<style>
+  .fpc { margin: 0; }
+  .fpc-front { display: block; border: 1px solid var(--line-soft); background: var(--paper); text-decoration: none; color: inherit; }
+  .fpc-photo { aspect-ratio: 3 / 1.9; overflow: hidden; background: var(--paper-deep); }
+  .fpc-photo :global(img) { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.2s ease; }
+  .fpc-front:hover .fpc-photo :global(img) { transform: scale(1.01); }
+  .fpc-foot {
+    display: grid; grid-template-columns: 1fr auto; gap: 2px var(--s-4);
+    padding: var(--s-4) var(--s-5); position: relative;
+  }
+  .fpc-place { font-family: var(--serif); font-size: 24px; font-weight: 700; letter-spacing: 0.06em; color: var(--ink); }
+  .fpc-date { grid-column: 2; grid-row: 1; align-self: baseline; font-size: 12.5px; letter-spacing: 0.12em; color: var(--muted); }
+  .fpc-id { grid-column: 1; font-size: 11px; letter-spacing: 0.1em; color: var(--faint); margin-top: var(--s-2); }
+  .fpc-rail { position: absolute; right: var(--s-5); bottom: var(--s-4); width: 34px; height: 2px; background: var(--terra); }
+
+  /* ---- 背面：左札记 / 中缝细线 / 右档案栏（§11/§12） ---- */
+  .fpc-backbox { border: 1px solid var(--line-soft); border-top: none; background: var(--paper); }
+  .fpc-backbox summary {
+    list-style: none; cursor: pointer; text-align: right;
+    font-size: 12px; color: var(--faint); padding: 6px var(--s-5);
+    border-top: 1px dashed var(--line-soft);
+  }
+  .fpc-backbox summary::-webkit-details-marker { display: none; }
+  .fpc-backbox summary:hover { color: var(--ink); }
+  .fpc-backbox[open] summary { border-top: none; }
+  .fpc-back {
+    display: grid; grid-template-columns: minmax(0, 60fr) 1px minmax(0, 40fr);
+    aspect-ratio: 3 / 1.7;
+  }
+  .fpcb-note { padding: var(--s-5); display: flex; align-items: center; }
+  .fpcb-note p { font-family: var(--serif); font-size: 15.5px; line-height: 1.9; color: var(--ink); margin: 0; }
+  .fpcb-rule { background: var(--line); }
+  .fpcb-meta { padding: var(--s-5); display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .fpcb-place { font-family: var(--serif); font-size: 19px; font-weight: 700; letter-spacing: 0.05em; color: var(--ink); }
+  .fpcb-sub { font-size: 12.5px; color: var(--muted); }
+  .fpcb-coord { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; line-height: 1.7; margin-top: var(--s-2); }
+  .fpcb-id { font-size: 11.5px; letter-spacing: 0.08em; color: var(--faint); margin-top: var(--s-2); }
+  .fpcb-brand { margin-top: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); justify-content: flex-end; }
+  .fpcb-rail { width: 22px; height: 1.5px; background: var(--terra); }
+
+  /* mobile（§69）：背面转竖排，不强行 60/40 */
+  @media (max-width: 560px) {
+    .fpc-back { grid-template-columns: 1fr; aspect-ratio: auto; }
+    .fpcb-rule { height: 1px; width: 100%; }
+    .fpcb-note { padding: var(--s-4) var(--s-4) var(--s-3); }
+    .fpcb-meta { padding: var(--s-3) var(--s-4) var(--s-4); }
+    .fpcb-brand { margin-top: var(--s-3); }
+  }
+</style>

@@ -18,7 +18,7 @@ const links = getPostLinks(post);
 <Base title={post.title} description={post.bodyHtml.replace(/<[^>]+>/g, ' ').slice(0, 90)}>
   <article class="story">
     <header class="story-hero">
-      <div class="hero-kicker">札 记</div>
+      <div class="hero-kicker">札记</div>
       <h1 class="hero-title">{post.title}</h1>
       {post.subtitle && <p class="hero-dek">{post.subtitle}</p>}
       <div class="hero-meta">
@@ -38,7 +38,7 @@ const links = getPostLinks(post);
 
     {(post.relatedObservations.length > 0 || links.species.length > 0 || links.places.length > 0) && (
       <section class="story-related">
-        <h2 class="related-kicker">本 篇 关 联</h2>
+        <h2 class="related-kicker">本篇关联</h2>
 
         {post.relatedObservations.length > 0 && (
           <div class="side-secondary" style="margin-bottom: 22px;">
@@ -86,8 +86,8 @@ const links = getPostLinks(post);
   /* ---- 刊头 ---- */
   .story-hero { text-align: center; max-width: 760px; margin: 44px auto 40px; }
   .hero-kicker {
-    font-family: var(--sans); font-size: 12px; font-weight: 600;
-    letter-spacing: 0.35em; text-indent: 0.35em; color: var(--terra);
+    font-family: var(--sans); font-size: 13px; font-weight: 600;
+    letter-spacing: 0.14em; color: var(--terra);
     margin: 0 0 24px;
   }
   .hero-title {
@@ -142,7 +142,7 @@ const links = getPostLinks(post);
   .story-body :global(figure) { margin: 2.4em auto; max-width: min(100%, 1080px); }
   .story-body :global(figure img) { margin: 0 auto; max-height: 80vh; }
   .story-body :global(figcaption) {
-    text-align: center; font-family: var(--sans); font-size: 12.5px;
+    text-align: left; font-family: var(--sans); font-size: 13px;
     line-height: 1.7; color: var(--muted); margin-top: 10px;
   }
   /* 连续图片组合 */
@@ -177,11 +177,11 @@ const links = getPostLinks(post);
   /* ---- 本篇关联 ---- */
   .story-related { max-width: 740px; margin: 3.5em auto 0; }
   .related-kicker {
-    font-family: var(--sans); font-size: 12px; font-weight: 600;
-    letter-spacing: 0.3em; color: var(--muted); margin: 0 0 16px;
+    font-family: var(--sans); font-size: 13px; font-weight: 600;
+    letter-spacing: 0.14em; color: var(--muted); margin: 0 0 16px;
   }
   .related-sub {
-    font-size: 12px; font-weight: 600; letter-spacing: 0.14em;
+    font-size: 12.5px; font-weight: 600; letter-spacing: 0.05em;
     color: var(--faint); margin-bottom: 8px;
   }
   .related-chips { display: flex; flex-wrap: wrap; gap: 8px; }

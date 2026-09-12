@@ -3,6 +3,7 @@ export const prerender = true;
 import Base from '../layouts/Base.astro';
 import PictureImage from '../components/PictureImage.astro';
 import ObsCard from '../components/ObsCard.astro';
+import FieldPostcard from '../components/FieldPostcard.astro';
 import { allPublicObservations, getPublicTrips, getLocalityCards, getSpeciesGroups, speciesSlug } from '../lib/queries';
 import { withBase } from '../lib/privacy';
 import { siteConfig } from '../lib/store';
@@ -20,6 +21,27 @@ const heroPreload = hero
   : undefined;
 const recent = allPublicObservations.slice(0, 5);
 const [leadTrip, sideTrip] = getPublicTrips().slice(0, 2);
+// 明信片（§100/§102 首页 1 张）：头条调查的正面 + 背面取该程最新一条真实札记
+const leadNoteObs = leadTrip
+  ? allPublicObservations
+      .filter((o) => o.trip?.slug === leadTrip.slug && o.field_note)
+      .sort((a, b) => b.observed_at.localeCompare(a.observed_at))[0]
+  : undefined;
+const leadPostcard = leadTrip && leadTrip.cover
+  ? {
+      photo: leadTrip.cover,
+      place: leadTrip.title,
+      region: leadTrip.region,
+      date: leadTrip.start_date.slice(0, 4) + ' · ' + leadTrip.start_date.slice(5, 7),
+      dateFull:
+        `${Number(leadTrip.start_date.slice(0, 4))} 年 ${Number(leadTrip.start_date.slice(5, 7))} 月 ${Number(leadTrip.start_date.slice(8, 10))} 日 — ${Number(leadTrip.end_date.slice(5, 7))} 月 ${Number(leadTrip.end_date.slice(8, 10))} 日`,
+      id: leadNoteObs?.public_id ?? null,
+      note: leadNoteObs?.field_note ?? null,
+      lat: leadNoteObs?.location.latitude ?? null,
+      lng: leadNoteObs?.location.longitude ?? null,
+      href: `/trips/${leadTrip.slug}/`,
+    }
+  : null;
 const species = getSpeciesGroups().slice(0, 4);
 const places = getLocalityCards().slice(0, 3);
 ---
@@ -108,6 +130,20 @@ const places = getLocalityCards().slice(0, 3);
       </div>
       {leadTrip && (
       <div class="story-grid">
+        {leadPostcard ? (
+          <FieldPostcard
+            photo={leadPostcard.photo}
+            place={leadPostcard.place}
+            region={leadPostcard.region}
+            date={leadPostcard.date}
+            dateFull={leadPostcard.dateFull}
+            id={leadPostcard.id}
+            note={leadPostcard.note}
+            lat={leadPostcard.lat}
+            lng={leadPostcard.lng}
+            href={withBase(leadPostcard.href)}
+          />
+        ) : (
         <a class="story story-lead" href={withBase(`/trips/${leadTrip.slug}/`)}>
           <div class="frame">
             {leadTrip.cover && (
@@ -124,6 +160,7 @@ const places = getLocalityCards().slice(0, 3);
           {leadTrip.subtitle && <div class="story-sub">{leadTrip.subtitle}</div>}
           <p>{leadTrip.summary}</p>
         </a>
+        )}
         {sideTrip && (
           <a class="story story-side" href={withBase(`/trips/${sideTrip.slug}/`)}>
             <div class="frame">
@@ -190,3 +227,4 @@ const places = getLocalityCards().slice(0, 3);
     </section>
   </div>
 </Base>
+

@@ -79,90 +79,86 @@
     return true;
   }
 
-  // ---------- 明信片（1600×1067，横 3:2） ----------
+  // ---------- 明信片（1600×1067，横 3:2）—— Editorial 版式：照片 + 纸面页脚 ----------
   function drawPostcard(img) {
     var W = 1600, H = 1067;
     var c = document.createElement('canvas'); c.width = W; c.height = H;
     var x = c.getContext('2d');
     x.fillStyle = PAPER; x.fillRect(0, 0, W, H);
-    if (img) containDraw(x, img, 0, 0, W, 700);
-    // 红栏杆短线 motif
-    x.fillStyle = RED; x.fillRect(90, 776, 110, 5);
-    // 物种名
-    x.fillStyle = INK;
-    var italic = D.rank === 'species' || D.rank === 'subspecies';
-    var size = fitFont(x, D.display, 1100, 64, '700');
-    x.font = (italic ? 'italic ' : '') + '700 ' + size + 'px ' + SERIF;
-    x.fillText(D.display, 90, 884);
-    // 地点 · 日期
-    x.fillStyle = MUTED; x.font = '28px ' + SANS;
-    x.fillText([D.placeLine, D.date].filter(Boolean).join('　·　'), 90, 956);
-    // 编号
-    x.fillStyle = FAINT; x.font = '22px ' + SANS;
-    x.fillText(D.publicId, 90, 1006);
-    // 右下二维码：扫码直达本页
-    drawQR(x, pageUrl(), W - 90 - 170, 770, 170);
-    x.textAlign = 'center'; x.fillStyle = FAINT; x.font = '20px ' + SANS;
-    x.fillText('扫码查看本页', W - 90 - 85, 956);
-    // 品牌文字右缘让位于二维码
-    x.textAlign = 'right';
-    x.fillStyle = INK; x.font = '600 30px ' + SANS;
-    x.fillText('Salticid Notes', W - 300, 902);
-    x.fillStyle = RED; x.font = '500 24px ' + SANS;
-    x.fillText('跳蛛观察志', W - 300, 944);
-    x.fillStyle = FAINT; x.font = '22px ' + SANS;
-    x.fillText('© ' + (D.photographer || ''), W - 300, 986);
+    // 照片区：contain 完整构图（白底棚拍与纸面自然融合）
+    var photoH = 780, margin = 60;
+    if (img) {
+      var s = Math.min((W - margin * 2) / img.width, (photoH - 24) / img.height);
+      var dw = img.width * s, dh = img.height * s;
+      x.drawImage(img, (W - dw) / 2, (photoH - dh) / 2, dw, dh);
+    }
+    // 页脚分隔细线
+    x.strokeStyle = 'rgba(38,34,28,0.14)'; x.lineWidth = 1;
+    x.beginPath(); x.moveTo(margin, photoH + 28); x.lineTo(W - margin, photoH + 28); x.stroke();
+    // 左：地点 + 日期
     x.textAlign = 'left';
+    x.fillStyle = INK;
+    var size = fitFont(x, D.placeLine || D.site, 760, 46, '700');
+    x.font = '700 ' + size + 'px ' + SERIF;
+    x.fillText(D.placeLine || D.site, margin, photoH + 106);
+    x.fillStyle = MUTED; x.font = '300 24px ' + SANS;
+    x.fillText(D.date || '', margin, photoH + 158);
+    // 右：编号 + 二维码 + 红栏杆线
+    x.fillStyle = FAINT; x.font = '22px ' + SANS;
+    x.textAlign = 'right';
+    x.fillText(D.publicId, W - margin - 190, photoH + 106);
+    if (drawQR(x, pageUrl(), W - margin - 170, photoH + 40, 130)) {
+      x.textAlign = 'right'; x.fillStyle = FAINT; x.font = '18px ' + SANS;
+      x.fillText('扫码查看本页', W - margin - 105, photoH + 196);
+    }
+    x.fillStyle = RED; x.fillRect(W - margin - 34, photoH + 148, 34, 2);
+    x.textAlign = 'left';
+    // 底缘署名
+    x.fillStyle = FAINT; x.font = '20px ' + SANS;
+    x.fillText('© ' + (D.photographer || '') + ' · 跳蛛观察志', margin, H - 36);
     return c;
   }
 
-  // ---------- 物种身份卡（1080×1440，竖 3:4） ----------
+  // ---------- 物种身份卡（1080×1440，竖 3:4）—— Archive 收藏卡版式 ----------
   function drawIdCard(img) {
-    var W = 1080, H = 1440;
+    var W = 1080, H = 1440, margin = 64;
     var c = document.createElement('canvas'); c.width = W; c.height = H;
     var x = c.getContext('2d');
     x.fillStyle = PAPER; x.fillRect(0, 0, W, H);
-    // 标本标签式内框
-    x.strokeStyle = INK; x.lineWidth = 2;
-    x.strokeRect(36, 36, W - 72, H - 72);
-    // 照片
-    if (img) containDraw(x, img, 76, 76, W - 152, 560);
-    // 二维码叠在照片区右上角（纸色小贴片，扫码直达本页）
-    drawQR(x, pageUrl(), W - 76 - 148 - 14, 90, 148);
-    // kicker
-    x.textAlign = 'center';
-    x.fillStyle = RED; x.font = '600 26px ' + SANS;
-    x.fillText('跳蛛观察志 · 物种身份卡', W / 2, 726);
-    // 学名（物种/亚种级用斜体）
+    // 外框：1px 暖灰档案卡边
+    x.strokeStyle = 'rgba(38,34,28,0.28)'; x.lineWidth = 2;
+    x.strokeRect(28, 28, W - 56, H - 56);
+    // 照片区（上 55%，contain 完整构图）
+    var photoH = 700;
+    if (img) {
+      var s2 = Math.min((W - margin * 2) / img.width, (photoH - 20) / img.height);
+      var dw2 = img.width * s2, dh2 = img.height * s2;
+      x.drawImage(img, (W - dw2) / 2, 28 + 20 + (photoH - 20 - dh2) / 2, dw2, dh2);
+    }
+    var top = 28 + photoH + 36;
+    // 学名（第一层级，serif italic 400）
+    x.textAlign = 'left';
     x.fillStyle = INK;
-    var italic = D.rank === 'species' || D.rank === 'subspecies';
-    var nameSize = fitFont(x, D.display, 760, 58, '700');
-    x.font = (italic ? 'italic ' : '') + '700 ' + nameSize + 'px ' + SERIF;
-    x.fillText(D.display, W / 2, 806);
-    // 红色分隔线
-    x.fillStyle = RED; x.fillRect(W / 2 - 30, 838, 60, 3);
-    // 信息行
-    var rows = [
-      ['编号', D.publicId],
-      ['观察日期', D.date],
-      ['地点', D.placeLine || D.country || '—']
-    ];
-    if (D.elevation != null) rows.push(['海拔', '约 ' + D.elevation + ' m']);
-    if (D.lat != null && D.lng != null) rows.push(['坐标', fmtLat(D.lat) + ' · ' + fmtLng(D.lng)]);
-    if (D.photographer) rows.push(['摄影', D.photographer]);
-    if (D.hasId && D.identifiedBy) rows.push(['鉴定', D.identifiedBy + ' · ' + (D.date || '')]);
-    var y = 930;
-    rows.forEach(function (r) {
-      x.textAlign = 'left'; x.fillStyle = FAINT; x.font = '24px ' + SANS;
-      x.fillText(r[0], 120, y);
-      x.textAlign = 'right'; x.fillStyle = INK; x.font = '500 30px ' + SANS;
-      x.fillText(String(r[1]), W - 120, y);
-      y += 64;
-    });
-    // 品牌脚注
-    x.textAlign = 'center';
-    x.fillStyle = FAINT; x.font = '24px ' + SANS;
-    x.fillText('salticidnotes.cn', W / 2, H - 96);
+    var nsize = fitFont(x, D.display, W - margin * 2, 58, '400');
+    x.font = (D.rank === 'species' || D.rank === 'subspecies' ? 'italic ' : '') + '400 ' + nsize + 'px ' + SERIF;
+    x.fillText(D.display, margin, top + 40);
+    var y = top + 100;
+    // 事实行：相遇次数 / 地区 / 性别
+    x.font = '26px ' + SANS; x.fillStyle = MUTED;
+    if (D.encounters) { x.fillText(D.encounters, margin, y); y += 44; }
+    if (D.regionLine) { x.fillText(D.regionLine, margin, y); y += 44; }
+    if (D.sexLine) { x.fillText(D.sexLine, margin, y); y += 44; }
+    // 档案栏：年份区间 · 品牌 + 红栏杆线
+    var stripY = H - margin - 96;
+    x.strokeStyle = 'rgba(38,34,28,0.14)'; x.lineWidth = 1;
+    x.beginPath(); x.moveTo(margin, stripY); x.lineTo(W - margin, stripY); x.stroke();
+    x.font = '22px ' + SANS; x.fillStyle = FAINT;
+    x.fillText(D.range || '', margin, stripY + 52);
+    x.textAlign = 'right';
+    x.fillText('跳蛛观察志', W - margin, stripY + 52);
+    x.fillStyle = RED; x.fillRect(W - margin - 120, stripY + 84, 120, 3);
+    // 二维码：右上角纸贴片（扫码到物种页）
+    if (D.qrUrl) drawQR(x, location.origin + D.qrUrl, W - margin - 140, 60, 140);
     x.textAlign = 'left';
     return c;
   }

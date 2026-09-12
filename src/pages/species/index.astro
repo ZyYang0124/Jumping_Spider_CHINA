@@ -6,11 +6,32 @@ import { withBase } from '../../lib/privacy';
 import { sciNameHtml } from '../../lib/format';
 import ObsCard from '../../components/ObsCard.astro';
 import PictureImage from '../../components/PictureImage.astro';
+import SpeciesIdentityCard from '../../components/SpeciesIdentityCard.astro';
 import { RANK_ZH } from '../../lib/labels';
 
 const groups = getSpeciesGroups();
 const unidentified = getUnidentifiedObservations();
 const tree = getTaxonomyBrowse();
+
+// 身份卡数据（§38/§86/§87）：代表照优先非生境；地区超 2 个折叠；年份区间
+const identityCards = groups.map((g) => {
+  const years = g.observations.map((o) => Number(o.observed_at.slice(0, 4)));
+  const range = years.length ? `${Math.min(...years)}—${Math.max(...years)}` : null;
+  const photo =
+    g.observations.find((o) => o.cover && o.cover.view_type !== 'habitat')?.cover ??
+    g.observations.find((o) => o.cover)?.cover ?? null;
+  return {
+    g,
+    display: g.display,
+    slug: speciesSlug(g),
+    chineseName: g.chinese_name,
+    count: g.observations.length,
+    regions: g.regions,
+    range,
+    photo,
+    working: g.taxon.status === 'working',
+  };
+});
 ---
 
 <Base title="物种" description="由观察记录聚合而成的物种页面——是相遇的积累，不是名录的条目。">
@@ -28,27 +49,18 @@ const tree = getTaxonomyBrowse();
     </div>
 
     <div id="view-photo">
-      <div class="species-list">
-        {groups.map((g) => (
-          <a class="species-card" href={withBase(`/species/${speciesSlug(g)}/`)}>
-            <div class="frame">
-              {g.observations.find((o) => o.cover) && (
-                <PictureImage
-                  media={g.observations.find((o) => o.cover)!.cover!}
-                  sizes="(max-width: 900px) 92vw, 30vw"
-                  alt={`${g.display} 代表照片`}
-                />
-              )}
-            </div>
-            <div class="name">
-              <span set:html={sciNameHtml(g.display, g.rank)} />
-              {g.taxon_status === 'provisional' && <span class="status-tag">暂定</span>}
-            </div>
-            <div class="sub">
-              {g.observations.length} 次相遇 · {g.regions.join('、')}
-              {g.chinese_name ? <><br />{g.chinese_name}</> : null}
-            </div>
-          </a>
+      <div class="identity-grid">
+        {identityCards.map((c) => (
+          <SpeciesIdentityCard
+            display={c.display}
+            slug={c.slug}
+            chineseName={c.chineseName}
+            count={c.count}
+            regions={c.regions}
+            range={c.range}
+            photo={c.photo}
+            working={c.working}
+          />
         ))}
       </div>
 
@@ -164,6 +176,10 @@ const tree = getTaxonomyBrowse();
     border-bottom: 2px solid transparent; margin-bottom: -1px;
   }
   .browse-toggle button.active { color: var(--ink); border-bottom-color: var(--terra); }
+  .identity-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--s-6) var(--s-5); padding: var(--s-5) 0 var(--s-8);
+  }
   .taxonomy-view { font-size: 15px; }
   .tax-root { font-family: var(--serif); font-size: 19px; margin-bottom: 18px; }
   .tax-rank { display: inline-block; font-size: 11px; color: var(--faint); letter-spacing: 0.2em; margin-right: 10px; }
