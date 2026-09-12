@@ -40,5 +40,19 @@
     "elevation_m": null,
     "description": null,
     "merged_into_id": null
+  },
+  {
+    "id": "place-4",
+    "name": "อำเภอรัตนบุรี",
+    "country": "中国",
+    "admin1": "素林府",
+    "admin2": "อำเภอรัตนบุรี",
+    "locality": "",
+    "site_name": "",
+    "latitude": 15.298317,
+    "longitude": 103.98879,
+    "elevation_m": null,
+    "description": null,
+    "merged_into_id": null
   }
 ]

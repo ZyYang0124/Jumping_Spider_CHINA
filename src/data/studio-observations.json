@@ -130,5 +130,27 @@
     "status": "published",
     "visibility": "public",
     "trip_id": null
+  },
+  {
+    "id": "studio-20",
+    "public_id": "SFN-2026-000029",
+    "place_id": "place-4",
+    "created_by": "prof-zhiyong",
+    "observer": "prof-zhiyong",
+    "observed_at": "2026-09-12",
+    "observed_at_precision": "day",
+    "location_id": "loc-studio-20",
+    "sex": "unknown",
+    "life_stage": "unknown",
+    "count": null,
+    "habitat": null,
+    "microhabitat": null,
+    "behavior": null,
+    "plant": null,
+    "weather": null,
+    "field_note": "",
+    "status": "published",
+    "visibility": "public",
+    "trip_id": null
   }
 ]

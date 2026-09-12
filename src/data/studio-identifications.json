@@ -70,5 +70,17 @@
     "evidence": "field",
     "remarks": null,
     "is_current": true
+  },
+  {
+    "id": "studio-10",
+    "observation_id": "studio-20",
+    "taxon_id": "tax-wt-ogdenia-mutilla",
+    "display_identification": "Ogdenia mutilla",
+    "identified_by_profile_id": null,
+    "identified_by_text": "咩咩",
+    "identified_at": "2026-09-12",
+    "evidence": "field",
+    "remarks": null,
+    "is_current": true
   }
 ]

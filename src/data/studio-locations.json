@@ -70,5 +70,17 @@
     "latitude": 31.428663,
     "longitude": 107.753906,
     "elevation_m": null
+  },
+  {
+    "id": "loc-studio-20",
+    "country_code": "",
+    "country_name": "中国",
+    "admin1": "素林府",
+    "admin2": "อำเภอรัตนบุรี",
+    "locality": null,
+    "site_name": null,
+    "latitude": 15.298317,
+    "longitude": 103.98879,
+    "elevation_m": null
   }
 ]
