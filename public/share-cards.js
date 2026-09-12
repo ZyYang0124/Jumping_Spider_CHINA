@@ -54,6 +54,31 @@
   function fmtLat(v) { return Math.abs(v).toFixed(5) + '° ' + (v >= 0 ? 'N' : 'S'); }
   function fmtLng(v) { return Math.abs(v).toFixed(5) + '° ' + (v >= 0 ? 'E' : 'W'); }
 
+  // ---------- 二维码（qrcode-generator 1.4.4，MIT）：扫码直达观察页 ----------
+  function pageUrl() {
+    return String(location.href).split('#')[0];
+  }
+  function drawQR(ctx, text, x, y, size) {
+    if (typeof qrcode !== 'function') return false;
+    var qr;
+    try { qr = qrcode(0, 'M'); qr.addData(text); qr.make(); } catch (e) { return false; }
+    var n = qr.getModuleCount(), quiet = 4;
+    var cell = Math.max(1, Math.floor(size / (n + quiet * 2)));
+    var total = cell * (n + quiet * 2);
+    var ox = x + Math.floor((size - total) / 2), oy = y + Math.floor((size - total) / 2);
+    ctx.fillStyle = PAPER; // 静区：纸色与墨色的对比度足够扫描，且与卡片融为一体
+    ctx.fillRect(ox - 2, oy - 2, total + 4, total + 4);
+    ctx.strokeStyle = 'rgba(38,34,28,0.22)'; ctx.lineWidth = 1;
+    ctx.strokeRect(ox - 2.5, oy - 2.5, total + 5, total + 5);
+    ctx.fillStyle = INK;
+    for (var r = 0; r < n; r++) {
+      for (var c = 0; c < n; c++) {
+        if (qr.isDark(r, c)) ctx.fillRect(ox + (c + quiet) * cell, oy + (r + quiet) * cell, cell, cell);
+      }
+    }
+    return true;
+  }
+
   // ---------- 明信片（1600×1067，横 3:2） ----------
   function drawPostcard(img) {
     var W = 1600, H = 1067;
@@ -75,14 +100,18 @@
     // 编号
     x.fillStyle = FAINT; x.font = '22px ' + SANS;
     x.fillText(D.publicId, 90, 1006);
-    // 右侧品牌
+    // 右下二维码：扫码直达本页
+    drawQR(x, pageUrl(), W - 90 - 170, 770, 170);
+    x.textAlign = 'center'; x.fillStyle = FAINT; x.font = '20px ' + SANS;
+    x.fillText('扫码查看本页', W - 90 - 85, 956);
+    // 品牌文字右缘让位于二维码
     x.textAlign = 'right';
     x.fillStyle = INK; x.font = '600 30px ' + SANS;
-    x.fillText('Salticid Notes', W - 90, 902);
+    x.fillText('Salticid Notes', W - 300, 902);
     x.fillStyle = RED; x.font = '500 24px ' + SANS;
-    x.fillText('跳蛛观察志', W - 90, 944);
+    x.fillText('跳蛛观察志', W - 300, 944);
     x.fillStyle = FAINT; x.font = '22px ' + SANS;
-    x.fillText('© ' + (D.photographer || ''), W - 90, 986);
+    x.fillText('© ' + (D.photographer || ''), W - 300, 986);
     x.textAlign = 'left';
     return c;
   }
@@ -98,6 +127,8 @@
     x.strokeRect(36, 36, W - 72, H - 72);
     // 照片
     if (img) containDraw(x, img, 76, 76, W - 152, 560);
+    // 二维码叠在照片区右上角（纸色小贴片，扫码直达本页）
+    drawQR(x, pageUrl(), W - 76 - 148 - 14, 90, 148);
     // kicker
     x.textAlign = 'center';
     x.fillStyle = RED; x.font = '600 26px ' + SANS;

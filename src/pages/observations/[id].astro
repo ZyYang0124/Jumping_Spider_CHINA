@@ -217,6 +217,7 @@ const related = allPublicObservations
     )}
 
     <script type="application/json" id="share-data" set:html={JSON.stringify(shareData)} />
+    <script is:inline src={withBase('/vendor/qrcode-1.4.4.js')}></script>
     <script is:inline src={withBase('/share-cards.js')}></script>
   </div>
 </Base>
