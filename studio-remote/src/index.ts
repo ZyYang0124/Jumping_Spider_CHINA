@@ -811,7 +811,7 @@ app.post('/studio/api/migrate/renumber-media', async (c) => {
   const u = user(c);
   if (u.role !== 'owner') return c.json({ error: '只有站长可以执行迁移' }, 403);
   if (!sameOrigin(c.req.raw)) return c.json({ error: 'Forbidden' }, 403);
-  const rows = await all<any>(c.env.DB, "SELECT id, public_id, orig_ext, variants, observation_id FROM media WHERE public_id LIKE 'SFN-M-%' ORDER BY id");
+  const rows = await all<any>(c.env.DB, "SELECT id, public_id, orig_ext, variants, observation_id FROM media WHERE public_id LIKE 'SFN-M-%' OR (public_id LIKE 'SN-%' AND LENGTH(public_id) = 14) ORDER BY id");
   const yearSeq: Record<number, number> = {};
   const mapping: { old: string; neo: string }[] = [];
   for (const m of rows) {
@@ -821,10 +821,10 @@ app.post('/studio/api/migrate/renumber-media', async (c) => {
     const year = Number(obsYear) || new Date().getFullYear();
     // 幂等：目标号已被占用（部分成功过的重跑）则顺延，保证唯一
     let seq = (yearSeq[year] ?? 0) + 1;
-    let neo = `SN-${year}-${pad6(seq)}`;
+    let neo = `SN-${year}-${String(seq).padStart(5, '0')}`;
     while (await get(c.env.DB, 'SELECT 1 FROM media WHERE public_id = ?', neo)) {
       seq += 1;
-      neo = `SN-${year}-${pad6(seq)}`;
+      neo = `SN-${year}-${String(seq).padStart(5, '0')}`;
     }
     yearSeq[year] = seq;
     mapping.push({ old: m.public_id, neo });

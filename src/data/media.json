@@ -1,6 +1,6 @@
 [
   {
-    "id": "SN-2023-000001",
+    "id": "SN-2023-00001",
     "observation_id": "obs-2023-001",
     "source_original": "media/originals/3047463fb89c99ecdabad71aefd7106.jpg",
     "view_type": "behavior",
@@ -11,10 +11,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000001"
+    "public_id": "SN-2023-00001"
   },
   {
-    "id": "SN-2023-000002",
+    "id": "SN-2023-00002",
     "observation_id": "obs-2023-001",
     "source_original": "media/originals/84e0183a138156c0275b44d52bd309b.jpg",
     "view_type": "behavior",
@@ -25,10 +25,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000002"
+    "public_id": "SN-2023-00002"
   },
   {
-    "id": "SN-2023-000003",
+    "id": "SN-2023-00003",
     "observation_id": "obs-2023-001",
     "source_original": "media/originals/039585580f75257b633a1385ddb8a58.jpg",
     "view_type": "live_dorsal",
@@ -39,10 +39,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000003"
+    "public_id": "SN-2023-00003"
   },
   {
-    "id": "SN-2023-000004",
+    "id": "SN-2023-00004",
     "observation_id": "obs-2023-001",
     "source_original": "media/originals/a6c676d65f20b282a6ff7fdb7c3ac06.jpg",
     "view_type": "live_dorsal",
@@ -53,10 +53,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000004"
+    "public_id": "SN-2023-00004"
   },
   {
-    "id": "SN-2023-000005",
+    "id": "SN-2023-00005",
     "observation_id": "obs-2023-002",
     "source_original": "media/originals/45d28a3bfa5e8ac27f1593480fb4336.jpg",
     "view_type": "live_dorsal",
@@ -67,10 +67,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000005"
+    "public_id": "SN-2023-00005"
   },
   {
-    "id": "SN-2023-000006",
+    "id": "SN-2023-00006",
     "observation_id": "obs-2023-002",
     "source_original": "media/originals/ee38b606bb8f084c82b051b87481dcf.jpg",
     "view_type": "live_frontal",
@@ -81,10 +81,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000006"
+    "public_id": "SN-2023-00006"
   },
   {
-    "id": "SN-2023-000007",
+    "id": "SN-2023-00007",
     "observation_id": "obs-2023-003",
     "source_original": "media/originals/1d7019e523efd3e08b1a153bfc13489.jpg",
     "view_type": "live_dorsal",
@@ -95,10 +95,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000007"
+    "public_id": "SN-2023-00007"
   },
   {
-    "id": "SN-2023-000008",
+    "id": "SN-2023-00008",
     "observation_id": "obs-2023-004",
     "source_original": "media/originals/8f697e4a45dee6d54cb18673c0d5547.jpg",
     "view_type": "live_frontal",
@@ -109,10 +109,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000008"
+    "public_id": "SN-2023-00008"
   },
   {
-    "id": "SN-2023-000009",
+    "id": "SN-2023-00009",
     "observation_id": "obs-2023-004",
     "source_original": "media/originals/9608b74e966efbb53dc9a23e37b1e1a.jpg",
     "view_type": "live_dorsal",
@@ -123,10 +123,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000009"
+    "public_id": "SN-2023-00009"
   },
   {
-    "id": "SN-2023-000010",
+    "id": "SN-2023-00010",
     "observation_id": "obs-2023-004",
     "source_original": "media/originals/bfffa944aadddcb19b3c0560fe18768.jpg",
     "view_type": "live_frontal",
@@ -137,10 +137,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000010"
+    "public_id": "SN-2023-00010"
   },
   {
-    "id": "SN-2023-000011",
+    "id": "SN-2023-00011",
     "observation_id": "obs-2023-004",
     "source_original": "media/originals/220c41802cd63b74b0039ac57f0bd38.jpg",
     "view_type": "live_frontal",
@@ -151,10 +151,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000011"
+    "public_id": "SN-2023-00011"
   },
   {
-    "id": "SN-2023-000012",
+    "id": "SN-2023-00012",
     "observation_id": "obs-2023-005",
     "source_original": "media/originals/ab3af84ce66b6b4962468f4ff812145.jpg",
     "view_type": "live_dorsal",
@@ -165,10 +165,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000012"
+    "public_id": "SN-2023-00012"
   },
   {
-    "id": "SN-2023-000013",
+    "id": "SN-2023-00013",
     "observation_id": "obs-2023-006",
     "source_original": "media/originals/59d1a276e91c098a2abf9d66408dba2.jpg",
     "view_type": "live_dorsal",
@@ -179,10 +179,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000013"
+    "public_id": "SN-2023-00013"
   },
   {
-    "id": "SN-2023-000014",
+    "id": "SN-2023-00014",
     "observation_id": "obs-2023-006",
     "source_original": "media/originals/3fe6e4b6f385d52a31db2500f7ba8d9.jpg",
     "view_type": "live_dorsal",
@@ -193,10 +193,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000014"
+    "public_id": "SN-2023-00014"
   },
   {
-    "id": "SN-2023-000015",
+    "id": "SN-2023-00015",
     "observation_id": "obs-2023-006",
     "source_original": "media/originals/2079ca8c64f6e24695ada6de36e505f.jpg",
     "view_type": "live_frontal",
@@ -207,10 +207,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000015"
+    "public_id": "SN-2023-00015"
   },
   {
-    "id": "SN-2023-000016",
+    "id": "SN-2023-00016",
     "observation_id": "obs-2023-006",
     "source_original": "media/originals/c596b43f14aa2aea49ac2e71d36f4db.jpg",
     "view_type": "live_lateral",
@@ -221,10 +221,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000016"
+    "public_id": "SN-2023-00016"
   },
   {
-    "id": "SN-2023-000017",
+    "id": "SN-2023-00017",
     "observation_id": "obs-2023-007",
     "source_original": "media/originals/3516b9956823ee7ca6d722bb4240a6b.jpg",
     "view_type": "live_dorsal",
@@ -235,10 +235,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000017"
+    "public_id": "SN-2023-00017"
   },
   {
-    "id": "SN-2023-000018",
+    "id": "SN-2023-00018",
     "observation_id": "obs-2023-008",
     "source_original": "media/originals/bd1d5ce16160b8b527e044e88a0a890.jpg",
     "view_type": "live_frontal",
@@ -249,10 +249,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000018"
+    "public_id": "SN-2023-00018"
   },
   {
-    "id": "SN-2023-000019",
+    "id": "SN-2023-00019",
     "observation_id": "obs-2023-008",
     "source_original": "media/originals/58ceb0e3b9f2cf007d4b98675dc06f0.jpg",
     "view_type": "live_frontal",
@@ -263,10 +263,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000019"
+    "public_id": "SN-2023-00019"
   },
   {
-    "id": "SN-2023-000020",
+    "id": "SN-2023-00020",
     "observation_id": "obs-2023-008",
     "source_original": "media/originals/ed267515775ad467dbb2246c265b87b.jpg",
     "view_type": "live_frontal",
@@ -277,10 +277,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000020"
+    "public_id": "SN-2023-00020"
   },
   {
-    "id": "SN-2023-000021",
+    "id": "SN-2023-00021",
     "observation_id": "obs-2023-008",
     "source_original": "media/originals/2345d49e372cd3e01030128f540e738.jpg",
     "view_type": "live_dorsal",
@@ -291,10 +291,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000021"
+    "public_id": "SN-2023-00021"
   },
   {
-    "id": "SN-2023-000022",
+    "id": "SN-2023-00022",
     "observation_id": "obs-2023-009",
     "source_original": "media/originals/745a047603d6ac8a3a80b6658d0e18b.jpg",
     "view_type": "behavior",
@@ -305,10 +305,10 @@
     "photographer_name": null,
     "license": "cc_by_nc_4_0",
     "visibility": "public",
-    "public_id": "SN-2023-000022"
+    "public_id": "SN-2023-00022"
   },
   {
-    "id": "SN-2023-000023",
+    "id": "SN-2023-00023",
     "observation_id": "obs-2023-010",
     "source_original": "media/originals/5ece0c7e0203c79870d851c2ac164ba.jpg",
     "view_type": "live_dorsal",
@@ -319,10 +319,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000023"
+    "public_id": "SN-2023-00023"
   },
   {
-    "id": "SN-2023-000024",
+    "id": "SN-2023-00024",
     "observation_id": "obs-2023-011",
     "source_original": "media/originals/f018ce8123502018e9050971b0039b8.jpg",
     "view_type": "live_frontal",
@@ -333,10 +333,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000024"
+    "public_id": "SN-2023-00024"
   },
   {
-    "id": "SN-2023-000025",
+    "id": "SN-2023-00025",
     "observation_id": "obs-2023-011",
     "source_original": "media/originals/图片1.jpg",
     "view_type": "other",
@@ -347,10 +347,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000025"
+    "public_id": "SN-2023-00025"
   },
   {
-    "id": "SN-2023-000026",
+    "id": "SN-2023-00026",
     "observation_id": "obs-2023-012",
     "source_original": "media/originals/340928da34d537750f59c079af3d8cf.jpg",
     "view_type": "live_dorsal",
@@ -361,10 +361,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000026"
+    "public_id": "SN-2023-00026"
   },
   {
-    "id": "SN-2023-000027",
+    "id": "SN-2023-00027",
     "observation_id": "obs-2023-013",
     "source_original": "media/originals/1c1c2cf093d83ad1079da262f8bee22.jpg",
     "view_type": "live_dorsal",
@@ -375,10 +375,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000027"
+    "public_id": "SN-2023-00027"
   },
   {
-    "id": "SN-2023-000028",
+    "id": "SN-2023-00028",
     "observation_id": "obs-2023-014",
     "source_original": "media/originals/00e432b04301fbb497eab1d7f9d5a27.jpg",
     "view_type": "live_frontal",
@@ -389,10 +389,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000028"
+    "public_id": "SN-2023-00028"
   },
   {
-    "id": "SN-2023-000029",
+    "id": "SN-2023-00029",
     "observation_id": "obs-2023-014",
     "source_original": "media/originals/094a31f5e643170f072065187b694a8.jpg",
     "view_type": "live_lateral",
@@ -403,10 +403,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2023-000029"
+    "public_id": "SN-2023-00029"
   },
   {
-    "id": "SN-2024-000001",
+    "id": "SN-2024-00001",
     "observation_id": "obs-2024-001",
     "source_original": "media/originals/da1f581ce555cd643f286bd9a602599.jpg",
     "view_type": "live_frontal",
@@ -417,10 +417,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2024-000001"
+    "public_id": "SN-2024-00001"
   },
   {
-    "id": "SN-2024-000002",
+    "id": "SN-2024-00002",
     "observation_id": "obs-2024-001",
     "source_original": "media/originals/23c62caf9227dea6942444265b8dbde.jpg",
     "view_type": "live_frontal",
@@ -431,10 +431,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2024-000002"
+    "public_id": "SN-2024-00002"
   },
   {
-    "id": "SN-2024-000003",
+    "id": "SN-2024-00003",
     "observation_id": "obs-2024-001",
     "source_original": "media/originals/dfe6ba10de41b5a092fd823928e838c.jpg",
     "view_type": "live_frontal",
@@ -445,10 +445,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2024-000003"
+    "public_id": "SN-2024-00003"
   },
   {
-    "id": "SN-2024-000004",
+    "id": "SN-2024-00004",
     "observation_id": "obs-2024-002",
     "source_original": "media/originals/c6d2a2eacf09390e6aeab2f537c10f1.jpg",
     "view_type": "behavior",
@@ -459,10 +459,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2024-000004"
+    "public_id": "SN-2024-00004"
   },
   {
-    "id": "SN-2024-000005",
+    "id": "SN-2024-00005",
     "observation_id": "obs-2024-003",
     "source_original": "media/originals/6189baa4380c13365c8765147004e15.jpg",
     "view_type": "live_frontal",
@@ -473,10 +473,10 @@
     "photographer_name": null,
     "license": "all_rights_reserved",
     "visibility": "public",
-    "public_id": "SN-2024-000005"
+    "public_id": "SN-2024-00005"
   },
   {
-    "id": "SN-2024-000006",
+    "id": "SN-2024-00006",
     "observation_id": "obs-2024-005",
     "source_original": "media/originals/c83c91649f5f58a7c592a817d6652ec.jpg",
     "view_type": "live_frontal",
@@ -487,6 +487,6 @@
     "photographer_name": null,
     "license": "cc_by_nc_4_0",
     "visibility": "private",
-    "public_id": "SN-2024-000006"
+    "public_id": "SN-2024-00006"
   }
 ]

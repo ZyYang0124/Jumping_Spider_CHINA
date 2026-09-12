@@ -45,7 +45,7 @@ export interface PublicLocation {
 
 export interface PublicMedia {
   id: string;
-  /** 稳定公开编号 SN-YYYY-NNNNNN */
+  /** 稳定公开编号 SN-YYYY-NNNNN */
   public_id: string;
   thumb: string;
   medium: string;

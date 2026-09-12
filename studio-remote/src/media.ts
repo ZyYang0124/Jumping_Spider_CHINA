@@ -45,7 +45,7 @@ export async function saveUpload(
   // 编号体系（2026-09）：只有照片对外编号 SN-YYYY-NNNNNN（按年计数）；观察不再对外编号
   const year = new Date().getFullYear();
   const seq = await nextCounter(env.DB, `sfn-media-${year}`);
-  const publicId = `SN-${year}-${pad6(seq)}`;
+  const publicId = `SN-${year}-${String(seq).padStart(5, '0')}`;
   const ext = f.type === 'image/png' ? '.png' : '.jpg';
   const origKey = `originals/${publicId}${ext}`;
 
