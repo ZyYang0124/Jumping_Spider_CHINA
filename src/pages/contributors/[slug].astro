@@ -37,7 +37,7 @@ const allMedia = observed.flatMap((o) => o.media);
 const featuredMedias = [...allMedia.filter((m) => m.caption), ...allMedia.filter((m) => !m.caption)].slice(0, 8);
 ---
 
-<Base title={c.name} description={c.bio ?? `${c.name} 在跳蛛观察志的记录。`}>
+<Base title={c.name} description={c.bio ?? `${c.name} 在红栏杆跳蛛观察志的记录。`}>
   {/* --- 人物 Hero：先看见人，再看见记录（§25/§26） --- */}
   <header class="cd-hero container">
     <div class="cd-photo">

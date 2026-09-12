@@ -480,7 +480,7 @@ export function page(
   const initial = user ? user.display_name.slice(0, 1) : '';
   const head = opts.editor
     ? `<a class="back" href="/studio"><span>← </span>工作台</a><div id="save-status" aria-live="polite"></div><div class="right">${opts.actions ?? ''}</div>`
-    : `<a class="brand" href="/studio">Studio<small>跳蛛观察志</small></a>
+    : `<a class="brand" href="/studio">Studio<small>红栏杆跳蛛观察志</small></a>
   <nav>
     <a href="/studio/observations/new">新建</a>
     <a href="/studio/notes/new">札记</a>
@@ -490,7 +490,7 @@ export function page(
     ${user?.role === 'owner' ? '<a href="/studio/places-manage">地点管理</a><a href="/studio/taxa-manage">类群管理</a><a href="/studio/quality">数据质量</a><a href="/studio/invite">邀请</a>' : ''}
   </nav>
   <div class="right">
-    <a class="site" href="${SITE_URL}" target="_blank" rel="noopener">跳蛛观察志 ↗</a>
+    <a class="site" href="${SITE_URL}" target="_blank" rel="noopener">红栏杆跳蛛观察志 ↗</a>
     ${user ? `<details class="avatar"><summary>${esc(initial)}</summary><div class="menu"><span class="who">${esc(user.display_name)}</span><a href="/studio/logout">退出登录</a></div></details>` : ''}
   </div>`;
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
@@ -506,10 +506,10 @@ export function loginPage(opts: { devNotice: boolean }): string {
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
-<title>登录 · 跳蛛观察志 Studio</title><link rel="stylesheet" href="/studio.css"></head>
+<title>登录 · 红栏杆跳蛛观察志 Studio</title><link rel="stylesheet" href="/studio.css"></head>
 <body>
   <div class="login-page"><div class="login-box">
-    <div class="login-brand">跳蛛观察志<b>Studio</b></div>
+    <div class="login-brand">红栏杆跳蛛观察志<b>Studio</b></div>
     <p class="login-tag">把一次相遇留下来。</p>
     <div id="step-email">
       <input type="email" id="login-email" placeholder="邮箱地址" autocomplete="email" autofocus />

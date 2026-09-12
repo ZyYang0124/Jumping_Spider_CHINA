@@ -123,7 +123,7 @@
     x.textAlign = 'left';
     // 底缘署名
     x.fillStyle = FAINT; x.font = '20px ' + SANS;
-    x.fillText('© ' + (D.photographer || '') + ' · 跳蛛观察志', margin, H - 36);
+    x.fillText('© ' + (D.photographer || '') + ' · 红栏杆跳蛛观察志', margin, H - 36);
     return c;
   }
 
@@ -163,9 +163,9 @@
     x.font = '22px ' + SANS; x.fillStyle = FAINT;
     x.fillText(D.range || '', margin, stripY + 52);
     x.textAlign = 'right';
-    x.fillText('跳蛛观察志', W - margin, stripY + 52);
+    x.fillText('红栏杆跳蛛观察志', W - margin, stripY + 52);
     if (MARK) {
-      var brandW = x.measureText('跳蛛观察志').width;
+      var brandW = x.measureText('红栏杆跳蛛观察志').width;
       var mh2 = 38, mw2 = (MARK.width / MARK.height) * mh2;
       x.drawImage(MARK, W - margin - brandW - 16 - mw2, stripY + 18, mw2, mh2);
     }
