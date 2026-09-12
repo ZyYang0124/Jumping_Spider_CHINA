@@ -3,7 +3,7 @@ export const prerender = true;
 import Base from '../../layouts/Base.astro';
 import { getAllPublicMedia, getPublicMediaDetail } from '../../lib/queries';
 import { withBase } from '../../lib/privacy';
-import { VIEW_TYPE_ZH, LICENSE_ZH, SEX_ZH, LIFE_STAGE_ZH, EVIDENCE_ZH } from '../../lib/labels';
+import { VIEW_TYPE_ZH, LICENSE_ZH, EVIDENCE_ZH } from '../../lib/labels';
 import { formatDate, sciNameHtml } from '../../lib/format';
 
 export function getStaticPaths() {
@@ -14,77 +14,157 @@ const { id } = Astro.params;
 const detail = getPublicMediaDetail(id!);
 if (!detail) return Astro.redirect(withBase('/media/'));
 const { media, observation: obs } = detail;
+
+// 上一张 / 下一张（全站公开档案按编号排序）
+const archive = getAllPublicMedia();
+const idx = archive.findIndex((e) => e.media.public_id === media.public_id);
+const prev = idx > 0 ? archive[idx - 1] : null;
+const next = idx >= 0 && idx < archive.length - 1 ? archive[idx + 1] : null;
 ---
 
 <Base title={`${media.public_id} · ${obs.identification_display ?? '未鉴定的跳蛛'}`} description={`${media.public_id} — ${obs.identification_display ?? '未鉴定的跳蛛'} 的影像记录。`}>
-  <div class="container-wide">
-    <div class="media-detail">
-      <figure class="media-detail-figure">
-        <img src={media.large} alt={media.caption ?? media.public_id} fetchpriority="high" width={media.width} height={media.height} />
-        {media.caption && <figcaption>{media.caption}</figcaption>}
-      </figure>
+  {/* --- 一张照片就是整个页面：完整构图，不裁切 --- */}
+  <figure class="md-hero">
+    <img src={media.large} alt={media.caption ?? media.public_id} fetchpriority="high" width={media.width} height={media.height} />
+  </figure>
 
-      <aside class="media-detail-meta">
-        <div class="side-block" style="border-top: none; padding-top: 0;">
-          <h3 class="side-kicker">影 像</h3>
-          {obs.identification_display ? (
-            <div class="side-primary">
-              <a href={withBase(`/species/${obs.identification_slug}/`)} style="text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px;">
-                <span set:html={sciNameHtml(obs.identification_display, obs.identification_rank ?? 'species')} />
-              </a>
-            </div>
-          ) : (
-            <div class="side-primary">未鉴定的跳蛛</div>
-          )}
-          <div class="side-secondary">{media.public_id}</div>
-          {obs.evidence && <div class="side-footnote">鉴定证据：{EVIDENCE_ZH[obs.evidence as keyof typeof EVIDENCE_ZH] ?? obs.evidence}</div>}
-        </div>
+  {/* --- 图下刊头：编号 → 学名主标题 → 图注 --- */}
+  <header class="md-head container">
+    <div class="md-id">{media.public_id}</div>
+    <h1 class="md-name">
+      {obs.identification_display ? (
+        <a href={obs.identification_slug ? withBase(`/species/${obs.identification_slug}/`) : undefined}>
+          <span set:html={sciNameHtml(obs.identification_display, obs.identification_rank ?? 'species')} />
+        </a>
+      ) : (
+        <span>未鉴定的跳蛛</span>
+      )}
+    </h1>
+    {media.caption && <p class="md-caption">{media.caption}</p>}
+    <div class="md-line">摄影 {media.photographer} · {VIEW_TYPE_ZH[media.view_type as keyof typeof VIEW_TYPE_ZH] ?? media.view_type}</div>
+  </header>
 
-        <div class="side-block">
-          <h3 class="side-kicker">观 察</h3>
-          <div class="side-secondary">
-            <a href={obs.url} style="text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px;">{obs.public_id} →</a><br />
-            {formatDate(obs.observed_at, obs.observed_at_precision)}
-          </div>
+  {/* --- 两栏 metadata（§22）：信息不删，视觉退后 --- */}
+  <section class="md-meta container">
+    <div class="md-col">
+      <div class="md-row">
+        <div class="k">来自观察</div>
+        <div class="v">
+          <a href={obs.url}>{obs.public_id} →</a>
+          <span class="sub">{formatDate(obs.observed_at, obs.observed_at_precision)}</span>
+          <span class="sub">{obs.place_line}</span>
         </div>
-
-        <div class="side-block">
-          <h3 class="side-kicker">地 点</h3>
-          <div class="side-secondary">{obs.place_line}</div>
-          <div class="side-footnote">
-            {obs.elevation_m != null && <>海拔约 {obs.elevation_m} m<br /></>}
-            {obs.place_latitude != null && obs.place_longitude != null && <>{obs.place_latitude.toFixed(5)}, {obs.place_longitude.toFixed(5)}<br />精确坐标公开</>}
-          </div>
+      </div>
+      <div class="md-row">
+        <div class="k">鉴定</div>
+        <div class="v">
+          {obs.identification_display ?? '未鉴定的跳蛛'}
+          {obs.evidence && <span class="sub">{EVIDENCE_ZH[obs.evidence as keyof typeof EVIDENCE_ZH] ?? obs.evidence}</span>}
         </div>
-
-        <div class="side-block">
-          <h3 class="side-kicker">记 录</h3>
-          <div class="side-list">
-            <div class="row"><span class="k">视角</span><span>{VIEW_TYPE_ZH[media.view_type as keyof typeof VIEW_TYPE_ZH] ?? media.view_type}</span></div>
-            <div class="row"><span class="k">性别</span><span>{SEX_ZH[obs.sex as keyof typeof SEX_ZH] ?? obs.sex}</span></div>
-            <div class="row"><span class="k">龄期</span><span>{LIFE_STAGE_ZH[obs.life_stage as keyof typeof LIFE_STAGE_ZH] ?? obs.life_stage}</span></div>
-          </div>
-        </div>
-
-        <div class="side-block">
-          <h3 class="side-kicker">署 名</h3>
-          <div class="side-secondary">
-            摄影 {media.photographer}<br />
-            © {media.photographer} · {LICENSE_ZH[detail.license as keyof typeof LICENSE_ZH] ?? detail.license}
-          </div>
-        </div>
-      </aside>
+      </div>
     </div>
-    <p class="disclaimer" style="padding-bottom: 60px;">
-      本页是单张影像的可引用档案页；如需完整观察情境，请前往对应观察记录。
-    </p>
-  </div>
+    <div class="md-col">
+      <div class="md-row">
+        <div class="k">拍摄信息</div>
+        <div class="v">
+          <span>视角：{VIEW_TYPE_ZH[media.view_type as keyof typeof VIEW_TYPE_ZH] ?? media.view_type}</span>
+          <span class="sub">原始宽高 {media.width} × {media.height}</span>
+        </div>
+      </div>
+      <div class="md-row">
+        <div class="k">地点</div>
+        <div class="v">
+          {obs.place_latitude != null && obs.place_longitude != null ? (
+            <>{obs.place_latitude.toFixed(5)}° · {obs.place_longitude.toFixed(5)}°<span class="sub">精确坐标公开</span></>
+          ) : (
+            '坐标待补充'
+          )}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {/* --- 页面动作：只保留三件（§23） --- */}
+  <nav class="md-actions container" aria-label="影像档案导航">
+    <button type="button" class="md-copy" data-copy-id={media.public_id}>复制编号</button>
+    {prev && <a class="md-nav" href={withBase(`/media/${prev.media.public_id}/`)}>← 上一张</a>}
+    {next && <a class="md-nav" href={withBase(`/media/${next.media.public_id}/`)}>下一张 →</a>}
+  </nav>
+
+  <p class="md-footnote container">本页是单张影像的可引用档案页；如需完整观察情境，请前往对应观察记录。© {media.photographer} · {LICENSE_ZH[detail.license as keyof typeof LICENSE_ZH] ?? detail.license}</p>
 </Base>
 
+<script>
+  function initCopyId() {
+    document.querySelectorAll<HTMLButtonElement>('[data-copy-id]').forEach((btn) => {
+      if (btn.dataset.init === '1') return;
+      btn.dataset.init = '1';
+      btn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(btn.dataset.copyId ?? '');
+          const old = btn.textContent;
+          btn.textContent = '已复制 ✓';
+          setTimeout(() => (btn.textContent = old), 1600);
+        } catch {
+          btn.textContent = btn.dataset.copyId ?? '';
+        }
+      });
+    });
+  }
+  document.addEventListener('astro:page-load', initCopyId);
+  initCopyId();
+</script>
+
 <style>
-  .media-detail { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 48px; padding: 40px 0 20px; }
-  @media (max-width: 900px) { .media-detail { grid-template-columns: 1fr; gap: 28px; } }
-  .media-detail-figure { margin: 0; }
-  .media-detail-figure img { width: 100%; height: auto; max-height: 78vh; object-fit: contain; background: var(--paper-deep); }
-  .media-detail-figure figcaption { font-size: 13px; color: var(--muted); padding-top: 10px; }
+  /* --- Hero：content-wide，contain 完整构图，不做 editorial crop（§20/§109） --- */
+  .md-hero {
+    margin: var(--s-5) auto 0; max-width: var(--content-wide); padding: 0 24px;
+  }
+  .md-hero img {
+    width: 100%; height: auto; max-height: 80vh; object-fit: contain;
+    background: var(--paper-deep); display: block;
+  }
+
+  /* --- 图下刊头 --- */
+  .md-head { padding: var(--s-6) 0 var(--s-4); }
+  .md-id { font-size: 13px; color: var(--faint); letter-spacing: 0.08em; }
+  .md-name {
+    font-family: var(--serif); font-weight: 400; /* 学名 weight 400（§8） */
+    font-size: clamp(28px, 4vw, 44px); margin: var(--s-2) 0 0;
+  }
+  .md-name a { color: inherit; text-decoration: none; }
+  .md-caption { font-size: 17px; line-height: 1.9; color: var(--ink); margin: var(--s-3) 0 0; max-width: 680px; }
+  .md-line { margin-top: var(--s-3); font-size: 13.5px; color: var(--muted); letter-spacing: 0.03em; }
+
+  /* --- 两栏 metadata（mobile 单列） --- */
+  .md-meta {
+    display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6) var(--s-8);
+    padding-top: var(--s-5); border-top: 1px solid var(--line-soft);
+  }
+  .md-row { display: grid; grid-template-columns: 88px 1fr; gap: var(--s-4); padding: var(--s-3) 0; }
+  .md-row .k { font-size: 13px; color: var(--faint); letter-spacing: 0.06em; }
+  .md-row .v { font-size: 15.5px; color: var(--ink); line-height: 1.7; display: flex; flex-direction: column; gap: 2px; }
+  .md-row .v a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .md-row .v a:hover { color: var(--terra); text-decoration-color: var(--terra); }
+  .md-row .sub { font-size: 13px; color: var(--muted); }
+
+  /* --- 动作与脚注：非常轻 --- */
+  .md-actions {
+    display: flex; gap: var(--s-5); align-items: center; flex-wrap: wrap;
+    margin-top: var(--s-7); padding-top: var(--s-4); border-top: 1px solid var(--line-soft);
+  }
+  .md-nav { font-size: 14px; color: var(--muted); text-decoration: none; }
+  .md-nav:hover { color: var(--terra); }
+  .md-copy {
+    font: inherit; font-size: 13px; color: var(--muted); background: none;
+    border: 1px solid var(--line); border-radius: 4px; padding: 5px 14px; cursor: pointer;
+  }
+  .md-copy:hover { color: var(--ink); border-color: var(--faint); }
+  .md-footnote { margin-top: var(--s-7); padding-bottom: var(--s-8); font-size: 12.5px; color: var(--faint); line-height: 1.9; }
+
+  @media (max-width: 700px) {
+    .md-meta { grid-template-columns: 1fr; gap: var(--s-4); }
+    .md-hero { padding: 0 16px; }
+    .md-hero img { max-height: 62vh; }
+  }
 </style>
