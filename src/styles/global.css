@@ -255,7 +255,7 @@ a:hover { color: var(--terra); }
   border-bottom: 1px solid var(--line);
 }
 .obs-hero img {
-  width: 100%; aspect-ratio: 21 / 9; object-fit: cover;
+  width: 100%; height: 100%; object-fit: cover;
   transition: opacity var(--motion-normal) ease;
 }
 .obs-hero .frame:hover img { opacity: 0.94; }
