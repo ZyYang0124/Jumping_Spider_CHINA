@@ -1,6 +1,5 @@
 ---
 import '../styles/global.css';
-import EightEyes from '../components/EightEyes.astro';
 import { ClientRouter } from 'astro:transitions';
 import { siteConfig } from '../lib/store';
 import { withBase } from '../lib/privacy';
@@ -38,7 +37,8 @@ const nav = [
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle}</title>
     <meta name="description" content={description} />
-    <link rel="icon" href={withBase('/favicon.svg')} type="image/svg+xml" />
+    <link rel="icon" href={withBase('/favicon-32.png')} type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href={withBase('/favicon-180.png')} />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={ogImageAbs} />
@@ -62,19 +62,7 @@ const nav = [
     <header class="site-header" transition:persist>
       <div class="inner">
         <a class="brand" href={withBase('/')}>
-          <svg class="brand-mark" width="34" height="22" viewBox="20 40 200 130" aria-hidden="true">
-            <g stroke="#26221c" stroke-width="7.5" stroke-linecap="round" fill="none">
-              <path d="M100 84 L74 54 L58 72" /><path d="M140 84 L166 54 L182 72" />
-              <path d="M94 94 L60 90 L44 108" /><path d="M146 94 L180 90 L196 108" />
-              <path d="M99 104 L72 122 L60 131" /><path d="M141 104 L168 122 L180 131" />
-              <path d="M108 110 L98 128 L92 130" /><path d="M132 110 L142 128 L148 130" />
-            </g>
-            <circle cx="120" cy="58" r="21" fill="#26221c" />
-            <circle cx="120" cy="90" r="25" fill="#26221c" />
-            <circle cx="110" cy="84" r="7" fill="#f7f5f0" /><circle cx="130" cy="84" r="7" fill="#f7f5f0" />
-            <circle cx="110" cy="84" r="2.6" fill="#26221c" /><circle cx="130" cy="84" r="2.6" fill="#26221c" />
-            <rect x="26" y="131" width="188" height="9" fill="#b5402c" />
-          </svg>
+          <img class="brand-mark" src={withBase('/logo-mark.png')} alt="" width="30" height="31" />
           <span class="zh">{siteConfig.site_name}</span>
           <span class="en">{siteConfig.site_name_en}</span>
         </a>
@@ -108,7 +96,7 @@ const nav = [
 
     <footer class="site-footer" data-railing>
       <div class="inner">
-        <div class="mark"><EightEyes size={34} /></div>
+        <div class="mark"><img src={withBase('/logo-mark.png')} alt="" width="38" height="40" /></div>
         <div class="fn">{siteConfig.site_name}</div>
         <div class="fen">{siteConfig.site_name_en}</div>
         <p class="motto">每一条记录，都始于一次相遇。</p>
