@@ -27,7 +27,7 @@ import { renderArticle } from './article';
 import { buildResolvers } from './embeds';
 import { buildExportZip } from './export';
 import { syncToGitHub } from './github';
-import { esc, loginPage, mediaPage, noteEditorHtml, obsEditorHtml, page, STYLES, homePage, draftsPage, relTime, taxaManagePage, type FeedItem } from './pages';
+import { esc, loginPage, mediaPage, noteEditorHtml, obsEditorHtml, page, STYLES, homePage, draftsPage, dataPage, relTime, taxaManagePage, type FeedItem } from './pages';
 import { invitePage } from './invites';
 import { OBS_EDITOR_SCRIPT, NOTE_EDITOR_SCRIPT, LOGIN_SCRIPT, PROFILE_SCRIPT } from './editorjs';
 import { allTaxonOptions, createWorkingTaxon, findTaxonOptionBySlug, mergeWorkingTaxon, renameWorkingTaxon } from './taxa';
@@ -946,6 +946,12 @@ app.post('/studio/api/places', async (c) => {
 });
 
 // ---------- 数据质量（§13，quality control 而非审核） ----------
+
+app.get('/studio/data', async (c) => {
+  const u = user(c);
+  if (u.role !== 'owner') return c.text('只有站长可以访问数据页。', 403);
+  return c.html(dataPage(u));
+});
 
 app.get('/studio/quality', async (c) => {
   const u = user(c);
