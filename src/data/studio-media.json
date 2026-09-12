@@ -1,9 +1,9 @@
 [
   {
-    "id": "SFN-M-000001",
-    "public_id": "SFN-M-000001",
+    "id": "SN-2026-000001",
+    "public_id": "SN-2026-000001",
     "observation_id": "studio-12",
-    "source_original": "media/originals/SFN-M-000001.jpg",
+    "source_original": "media/originals/SN-2026-000001.jpg",
     "view_type": "live_dorsal",
     "caption": "",
     "sort_order": 1,
@@ -14,10 +14,10 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000002",
-    "public_id": "SFN-M-000002",
+    "id": "SN-2026-000002",
+    "public_id": "SN-2026-000002",
     "observation_id": "studio-13",
-    "source_original": "media/originals/SFN-M-000002.jpg",
+    "source_original": "media/originals/SN-2026-000002.jpg",
     "view_type": "live_dorsal",
     "caption": "",
     "sort_order": 1,
@@ -28,10 +28,10 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000005",
-    "public_id": "SFN-M-000005",
+    "id": "SN-2026-000003",
+    "public_id": "SN-2026-000003",
     "observation_id": "studio-14",
-    "source_original": "media/originals/SFN-M-000005.jpg",
+    "source_original": "media/originals/SN-2026-000003.jpg",
     "view_type": "live_dorsal",
     "caption": null,
     "sort_order": 1,
@@ -42,10 +42,10 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000003",
-    "public_id": "SFN-M-000003",
+    "id": "SN-2026-000004",
+    "public_id": "SN-2026-000004",
     "observation_id": "studio-14",
-    "source_original": "media/originals/SFN-M-000003.jpg",
+    "source_original": "media/originals/SN-2026-000004.jpg",
     "view_type": "live_dorsal",
     "caption": "",
     "sort_order": 2,
@@ -56,10 +56,10 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000004",
-    "public_id": "SFN-M-000004",
+    "id": "SN-2026-000005",
+    "public_id": "SN-2026-000005",
     "observation_id": "studio-14",
-    "source_original": "media/originals/SFN-M-000004.jpg",
+    "source_original": "media/originals/SN-2026-000005.jpg",
     "view_type": "live_dorsal",
     "caption": null,
     "sort_order": 3,
@@ -70,10 +70,10 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000006",
-    "public_id": "SFN-M-000006",
+    "id": "SN-2026-000006",
+    "public_id": "SN-2026-000006",
     "observation_id": "studio-14",
-    "source_original": "media/originals/SFN-M-000006.jpg",
+    "source_original": "media/originals/SN-2026-000006.jpg",
     "view_type": "live_dorsal",
     "caption": null,
     "sort_order": 4,
@@ -84,10 +84,10 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000007",
-    "public_id": "SFN-M-000007",
+    "id": "SN-2026-000007",
+    "public_id": "SN-2026-000007",
     "observation_id": "studio-14",
-    "source_original": "media/originals/SFN-M-000007.jpg",
+    "source_original": "media/originals/SN-2026-000007.jpg",
     "view_type": "live_dorsal",
     "caption": null,
     "sort_order": 5,
@@ -98,10 +98,10 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000056",
-    "public_id": "SFN-M-000056",
+    "id": "SN-2026-000008",
+    "public_id": "SN-2026-000008",
     "observation_id": "studio-17",
-    "source_original": "media/originals/SFN-M-000056.jpg",
+    "source_original": "media/originals/SN-2026-000008.jpg",
     "view_type": "live_dorsal",
     "caption": null,
     "sort_order": 1,
@@ -112,10 +112,10 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000057",
-    "public_id": "SFN-M-000057",
+    "id": "SN-2026-000009",
+    "public_id": "SN-2026-000009",
     "observation_id": "studio-17",
-    "source_original": "media/originals/SFN-M-000057.jpg",
+    "source_original": "media/originals/SN-2026-000009.jpg",
     "view_type": "live_dorsal",
     "caption": null,
     "sort_order": 2,
@@ -126,10 +126,10 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000067",
-    "public_id": "SFN-M-000067",
+    "id": "SN-2026-000010",
+    "public_id": "SN-2026-000010",
     "observation_id": "studio-18",
-    "source_original": "media/originals/SFN-M-000067.jpg",
+    "source_original": "media/originals/SN-2026-000010.jpg",
     "view_type": "live_dorsal",
     "caption": null,
     "sort_order": 1,
@@ -140,10 +140,10 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000068",
-    "public_id": "SFN-M-000068",
+    "id": "SN-2026-000011",
+    "public_id": "SN-2026-000011",
     "observation_id": "studio-19",
-    "source_original": "media/originals/SFN-M-000068.jpg",
+    "source_original": "media/originals/SN-2026-000011.jpg",
     "view_type": "live_dorsal",
     "caption": null,
     "sort_order": 1,
@@ -154,10 +154,10 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000069",
-    "public_id": "SFN-M-000069",
+    "id": "SN-2026-000012",
+    "public_id": "SN-2026-000012",
     "observation_id": "studio-19",
-    "source_original": "media/originals/SFN-M-000069.jpg",
+    "source_original": "media/originals/SN-2026-000012.jpg",
     "view_type": "live_dorsal",
     "caption": null,
     "sort_order": 2,
@@ -168,10 +168,10 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000070",
-    "public_id": "SFN-M-000070",
+    "id": "SN-2026-000013",
+    "public_id": "SN-2026-000013",
     "observation_id": "studio-20",
-    "source_original": "media/originals/SFN-M-000070.png",
+    "source_original": "media/originals/SN-2026-000013.png",
     "view_type": "live_dorsal",
     "caption": null,
     "sort_order": 1,
@@ -182,10 +182,10 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000066",
-    "public_id": "SFN-M-000066",
+    "id": "SN-2026-000014",
+    "public_id": "SN-2026-000014",
     "observation_id": null,
-    "source_original": "media/originals/SFN-M-000066.jpg",
+    "source_original": "media/originals/SN-2026-000014.jpg",
     "view_type": "live_dorsal",
     "caption": null,
     "sort_order": 1,
@@ -196,10 +196,10 @@
     "visibility": "public"
   },
   {
-    "id": "SFN-M-000072",
-    "public_id": "SFN-M-000072",
+    "id": "SN-2026-000015",
+    "public_id": "SN-2026-000015",
     "observation_id": null,
-    "source_original": "media/originals/SFN-M-000072.jpg",
+    "source_original": "media/originals/SN-2026-000015.jpg",
     "view_type": "live_portrait",
     "caption": null,
     "sort_order": 1,

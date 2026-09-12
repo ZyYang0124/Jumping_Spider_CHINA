@@ -35,6 +35,7 @@ const shareData = {
   lat: loc.latitude,
   lng: loc.longitude,
   photographer,
+  mediaId: (obs.cover ?? obs.media[0])?.public_id ?? null,
   mediaUrl: (obs.cover ?? obs.media[0])?.large ?? null,
   site: '跳蛛观察志',
   encounters: idGroup ? `${idGroup.observations.length} 次相遇` : null,
@@ -89,7 +90,6 @@ const gallery = obs.media.filter((m) => m.id !== obs.cover?.id);
       {locationLine(loc)}<br />
       {formatDate(obs.observed_at, obs.observed_at_precision)} · 观察者 {obs.observer_name}
     </div>
-    <div class="obs-pid">{obs.public_id}</div>
   </header>
 
   <section class="obs-note container-narrow">
@@ -253,7 +253,6 @@ const gallery = obs.media.filter((m) => m.id !== obs.cover?.id);
   }
   .obs-head h1 a { color: inherit; text-decoration: none; }
   .obs-where { margin-top: var(--s-3); font-size: 15.5px; color: var(--muted); line-height: 1.85; }
-  .obs-pid { margin-top: var(--s-3); font-size: 13px; color: var(--faint); letter-spacing: 0.08em; }
 
   /* ---- 野外笔记：第二视觉重点，无卡片背景（§60） ---- */
   .obs-note { margin: var(--s-7) auto; }

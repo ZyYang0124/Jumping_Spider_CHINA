@@ -42,8 +42,10 @@ export async function saveUpload(
     if (!/^\d{3,4}\.(jpg|webp|avif)$/.test(v.name)) bad(`派生图命名不合法：${v.name}`);
   }
 
-  const seq = await nextCounter(env.DB, 'sfn-media');
-  const publicId = `SFN-M-${pad6(seq)}`;
+  // 编号体系（2026-09）：只有照片对外编号 SN-YYYY-NNNNNN（按年计数）；观察不再对外编号
+  const year = new Date().getFullYear();
+  const seq = await nextCounter(env.DB, `sfn-media-${year}`);
+  const publicId = `SN-${year}-${pad6(seq)}`;
   const ext = f.type === 'image/png' ? '.png' : '.jpg';
   const origKey = `originals/${publicId}${ext}`;
 

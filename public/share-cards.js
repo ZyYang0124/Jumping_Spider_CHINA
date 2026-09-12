@@ -108,7 +108,7 @@
     // 右：编号 + 二维码 + 红栏杆线
     x.fillStyle = FAINT; x.font = '22px ' + SANS;
     x.textAlign = 'right';
-    x.fillText(D.publicId, W - margin - 190, photoH + 106);
+    x.fillText(D.mediaId || D.publicId, W - margin - 190, photoH + 106);
     if (drawQR(x, pageUrl(), W - margin - 170, photoH + 40, 130)) {
       x.textAlign = 'right'; x.fillStyle = FAINT; x.font = '18px ' + SANS;
       x.fillText('扫码查看本页', W - margin - 105, photoH + 196);
@@ -116,7 +116,7 @@
     x.fillStyle = RED; x.fillRect(W - margin - 34, photoH + 148, 34, 2);
     if (MARK) {
       x.font = '22px ' + SANS;
-      var idw = x.measureText(String(D.publicId)).width;
+      var idw = x.measureText(String(D.mediaId || D.publicId)).width;
       var mh = 72, mw = (MARK.width / MARK.height) * mh;
       x.drawImage(MARK, W - margin - 190 - idw - 28 - mw, photoH + 76, mw, mh);
     }
@@ -227,7 +227,7 @@
     if (btn) { btn.disabled = true; btn.textContent = '正在生成…'; }
     var finish = function (canvas) {
       if (btn) { btn.disabled = false; btn.textContent = kind === 'postcard' ? '导出明信片' : '物种身份卡'; }
-      openWith(canvas, 'SalticidNotes-' + D.publicId + (kind === 'postcard' ? '-明信片' : '-身份卡') + '.png');
+      openWith(canvas, 'SN-' + (D.mediaId || D.publicId) + (kind === 'postcard' ? '-明信片' : '-身份卡') + '.png');
     };
     var fail = function (msg) {
       if (btn) { btn.disabled = false; btn.textContent = kind === 'postcard' ? '导出明信片' : '物种身份卡'; }

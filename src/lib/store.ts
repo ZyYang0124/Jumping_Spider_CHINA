@@ -131,7 +131,7 @@ function validate(): void {
   for (const m of media) {
     // observation_id 为 null 仅限札记独立插图（Studio 导出；只服务札记正文，不挂观察）
     if (m.observation_id !== null && !observationIds.has(m.observation_id)) fail(`媒体 ${m.id} 指向不存在的观察`);
-    if (!/^SFN-M-\d{6}$/.test(m.public_id)) fail(`媒体 ${m.id} 的 public_id 格式非法：${m.public_id}`);
+    if (!/^SN-\d{4}-\d{6}$/.test(m.public_id)) fail(`媒体 ${m.id} 的 public_id 格式非法：${m.public_id}（照片编号 SN-年份-流水）`);
     if (mediaPublicIds.has(m.public_id)) fail(`媒体 public_id 重复：${m.public_id}`);
     mediaPublicIds.add(m.public_id);
     if (m.photographer_profile_id && !profileIds.has(m.photographer_profile_id)) {

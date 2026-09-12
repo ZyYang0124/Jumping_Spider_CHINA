@@ -805,6 +805,67 @@ app.post('/studio/api/taxa/merge', async (c) => {
   return c.json({ ok: true, moved: res.moved, targetName: res.targetName });
 });
 
+// 一次性迁移：SFN-M-NNNNNN → SN-YYYY-NNNNNN（年取关联观察拍摄年，缺省当年）。
+// 幂等：已是 SN- 的行跳过；完成后把按年计数器校准到已用最大序号。
+app.post('/studio/api/migrate/renumber-media', async (c) => {
+  const u = user(c);
+  if (u.role !== 'owner') return c.json({ error: '只有站长可以执行迁移' }, 403);
+  if (!sameOrigin(c.req.raw)) return c.json({ error: 'Forbidden' }, 403);
+  const rows = await all<any>(c.env.DB, "SELECT id, public_id, orig_ext, variants, observation_id FROM media WHERE public_id LIKE 'SFN-M-%' ORDER BY id");
+  const yearSeq: Record<number, number> = {};
+  const mapping: { old: string; neo: string }[] = [];
+  for (const m of rows) {
+    const obsYear = m.observation_id
+      ? (await get<{ y: string | null }>(c.env.DB, 'SELECT strftime("%Y", observed_at) AS y FROM observations WHERE id = ?', m.observation_id))?.y
+      : null;
+    const year = Number(obsYear) || new Date().getFullYear();
+    // 幂等：目标号已被占用（部分成功过的重跑）则顺延，保证唯一
+    let seq = (yearSeq[year] ?? 0) + 1;
+    let neo = `SN-${year}-${pad6(seq)}`;
+    while (await get(c.env.DB, 'SELECT 1 FROM media WHERE public_id = ?', neo)) {
+      seq += 1;
+      neo = `SN-${year}-${pad6(seq)}`;
+    }
+    yearSeq[year] = seq;
+    mapping.push({ old: m.public_id, neo });
+  }
+  const errors: { id: string; step: string; message: string }[] = [];
+  for (const { old: oldId, neo } of mapping) {
+    try {
+    const row = await get<any>(c.env.DB, 'SELECT orig_ext, variants FROM media WHERE public_id = ?', oldId);
+    if (!row) continue;
+    const ext = row.orig_ext || '.jpg';
+    const orig = await c.env.MEDIA.get(`originals/${oldId}${ext}`);
+    if (orig) {
+      await c.env.MEDIA.put(`originals/${neo}${ext}`, orig.body, { httpMetadata: orig.httpMetadata });
+      await c.env.MEDIA.delete(`originals/${oldId}${ext}`);
+    }
+    for (const v of JSON.parse(row.variants || '[]') as string[]) {
+      const dv = await c.env.MEDIA.get(`derivatives/${oldId}-${v}`);
+      if (dv) {
+        await c.env.MEDIA.put(`derivatives/${neo}-${v}`, dv.body, { httpMetadata: dv.httpMetadata });
+        await c.env.MEDIA.delete(`derivatives/${oldId}-${v}`);
+      }
+    }
+    await run(c.env.DB, 'UPDATE media SET public_id = ?, file_stem = ? WHERE public_id = ?', neo, neo, oldId);
+    await run(c.env.DB, 'UPDATE synced_originals SET public_id = ? WHERE public_id = ?', neo, oldId);
+    // posts 表无 body_html 列（导出时即时渲染），只替换 body_md
+    await run(c.env.DB, 'UPDATE posts SET body_md = REPLACE(body_md, ?, ?) WHERE body_md LIKE ?',
+      `media:${oldId}`, `media:${neo}`, `%media:${oldId}%`);
+    } catch (err: any) {
+      errors.push({ id: oldId, step: 'migrate', message: String(err?.message ?? err) });
+    }
+  }
+  for (const [year, n] of Object.entries(yearSeq)) {
+    await run(c.env.DB,
+      `INSERT INTO counters (name, value) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET value = MAX(value, excluded.value)`,
+      `sfn-media-${year}`, n);
+  }
+  await audit(c.env, u.display_name, 'media', null, 'renumber-media', { count: mapping.length, errors: errors.length });
+  if (errors.length) return c.json({ ok: false, migrated: mapping.length - errors.length, mapping, errors }, 500);
+  return c.json({ ok: true, migrated: mapping.length, mapping });
+});
+
 app.post('/studio/api/wsc/revalidate', async (c) => {
   const u = user(c);
   if (u.role !== 'owner') return c.json({ error: '只有站长可以重校验' }, 403);
