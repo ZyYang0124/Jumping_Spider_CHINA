@@ -73,16 +73,18 @@ import { withBase } from '../lib/privacy';
 
 <style>
   .about-page { position: relative; }
+  /* 水印相对视口固定：文字滚动，画作不动 */
   .about-art {
-    position: absolute; top: -10px; right: -140px;
+    position: fixed; top: 50%; right: -140px; transform: translateY(-50%);
     width: min(50vw, 520px); opacity: 0.07;
     pointer-events: none; user-select: none; z-index: 0;
   }
   .about-art img { width: 100%; height: auto; }
   .about-page > .page-title,
   .about-page > .about-body { position: relative; z-index: 1; }
-  /* mobile：水印居中缩小，避免干扰窄栏阅读 */
+  /* mobile：居中缩小，避免干扰窄栏阅读 */
   @media (max-width: 860px) {
-    .about-art { right: 50%; transform: translateX(50%); top: 120px; width: min(78vw, 380px); opacity: 0.055; }
+    .about-art { right: 50%; transform: translate(50%, -50%); width: min(78vw, 380px); opacity: 0.055; }
   }
+  /* 减少动态偏好：固定背景同样成立，无需特殊处理（§127） */
 </style>
