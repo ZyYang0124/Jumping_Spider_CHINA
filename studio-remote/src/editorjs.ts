@@ -813,11 +813,19 @@ const OBS_EDITOR_JS = `
       return;
     }
     var publishing = status !== 'published'; // draft/private → 发布上线；published → 保存修改
-    setStatus(publishing ? '正在检查…' : '正在保存…');
+    setStatus(publishing ? '正在检查…（含 WSC 学名校验）' : '正在保存…');
     saveNow(true, !publishing).then(function () {
       if (!publicId) { btn.disabled = false; setStatus('保存失败，无法发布', true); return; }
       if (publishing) {
-        return fetch('/studio/api/observations/' + publicId + '/publish', { method: 'POST' }).then(readJson);
+        return fetch('/studio/api/observations/' + publicId + '/publish', { method: 'POST' }).then(readJson).then(function (j) {
+          if (j && j.ok && j.warnings && j.warnings.length) {
+            // WSC 建议（不阻塞发布）：醒目展示
+            setStatus(j.warnings[0], true);
+            if (j.warnings.length > 1) alert(j.warnings.join('
+'));
+          }
+          return j;
+        });
       }
       // 保存修改：显式保存已在 PATCH 中带 explicit，服务端负责审计与同步
       return fetch('/studio/api/observations/' + publicId, {

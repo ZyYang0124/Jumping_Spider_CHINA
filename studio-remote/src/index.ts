@@ -31,6 +31,7 @@ import { esc, loginPage, mediaPage, noteEditorHtml, obsEditorHtml, page, STYLES,
 import { invitePage } from './invites';
 import { OBS_EDITOR_SCRIPT, NOTE_EDITOR_SCRIPT, LOGIN_SCRIPT, PROFILE_SCRIPT } from './editorjs';
 import { allTaxonOptions, createWorkingTaxon, findTaxonOptionBySlug, mergeWorkingTaxon, renameWorkingTaxon } from './taxa';
+import { validateFormalName } from './wsc';
 
 const app = new Hono<{ Bindings: Env; Variables: { user: StudioUser } }>();
 
@@ -594,6 +595,25 @@ app.post('/studio/api/observations/:public_id/publish', async (c) => {
   if ((photoCount?.c ?? 0) === 0) problems.push('至少需要一张照片');
   if (problems.length) return c.json({ error: problems.join('；') }, 400);
 
+  // WSC 正式学名核验：属名 WSC 不存在 → 拦截发布；种名不存在 → 警告并建议 sp（不阻塞）
+  const warnings: string[] = [];
+  const currentIdn = await get<{ display_identification: string }>(
+    c.env.DB,
+    'SELECT display_identification FROM identifications WHERE observation_id = ? AND is_current = 1',
+    obs.id,
+  );
+  if (currentIdn) {
+    const v = await validateFormalName(c.env, currentIdn.display_identification);
+    if (v.checked && !v.genusKnown) {
+      return c.json({ error: `WSC 无此属名——请核对「${currentIdn.display_identification}」的属名拼写；如为存疑或未发表类群，请改用工作编号。` }, 400);
+    }
+    if (v.checked && v.speciesKnown === false) {
+      const genus = currentIdn.display_identification.trim().split(/\s+/)[0];
+      warnings.push(`WSC 无组合「${currentIdn.display_identification}」——若为存疑鉴定，建议记为「${genus} sp.」或使用工作编号，并待分类学研究明确。`);
+      await audit(c.env, u.display_name, 'taxon', obs.public_id, 'wsc.species-unknown', { name: currentIdn.display_identification });
+    }
+  }
+
   await run(
     c.env.DB,
     "UPDATE observations SET status = 'published', visibility = 'public', updated_at = datetime('now'), published_at = COALESCE(NULLIF(published_at, ''), datetime('now')) WHERE id = ?",
@@ -626,7 +646,7 @@ app.post('/studio/api/observations/:public_id/publish', async (c) => {
       audit(c.env, u.display_name, 'github-sync', obs.public_id, r.ok ? 'sync-ok: ' + r.detail : 'sync-fail: ' + r.detail),
     ),
   );
-  return c.json({ ok: true, public_url: `/observations/${obs.public_id}/`, status: 'published', sync: 'queued' });
+  return c.json({ ok: true, public_url: `/observations/${obs.public_id}/`, status: 'published', sync: 'queued', warnings });
 });
 
 app.post('/studio/api/observations/:public_id/private', async (c) => {
@@ -785,6 +805,15 @@ app.post('/studio/api/taxa/merge', async (c) => {
   return c.json({ ok: true, moved: res.moved, targetName: res.targetName });
 });
 
+app.post('/studio/api/wsc/revalidate', async (c) => {
+  const u = user(c);
+  if (u.role !== 'owner') return c.json({ error: '只有站长可以重校验' }, 403);
+  if (!sameOrigin(c.req.raw)) return c.json({ error: 'Forbidden' }, 403);
+  const stats = await runWscRevalidation(c.env);
+  await audit(c.env, u.display_name, 'taxon', null, 'wsc.revalidated', stats);
+  return c.json({ ok: true, ...stats });
+});
+
 app.get('/studio/taxa-manage', async (c) => {
   const u = user(c);
   if (u.role !== 'owner') return c.text('只有站长可以管理类群。', 403);
@@ -857,6 +886,10 @@ app.get('/studio/quality', async (c) => {
   const future = await all<any>(c.env.DB, "SELECT public_id, observed_at FROM observations WHERE observed_at > ? AND status != 'archived' ORDER BY observed_at", today);
   const noPlace = await all<any>(c.env.DB, "SELECT public_id, status FROM observations WHERE place_id IS NULL AND status != 'archived' ORDER BY public_id");
   const noGps = await all<any>(c.env.DB, "SELECT public_id FROM observations WHERE (exact_latitude IS NULL OR exact_longitude IS NULL) AND status = 'published' ORDER BY public_id");
+  const wscFindings = await all<{ name: string; kind: string }>(
+    c.env.DB,
+    'SELECT name, kind FROM wsc_findings WHERE resolved = 0 ORDER BY created_at DESC LIMIT 20',
+  );
   const dupPlaces = await all<any>(c.env.DB, "SELECT name, COUNT(*) c, GROUP_CONCAT(id) ids FROM places WHERE merged_into_id IS NULL GROUP BY lower(name) HAVING c > 1");
   const unidentified = await all<any>(c.env.DB, "SELECT o.public_id FROM observations o LEFT JOIN identifications i ON i.observation_id = o.id AND i.is_current = 1 WHERE o.status = 'published' AND i.id IS NULL ORDER BY o.public_id");
   const noPhotographer = await all<any>(c.env.DB, "SELECT public_id FROM media WHERE photographer_name IS NULL AND visibility = 'public'");
@@ -870,6 +903,7 @@ app.get('/studio/quality', async (c) => {
     { label: '已发布但未鉴定', hint: '未知是一等公民，不急。', rows: unidentified.map((r) => ({ text: r.public_id, href: editUrl(r.public_id) })) },
     { label: '公开影像缺摄影者', hint: '每张照片都该有署名。', rows: noPhotographer.map((r) => ({ text: r.public_id, href: editUrl(r.obs ?? r.public_id) })) },
     { label: '已发布但无封面图', hint: '没有封面不影响公开，但列表里不好看。', rows: noCover.map((r) => ({ text: r.public_id, href: editUrl(r.public_id) })) },
+    { label: 'WSC 变动', hint: 'World Spider Catalog 侧检测到分类学变动——确认后在「类群管理」改名或合并。', rows: wscFindings.map((f) => ({ text: `${f.name}（${f.kind === 'genus-missing' ? '属名查无' : '种组合查无'}）`, href: '/studio/taxa-manage' })) },
   ];
   const body = sections
     .map(
@@ -1220,4 +1254,83 @@ app.get('/studio/export', async (c) => {
 
 app.notFound((c) => c.text('Not Found', 404));
 
-export default app;
+export default {
+  fetch: app.fetch,
+  // 周任务（cron：UTC 周一 21:00）：清缓存后重校验全部已发布正式学名，检测 WSC 端分类学变动。
+  // 变动写入 wsc_findings（数据质量页呈现）；改名动作仍由站长在「类群管理」一键执行——
+  // 分类学判断保留人工确认，机器只负责发现与提醒。
+  async scheduled(_event: unknown, env: Env, ctx: { waitUntil: (p: Promise<unknown>) => void }) {
+    ctx.waitUntil(runWscRevalidation(env));
+  },
+};
+
+/** WSC 周重校验主体：清缓存 → 重验已发布正式学名 → 与旧状态比对写 findings。cron 与手动触发共用。 */
+export async function runWscRevalidation(env: Env): Promise<{ checked: number; newFindings: number }> {
+    {
+      const { all, run } = await import('./db');
+      const previous = new Map<string, { exists: boolean; status: string | null }>();
+      const oldRows = await all<{ name: string; exists_wsc: number; status: string | null }>(
+        env.DB, 'SELECT name, exists_wsc, status FROM wsc_cache',
+      );
+      for (const r of oldRows) previous.set(r.name, { exists: r.exists_wsc === 1, status: r.status });
+      await run(env.DB, "DELETE FROM wsc_cache");
+
+      const rows = await all<{ slug: string; display: string }>(
+        env.DB,
+        `SELECT DISTINCT i.taxon_slug AS slug, i.display_identification AS display
+         FROM identifications i JOIN observations o ON o.id = i.observation_id
+         WHERE i.is_current = 1 AND o.status = 'published'`,
+      );
+      const currentProblems = new Set<string>();
+      let wscFindingsCreated = 0;
+      for (const row of rows) {
+        if (!row.slug) continue;
+        const v = await validateFormalName(env, row.display);
+        if (!v.checked) continue;
+        const gKey = 'g:' + row.display.split(/\s+/)[0].toLowerCase();
+        const nowGenus = v.genusKnown;
+        const before = previous.get(gKey);
+        // 属名从有到无：WSC 端属级变动（拆分/移出）
+        if (before && before.exists && !nowGenus) {
+          currentProblems.add(row.slug + ':genus-missing');
+          const dup = await get(env.DB, "SELECT id FROM wsc_findings WHERE slug = ? AND kind = 'genus-missing' AND resolved = 0", row.slug);
+          if (!dup) {
+            wscFindingsCreated++;
+            await run(env.DB,
+              "INSERT INTO wsc_findings (slug, name, kind, detail) VALUES (?,?,?,?)",
+              row.slug, row.display, 'genus-missing',
+              `WSC 现查不到属名——该属可能已被拆分或转移，请核对当前有效名。`);
+            await audit(env, 'wsc-cron', 'taxon', row.slug, 'wsc.genus-missing', { name: row.display });
+          }
+        }
+        if (v.speciesKnown === false) {
+          // 种组合查无：可能被同物异名合并或转移；与上次状态比对，仅记录真实变动
+          const beforeS = previous.get('s:' + row.display.toLowerCase());
+          if (beforeS && beforeS.exists) {
+            currentProblems.add(row.slug + ':species-missing');
+            const dup = await get(env.DB, "SELECT id FROM wsc_findings WHERE slug = ? AND kind = 'species-missing' AND resolved = 0", row.slug);
+            if (!dup) {
+              wscFindingsCreated++;
+              await run(env.DB,
+                "INSERT INTO wsc_findings (slug, name, kind, detail) VALUES (?,?,?,?)",
+                row.slug, row.display, 'species-missing',
+                `WSC 现查不到该组合——可能已沦为异名或转移至他属，请按 WSC 当前有效名更正。`);
+              await audit(env, 'wsc-cron', 'taxon', row.slug, 'wsc.species-missing', { name: row.display });
+            }
+          }
+        }
+      }
+      // finding 收敛：仍在问题中的保持未解决；已恢复的自动关闭；新增问题插入
+      const unresolved = await all<{ id: number; slug: string; kind: string }>(
+        env.DB, 'SELECT id, slug, kind FROM wsc_findings WHERE resolved = 0',
+      );
+      const stillBroken = new Set(currentProblems);
+      for (const f of unresolved) {
+        if (!stillBroken.has(f.slug + ':' + f.kind)) {
+          await run(env.DB, 'UPDATE wsc_findings SET resolved = 1 WHERE id = ?', f.id);
+        }
+      }
+      return { checked: rows.length, newFindings: wscFindingsCreated };
+    }
+}
+

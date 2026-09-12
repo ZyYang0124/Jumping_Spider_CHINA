@@ -482,8 +482,57 @@ await req(`/studio/api/observations/${pidA}`, {
   body: JSON.stringify({ species_taxon_slug: 'salticidae', explicit: true }),
 });
 
-// ---------- 场景 F ----------
-// ---------- 场景 F ----------
+// ---------- 场景 V：WSC 学名校验（假属名拦截 / 假种名建议 sp） ----------
+const vTaxon = await (await req('/studio/api/taxa', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Zzqxvus fakeus' }),
+})).json();
+ok(vTaxon.ok === true, `V1 建立测试用假属工作编号（${vTaxon.taxon?.slug}）`);
+
+// 造一条满足其余发布条件的记录：借用 pidB 的照片（复制上传参数不必需——pidB 已有图，直接改 pidB 鉴定再发布其副本）
+// 简化：把 pidB 的鉴定临时改为假属名，尝试重新发布已发布记录不受影响——发布拦截只在 publish 动作触发，
+// 因此新建一条草稿并走完整发布
+const vObs = await (await req('/studio/api/observations', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+})).json();
+const vPid = vObs.public_id;
+await req(`/studio/api/observations/${vPid}`, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ observed_at: '2026-09-12', latitude: 14.2, longitude: 104.8, country_name: '泰国', admin1: '素林府', field_note: 'WSC 校验场景。', explicit: true }),
+});
+// 照片：复用 pidB 的第一张原图 buffer 重新上传
+const fdV = new FormData();
+const buf2 = readFileSync(resolve(ROOT, 'fixtures/e2e-src-nogps.jpg'));
+const p2b = await preparedUpload(buf2);
+appendUpload(fdV, p2b);
+const vUp = await (await req(`/studio/observations/${vPid}/photos`, { method: 'POST', body: fdV })).json();
+ok((vUp.added ?? []).length === 1, `V2 校验场景照片上传`);
+
+await req(`/studio/api/observations/${vPid}`, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ species_taxon_slug: vTaxon.taxon.slug, explicit: true }),
+});
+const vBlock = await req(`/studio/api/observations/${vPid}/publish`, { method: 'POST' });
+ok(vBlock.status === 400, `V3 WSC 无此属名 → 发布被拦截（400）`);
+const vBlockBody = await vBlock.json().catch(() => ({}));
+ok(String(vBlockBody.error ?? '').includes('WSC'), `V4 拦截文案说明 WSC 原因`);
+
+// 改成真属+假种：放行但给警告
+const vTaxon2 = await (await req('/studio/api/taxa', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Siler fakeus' }),
+})).json();
+await req(`/studio/api/observations/${vPid}`, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ species_taxon_slug: vTaxon2.taxon.slug, explicit: true }),
+});
+const vWarn = await (await req(`/studio/api/observations/${vPid}/publish`, { method: 'POST' })).json();
+ok(vWarn.ok === true && Array.isArray(vWarn.warnings) && vWarn.warnings.some((w: string) => w.includes('sp.')), `V5 真属假种 → 发布放行 + 建议降级 sp`);
+
+// 清理：归档测试记录
+await req(`/studio/api/observations/${vPid}/archive`, { method: 'POST' });
+
+
 await req(`/studio/api/observations/${pidA}`, {
   method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ field_note: '编辑复核：补充生境描述（发布后修订）。' }),
 });
@@ -506,5 +555,5 @@ const anonApi = await fetchRetry(BASE + '/studio/api/observations', { method: 'P
 ok(anonApi.status === 401, 'S2 未登录 API 返回 401');
 
 writeFileSync(resolve(ROOT, '.e2e-manifest.json'), JSON.stringify({ pidA, pidB, pidC, cids, note: nd.slug }, null, 2));
-console.log(failures.length ? `\nE2E 失败 ${failures.length} 项` : '\nE2E 全部通过（远程版场景 A/B/C/D/H/T/U/F + 安全探测）');
+console.log(failures.length ? `\nE2E 失败 ${failures.length} 项` : '\nE2E 全部通过（远程版场景 A/B/C/D/H/T/U/V/F + 安全探测）');
 process.exit(failures.length ? 1 : 0);

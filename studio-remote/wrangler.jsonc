@@ -3,6 +3,9 @@
   "name": "salticid-notes-studio",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-08",
+  "triggers": {
+    "crons": ["0 21 * * 1"]
+  },
   "compatibility_flags": ["nodejs_compat"],
   "account_id": "f505cbeb87d1685c29a48f32e61c2550",
   "d1_databases": [
