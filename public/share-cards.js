@@ -26,6 +26,8 @@
   ].join('');
   document.head.appendChild(css);
 
+  var MARK = null; // 站标画作（加载失败则降级为纯排版）
+
   function loadImg(src) {
     return new Promise(function (res, rej) {
       var img = new Image();
@@ -112,6 +114,12 @@
       x.fillText('扫码查看本页', W - margin - 105, photoH + 196);
     }
     x.fillStyle = RED; x.fillRect(W - margin - 34, photoH + 148, 34, 2);
+    if (MARK) {
+      x.font = '22px ' + SANS;
+      var idw = x.measureText(String(D.publicId)).width;
+      var mh = 72, mw = (MARK.width / MARK.height) * mh;
+      x.drawImage(MARK, W - margin - 190 - idw - 28 - mw, photoH + 76, mw, mh);
+    }
     x.textAlign = 'left';
     // 底缘署名
     x.fillStyle = FAINT; x.font = '20px ' + SANS;
@@ -156,6 +164,11 @@
     x.fillText(D.range || '', margin, stripY + 52);
     x.textAlign = 'right';
     x.fillText('跳蛛观察志', W - margin, stripY + 52);
+    if (MARK) {
+      var brandW = x.measureText('跳蛛观察志').width;
+      var mh2 = 38, mw2 = (MARK.width / MARK.height) * mh2;
+      x.drawImage(MARK, W - margin - brandW - 16 - mw2, stripY + 18, mw2, mh2);
+    }
     x.fillStyle = RED; x.fillRect(W - margin - 120, stripY + 84, 120, 3);
     // 二维码：右上角纸贴片（扫码到物种页）
     if (D.qrUrl) drawQR(x, location.origin + D.qrUrl, W - margin - 140, 60, 140);
@@ -221,8 +234,11 @@
       alert(msg || '生成失败，请重试');
     };
     if (!D.mediaUrl) { fail('该观察还没有照片'); return; }
-    loadImg(D.mediaUrl).then(function (img) {
-      finish(kind === 'postcard' ? drawPostcard(img) : drawIdCard(img));
+    var markP = MARK
+      ? Promise.resolve()
+      : loadImg('/logo-mark.png').then(function (m) { MARK = m; }).catch(function () { MARK = null; });
+    Promise.all([loadImg(D.mediaUrl), markP]).then(function (res) {
+      finish(kind === 'postcard' ? drawPostcard(res[0]) : drawIdCard(res[0]));
     }).catch(function () { fail('照片加载失败，请检查网络'); });
   }
 

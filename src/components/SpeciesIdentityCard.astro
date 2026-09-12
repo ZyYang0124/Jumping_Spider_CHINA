@@ -4,6 +4,7 @@
 import PictureImage from './PictureImage.astro';
 import { withBase } from '../lib/privacy';
 import { sciNameHtml } from '../lib/format';
+import { withBase } from '../lib/privacy';
 import type { PublicMedia } from '../lib/privacy';
 
 interface Props {
@@ -41,7 +42,7 @@ const regionLine =
     </div>
     <div class="sic-strip">
       <span>{range ?? ''}</span>
-      <span class="sic-strip-brand">{working ? '暂定 · 跳蛛观察志' : '跳蛛观察志'}</span>
+      <span class="sic-strip-brand"><img class="sic-mark" src={withBase('/logo-mark.png')} alt="" loading="lazy" />{working ? '暂定 · 跳蛛观察志' : '跳蛛观察志'}</span>
     </div>
     <div class="sic-rail" aria-hidden="true"></div>
   </div>
@@ -72,5 +73,6 @@ const regionLine =
     border-top: 1px solid var(--line-soft); padding: var(--s-3) 0;
     font-size: 11.5px; letter-spacing: 0.1em; color: var(--faint); white-space: nowrap;
   }
+  .sic-mark { height: 15px; width: auto; vertical-align: -3px; margin-right: 6px; }
   .sic-rail { height: 2px; background: var(--terra); width: 38%; }
 </style>
