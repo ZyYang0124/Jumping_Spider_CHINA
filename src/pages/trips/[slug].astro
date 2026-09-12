@@ -1,16 +1,23 @@
 ---
-// 调查已并入野外笔记：旧 URL 永久跳转到对应笔记（规则 29）
+// 调查已并入札记：旧 URL 永久跳转到对应札记（规则 29）
 export const prerender = true;
+import Base from '../../layouts/Base.astro';
 import { getPublishedPosts } from '../../lib/queries';
+import { withBase } from '../../lib/privacy';
 
 export function getStaticPaths() {
   return getPublishedPosts().map((p) => ({ params: { slug: p.slug } }));
 }
 
 const { slug } = Astro.params;
-const known = getPublishedPosts().some((p) => p.slug === slug);
+const target = withBase(`/posts/${slug}/`);
 ---
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>野外笔记</title>
-<meta http-equiv="refresh" content={`0; url=/posts/${slug}/`} />
-<link rel="canonical" href={`/posts/${slug}/`} /></head>
-<body>该调查已并入 <a href={`/posts/${slug}/`}>野外笔记</a>。</body></html>
+<Base title="页面已迁移" description="该野外调查已并入札记栏目。">
+  <div class="container">
+    <div class="page-title">
+      <h1>该页已迁移至札记</h1>
+      <p class="lede">正在带您前往……若未自动跳转，<a href={target}>点击这里</a>。</p>
+    </div>
+  </div>
+  <meta http-equiv="refresh" content={`0; url=${target}`} />
+</Base>

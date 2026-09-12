@@ -14,9 +14,9 @@ archive.sort((a, b) => b.media.public_id.localeCompare(a.media.public_id));
 
 <Base title="照片档案" description="全部公开影像的可引用档案——每张照片都有稳定编号与出处。">
   <div class="container-wide">
-    <div class="page-title" style="padding: 44px 0 6px;">
-      <h1 style="font-family: var(--serif); font-weight: 400; font-size: clamp(28px, 4vw, 40px); margin: 0;">照片档案</h1>
-      <p class="lede" style="color: var(--muted); margin: 10px 0 0; max-width: 680px; font-size: 15px;">
+    <div class="page-title">
+      <h1>照片档案</h1>
+      <p class="lede">
         全部公开影像（{archive.length} 张）。每张照片都有稳定编号（SN-YYYY-NNNNN）与完整出处——观察、地点、日期、摄影者与授权，可单独引用与追溯。
       </p>
     </div>
@@ -94,10 +94,11 @@ archive.sort((a, b) => b.media.public_id.localeCompare(a.media.public_id));
 </style>
 
 <script>
-  (function () {
+  function initMediaFilter() {
     var q = document.getElementById('media-q');
     var vt = document.getElementById('media-vt');
-    if (!q || !vt) return;
+    if (!q || !vt || q.dataset.init === '1') return;
+    q.dataset.init = '1';
     var cards = Array.prototype.slice.call(document.querySelectorAll('.archive-card'));
     function apply() {
       var kw = q.value.trim().toLowerCase();
@@ -110,5 +111,7 @@ archive.sort((a, b) => b.media.public_id.localeCompare(a.media.public_id));
     }
     q.addEventListener('input', apply);
     vt.addEventListener('change', apply);
-  })();
+  }
+  document.addEventListener('astro:page-load', initMediaFilter);
+  initMediaFilter();
 </script>

@@ -1,9 +1,15 @@
 ---
-// 调查已并入野外笔记：旧 URL 永久跳转（规则 29）
+// 调查已并入札记：旧 URL 永久跳转（规则 29）
 export const prerender = true;
-import { withBase } from '../lib/privacy';
+import Base from '../../layouts/Base.astro';
+import { withBase } from '../../lib/privacy';
 ---
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>野外笔记</title>
-<meta http-equiv="refresh" content="0; url=../posts/" />
-<link rel="canonical" href="/posts/" /></head>
-<body>野外调查已并入 <a href="../posts/">野外笔记</a>。</body></html>
+<Base title="野外调查已并入札记" description="野外调查内容已并入札记栏目。">
+  <div class="container">
+    <div class="page-title">
+      <h1>野外调查已并入札记</h1>
+      <p class="lede">正在带您前往札记……若未自动跳转，<a href={withBase('/posts/')}>点击这里</a>。</p>
+    </div>
+  </div>
+  <meta http-equiv="refresh" content="0; url={withBase('/posts/')}" />
+</Base>
