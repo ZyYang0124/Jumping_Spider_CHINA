@@ -165,7 +165,7 @@ const aLoc = JSON.parse(new TextDecoder().decode(zip['studio-locations.json'])).
 ok(aObs && aLoc && Math.abs(aLoc.latitude - x.gps.lat) < 1e-6, `A7 导出坐标公开：${aLoc?.latitude},${aLoc?.longitude}`);
 const aIdn = JSON.parse(new TextDecoder().decode(zip['studio-identifications.json']));
 ok(aIdn[0]?.taxon_id === 'tax-salticidae', 'A7 导出鉴定：taxon_id 已映射');
-ok(Object.keys(zip).some((k) => k.startsWith('originals/SFN-M-')), 'A6 导出：原图已打包');
+ok(Object.keys(zip).some((k) => k.startsWith('originals/SN-') || k.startsWith('originals/SFN-M-')), 'A6 导出：原图已打包');
 
 // R2 派生图可读（Studio 内部路由）
 const der = await req(`/media/derivatives/${upAj.added?.[0]}-480.jpg`);
@@ -221,7 +221,7 @@ const upN = new FormData();
 appendUpload(upN, await preparedUpload(nogpsBuf, 'd1.jpg'));
 const upNj = await (await req('/studio/api/media/upload', { method: 'POST', body: upN })).json();
 const noteImgId: string = upNj.public_id ?? '';
-ok(upNj.ok === true && /^SFN-M-\d{6}$/.test(noteImgId), `D0 札记插图独立上传：${noteImgId}`);
+ok(upNj.ok === true && /^SN-\d{4}-\d{5}$/.test(noteImgId), `D0 札记插图独立上传：${noteImgId}`);
 
 const bodyMd = [
   '## 山径上的半小时',
