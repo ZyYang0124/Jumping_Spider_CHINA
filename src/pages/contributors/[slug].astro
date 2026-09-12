@@ -1,9 +1,10 @@
 ---
 export const prerender = true;
 import Base from '../../layouts/Base.astro';
+import ObsCard from '../../components/ObsCard.astro';
 import { getPublicContributor, getPublicContributors, allPublicObservations } from '../../lib/queries';
-import { shortRegion } from '../../lib/format';
 import { withBase } from '../../lib/privacy';
+import { sciNameHtml } from '../../lib/format';
 
 export function getStaticPaths() {
   return getPublicContributors().map((c) => ({ params: { slug: c.slug } }));
@@ -14,51 +15,162 @@ const c = getPublicContributor(slug!);
 if (!c) return Astro.redirect(withBase('/contributors/'));
 
 const observed = allPublicObservations.filter((o) => o.observer_name === c.name);
-const identified = allPublicObservations.filter((o) => o.identification?.identified_by === c.name);
+const identified = allPublicObservations.filter((o) => o.identification?.identified_by === c.name && o.observer_name !== c.name);
+
+// inline stats（§27）：观察数 / 地点数 / 鉴定数
+const placeCount = new Set(observed.map((o) => [o.location.country_code, o.location.admin1, o.location.admin2, o.location.locality].join('|'))).size;
+
+// 常去的地方（§28）：观察数排序，取前 6
+const placeMap = new Map<string, { name: string; url: string | null; count: number }>();
+for (const o of observed) {
+  const name = [o.location.admin2, o.location.locality ?? o.location.site_name].filter(Boolean).join('·') || o.location.admin1;
+  const e = placeMap.get(name);
+  if (e) e.count += 1;
+  else placeMap.set(name, { name, url: null, count: 1 });
+}
+const topPlaces = [...placeMap.values()].sort((a, b) => b.count - a.count).slice(0, 6);
+
+// 代表影像（§28）：最多 8 张，优先有图注的
+const allMedia = observed.flatMap((o) => o.media);
+const featuredMedias = [...allMedia.filter((m) => m.caption), ...allMedia.filter((m) => !m.caption)].slice(0, 8);
 ---
 
 <Base title={c.name} description={c.bio ?? `${c.name} 在跳蛛观察志的记录。`}>
-  <div class="container">
-    <div class="page-title">
-      <h1>{c.name}{c.nameEn ? <span style="font-size: 0.5em; color: var(--faint); margin-left: 12px; letter-spacing: 0.12em;">{c.nameEn}</span> : null}</h1>
-      {c.photo && (
-        <figure style="margin: 18px 0 0;">
-          <img src={c.photo.large} alt={`${c.name} 的照片`} style="width: 100%; max-width: 520px; height: auto; border-radius: 4px;" loading="eager" />
-        </figure>
-      )}
-      <p class="lede">
-        {c.title ?? '跳蛛观察志的伙伴'}
-        {c.bio ? <><br />{c.bio}</> : null}
+  {/* --- 人物 Hero：先看见人，再看见记录（§25/§26） --- */}
+  <header class="cd-hero container">
+    <div class="cd-photo">
+      {(c.photo ?? c.favorite) && <img src={(c.photo ?? c.favorite)!.medium} alt={`${c.name}`} loading="eager" />}
+    </div>
+    <div class="cd-intro">
+      <div class="kicker on-paper">伙 伴</div>
+      <h1>{c.name}{c.nameEn && <span class="cd-name-en">{c.nameEn}</span>}</h1>
+      {c.title && <p class="cd-title">{c.title}</p>}
+      {c.bio && <p class="cd-bio">{c.bio}</p>}
+      <p class="cd-stats">
+        <span>{observed.length} 次观察</span>
+        <span>{placeCount} 个地点</span>
+        {identified.length > 0 && <span>{identified.length} 次鉴定他人记录</span>}
       </p>
     </div>
+  </header>
 
-    {observed.length > 0 && (
-      <section class="section" style="padding-top: 20px;">
-        <div class="section-head"><h2>观察的记录</h2><span class="more">{observed.length} 条</span></div>
-        <div class="place-rows">
-          {observed.map((o) => (
-            <div class="place-row">
-              <span class="loc-name"><a href={o.url}>{o.public_id}</a> · {o.identification?.display ?? '未鉴定'}</span>
-              <span class="loc-meta">{o.observed_at} · {shortRegion(o.location)}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-    )}
+  {observed.length > 0 && (
+    <section class="container cd-section">
+      <h2 class="cd-section-title">最近的相遇</h2>
+      <div class="card-grid">
+        {observed.slice(0, 6).map((o) => <ObsCard obs={o} />)}
+      </div>
+      {observed.length > 6 && <p class="cd-more">共 {observed.length} 条记录 · 更多陆续整理中</p>}
+    </section>
+  )}
 
-    {identified.length > 0 && (
-      <section class="section">
-        <div class="section-head"><h2>参与鉴定的记录</h2><span class="more">{identified.length} 条</span></div>
-        <p class="section-lede">每条记录的照片版权归摄影者所有；鉴定的学术责任由鉴定人承担。</p>
-        <div class="place-rows" style="padding-bottom: 60px;">
-          {identified.filter((o) => o.observer_name !== c.name).map((o) => (
-            <div class="place-row">
-              <span class="loc-name"><a href={o.url}>{o.public_id}</a> · {o.identification?.display}</span>
-              <span class="loc-meta">{o.observed_at} · 摄影 {o.observer_name}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-    )}
-  </div>
+  {topPlaces.length > 0 && (
+    <section class="container cd-section">
+      <h2 class="cd-section-title">常去的地方</h2>
+      <div class="cd-places">
+        {topPlaces.map((p) => (
+          <span class="cd-place">{p.name}<span class="n">{p.count}</span></span>
+        ))}
+      </div>
+    </section>
+  )}
+
+  {featuredMedias.length > 0 && (
+    <section class="container cd-section">
+      <h2 class="cd-section-title">代表影像</h2>
+      <div class="cd-gallery">
+        {featuredMedias.map((m) => (
+          <a class="cd-shot" href={m.detail_url}>
+            <img src={m.thumb} alt={m.caption ?? m.public_id} loading="lazy" width={m.width} height={m.height} />
+            {m.caption && <span class="cap">{m.caption}</span>}
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+
+  {identified.length > 0 && (
+    <section class="container cd-section">
+      <h2 class="cd-section-title">参与鉴定</h2>
+      <p class="cd-note">每条记录的照片版权归摄影者所有；鉴定的学术责任由鉴定人承担。</p>
+      <ul class="cd-idlist">
+        {identified.slice(0, 5).map((o) => (
+          <li>
+            <a href={o.url}>{o.public_id}</a>
+            <span class="sci" set:html={sciNameHtml(o.identification!.display, o.identification!.taxon_rank)} />
+            <span class="meta">{o.observed_at} · 摄影 {o.observer_name}</span>
+          </li>
+        ))}
+      </ul>
+      {identified.length > 5 && (
+        <details class="cd-more-ids">
+          <summary>查看全部鉴定记录（{identified.length} 条）</summary>
+          <ul class="cd-idlist">
+            {identified.slice(5).map((o) => (
+              <li>
+                <a href={o.url}>{o.public_id}</a>
+                <span class="sci" set:html={sciNameHtml(o.identification!.display, o.identification!.taxon_rank)} />
+                <span class="meta">{o.observed_at} · 摄影 {o.observer_name}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  )}
 </Base>
+
+<style>
+  /* ---- 人物 Hero：双栏 image left / text right（§25），不强制真人头像（§26） ---- */
+  .cd-hero {
+    display: grid; grid-template-columns: minmax(240px, 380px) 1fr; gap: var(--s-8);
+    align-items: center; padding: var(--s-8) 0 var(--s-7);
+  }
+  .cd-photo { position: relative; }
+  .cd-photo img { width: 100%; aspect-ratio: 4 / 4.6; object-fit: cover; display: block; }
+  .cd-intro h1 {
+    font-family: var(--serif); font-weight: 700; letter-spacing: 0.04em;
+    font-size: clamp(32px, 4.4vw, 52px); margin: var(--s-3) 0 0;
+  }
+  .cd-name-en { font-size: 0.38em; color: var(--faint); margin-left: var(--s-3); letter-spacing: 0.12em; font-weight: 400; }
+  .cd-title { color: var(--muted); font-size: 16px; margin: var(--s-3) 0 0; }
+  .cd-bio { color: var(--ink); font-size: 16px; line-height: 1.95; margin: var(--s-3) 0 0; max-width: 560px; }
+  /* inline stats（§27）：一行轻字，不做 KPI 卡 */
+  .cd-stats { display: flex; gap: var(--s-4); flex-wrap: wrap; margin: var(--s-4) 0 0; font-size: 13.5px; color: var(--faint); letter-spacing: 0.03em; }
+  .cd-stats span + span::before { content: '·'; margin-right: var(--s-4); color: var(--line); }
+
+  .cd-section { margin: 0 0 var(--section-gap); }
+  .cd-section-title {
+    font-family: var(--serif); font-size: clamp(20px, 2.4vw, 26px); font-weight: 700;
+    letter-spacing: 0.02em; margin: 0 0 var(--s-5); padding-bottom: var(--s-3);
+    border-bottom: 1px solid var(--line);
+  }
+  .cd-more { font-size: 13px; color: var(--faint); margin-top: var(--s-4); }
+
+  .cd-places { display: flex; flex-wrap: wrap; gap: var(--s-3); }
+  .cd-place {
+    border: 1px solid var(--line); border-radius: 999px; padding: 6px 16px;
+    font-size: 14.5px; color: var(--ink); background: none;
+  }
+  .cd-place .n { color: var(--faint); font-size: 12px; margin-left: 6px; }
+
+  .cd-gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-3); }
+  .cd-shot { display: block; text-decoration: none; color: inherit; }
+  .cd-shot img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+  .cd-shot .cap { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
+
+  .cd-note { font-size: 13px; color: var(--faint); margin: 0 0 var(--s-4); }
+  .cd-idlist { list-style: none; margin: 0; padding: 0; }
+  .cd-idlist li { display: flex; gap: var(--s-4); align-items: baseline; padding: var(--s-3) 0; border-bottom: 1px solid var(--line-soft); font-size: 15px; flex-wrap: wrap; }
+  .cd-idlist a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .cd-idlist .meta { color: var(--faint); font-size: 13px; margin-left: auto; }
+  .cd-more-ids summary { cursor: pointer; font-size: 14px; color: var(--muted); padding: var(--s-3) 0; }
+  .cd-more-ids summary:hover { color: var(--ink); }
+
+  @media (max-width: 800px) {
+    .cd-hero { grid-template-columns: 1fr; gap: var(--s-5); padding-top: var(--s-6); }
+    .cd-photo { max-width: 320px; }
+    .cd-gallery { grid-template-columns: repeat(2, 1fr); }
+    .cd-idlist .meta { margin-left: 0; width: 100%; }
+  }
+</style>
