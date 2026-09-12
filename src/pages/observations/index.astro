@@ -31,39 +31,46 @@ const tripOptions = uniq(obs.map((o) => o.trip?.title ?? ''));
       <p class="lede">每条记录都有永久编号（SFN-YYYY-NNNNNN），鉴定可以改变，观察本身不会过期。</p>
     </div>
 
+    {/* §90：第一行只留搜索 + 常用四维 + 更多；性别/龄期/调查/国家收进 More（§91） */}
     <div class="filter-bar" id="obs-filter">
+      <input id="f-q" type="search" placeholder="搜索编号 / 物种 / 笔记…" aria-label="搜索观察" />
       <select data-f="species" aria-label="按分类筛选">
-        <option value="">分类：全部</option>
+        <option value="">分类</option>
         {speciesOptions.map((s) => <option value={s}>{s}</option>)}
       </select>
-      <select data-f="country" aria-label="按国家筛选">
-        <option value="">国家：全部</option>
-        {countryOptions.map((s) => <option value={s}>{s}</option>)}
-      </select>
       <select data-f="place" aria-label="按地点筛选">
-        <option value="">地点：全部</option>
+        <option value="">地点</option>
         {placeOptions.map((s) => <option value={s}>{s}</option>)}
       </select>
-      <select data-f="contributor" aria-label="按伙伴筛选">
-        <option value="">伙伴：全部</option>
-        {contributorOptions.map((s) => <option value={s}>{s}</option>)}
-      </select>
       <select data-f="year" aria-label="按年份筛选">
-        <option value="">年份：全部</option>
+        <option value="">年份</option>
         {yearOptions.map((s) => <option value={s}>{s}</option>)}
       </select>
-      <select data-f="sex" aria-label="按性别筛选">
-        <option value="">性别：全部</option>
-        {sexOptions.map((s) => <option value={s}>{s}</option>)}
+      <select data-f="contributor" aria-label="按伙伴筛选">
+        <option value="">伙伴</option>
+        {contributorOptions.map((s) => <option value={s}>{s}</option>)}
       </select>
-      <select data-f="stage" aria-label="按发育阶段筛选">
-        <option value="">龄期：全部</option>
-        {stageOptions.map((s) => <option value={s}>{s}</option>)}
-      </select>
-      <select data-f="trip" aria-label="按野外调查筛选">
-        <option value="">调查：全部</option>
-        {tripOptions.map((s) => <option value={s}>{s}</option>)}
-      </select>
+      <details class="f-more" id="f-more">
+        <summary>更多</summary>
+        <div class="f-more-panel">
+          <select data-f="country" aria-label="按国家筛选">
+            <option value="">国家：全部</option>
+            {countryOptions.map((s) => <option value={s}>{s}</option>)}
+          </select>
+          <select data-f="sex" aria-label="按性别筛选">
+            <option value="">性别：全部</option>
+            {sexOptions.map((s) => <option value={s}>{s}</option>)}
+          </select>
+          <select data-f="stage" aria-label="按发育阶段筛选">
+            <option value="">龄期：全部</option>
+            {stageOptions.map((s) => <option value={s}>{s}</option>)}
+          </select>
+          <select data-f="trip" aria-label="按野外调查筛选">
+            <option value="">调查：全部</option>
+            {tripOptions.map((s) => <option value={s}>{s}</option>)}
+          </select>
+        </div>
+      </details>
       <button type="button" id="f-clear" hidden>清除筛选</button>
       <span id="f-count">共 {obs.length} 条</span>
     </div>
@@ -72,6 +79,7 @@ const tripOptions = uniq(obs.map((o) => o.trip?.title ?? ''));
       {obs.map((o) => (
         <div
           class="obs-item"
+          data-text={`${o.public_id} ${o.identification?.display ?? '未鉴定'} ${o.field_note} ${[o.location.admin1, o.location.admin2, o.location.locality, o.location.site_name].filter(Boolean).join(' ')}`.toLowerCase()}
           data-species={o.identification?.display ?? '未鉴定的跳蛛'}
           data-country={o.location.country_name}
           data-place={placeLabel(o)}
@@ -104,21 +112,32 @@ const tripOptions = uniq(obs.map((o) => o.trip?.title ?? ''));
     const items = Array.from(grid.querySelectorAll<HTMLElement>('.obs-item'));
     const total = items.length;
 
+    const qInput = document.getElementById('f-q') as HTMLInputElement | null;
     function apply() {
       const active = selects.filter((s) => s.value);
+      const q = (qInput?.value ?? '').trim().toLowerCase();
       let shown = 0;
       for (const el of items) {
-        const ok = active.every((s) => el.getAttribute('data-' + s.dataset.f) === s.value);
+        const ok =
+          active.every((s) => el.getAttribute('data-' + s.dataset.f) === s.value) &&
+          (!q || (el.getAttribute('data-text') ?? '').includes(q));
         el.hidden = !ok;
         if (ok) shown++;
       }
-      if (countEl) countEl.textContent = active.length ? `筛出 ${shown} / ${total} 条` : `共 ${total} 条`;
-      if (clearBtn) clearBtn.hidden = active.length === 0;
+      const busy = active.length > 0 || q !== '';
+      if (countEl) countEl.textContent = busy ? `筛出 ${shown} / ${total} 条` : `共 ${total} 条`;
+      if (clearBtn) clearBtn.hidden = !busy;
       if (emptyEl) emptyEl.hidden = shown !== 0;
     }
     for (const s of selects) s.addEventListener('change', apply);
+    let qTimer: ReturnType<typeof setTimeout>;
+    qInput?.addEventListener('input', () => {
+      clearTimeout(qTimer);
+      qTimer = setTimeout(apply, 140);
+    });
     clearBtn?.addEventListener('click', () => {
       for (const s of selects) s.value = '';
+      if (qInput) qInput.value = '';
       apply();
     });
     apply();
@@ -135,6 +154,25 @@ const tripOptions = uniq(obs.map((o) => o.trip?.title ?? ''));
     font: inherit; font-size: 13px; color: var(--ink);
     padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px;
     background: #fff; max-width: 210px;
+  }
+  #f-q {
+    font: inherit; font-size: 13.5px; color: var(--ink);
+    padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px;
+    background: #fff; width: 220px;
+  }
+  #f-q:focus, .filter-bar select:focus { outline: none; border-color: var(--terra); }
+  .f-more { position: relative; }
+  .f-more summary {
+    font-size: 13px; color: var(--muted); cursor: pointer; list-style: none;
+    padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff;
+  }
+  .f-more summary::-webkit-details-marker { display: none; }
+  .f-more[open] summary { border-color: var(--faint); color: var(--ink); }
+  .f-more-panel {
+    position: absolute; z-index: 20; top: calc(100% + 8px); left: 0;
+    display: flex; flex-direction: column; gap: 8px;
+    background: #fff; border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px; box-shadow: 0 8px 28px rgba(38,34,28,0.08); min-width: 240px;
   }
   .filter-bar select:focus { outline: none; border-color: var(--terra); }
   #f-clear {
