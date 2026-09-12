@@ -119,5 +119,16 @@
     "status": "accepted",
     "slug": "plexippus-paykulli",
     "personal_note": "城市与村落中最常见的跳蛛之一，墙面、窗台、石堆上都能见到。北方城市秋季尤其活跃。"
+  },
+  {
+    "id": "tax-siler-cf-cupreus",
+    "rank": "species",
+    "scientific_name": "Siler cf. cupreus",
+    "authorship": null,
+    "chinese_name": null,
+    "parent_id": "tax-siler",
+    "status": "working",
+    "slug": "siler-cf-cupreus",
+    "personal_note": null
   }
 ]

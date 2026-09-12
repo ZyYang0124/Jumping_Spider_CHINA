@@ -6,6 +6,7 @@ import {
   publicMediaFromRecord,
   toPublicObservation,
   withBase,
+  type PublicMedia,
   type PublicObservation,
 } from './privacy';
 import {
@@ -260,7 +261,7 @@ export function getPublicTrips(): PublicTrip[] {
         subtitle: t.subtitle,
         start_date: t.start_date,
         end_date: t.end_date,
-        region: t.region,
+        region: t.region ?? t.province,
         summary: t.summary,
         cover: cover ? publicMediaFromRecord(cover) : null,
         days: t.days.map((d) => ({

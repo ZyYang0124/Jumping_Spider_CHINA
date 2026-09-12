@@ -13,7 +13,7 @@
   {
     "id": "id-2023-002-0",
     "observation_id": "obs-2023-002",
-    "taxon_id": "tax-siler-cupreus",
+    "taxon_id": "tax-siler-cf-cupreus",
     "display_identification": "Siler cf. cupreus",
     "identified_by_profile_id": "prof-zhiyong",
     "identified_at": "2023-05-08",
@@ -101,7 +101,7 @@
   {
     "id": "id-2023-009-1",
     "observation_id": "obs-2023-009",
-    "taxon_id": "tax-siler-cupreus",
+    "taxon_id": "tax-siler-cf-cupreus",
     "display_identification": "Siler cf. cupreus",
     "identified_by_profile_id": "prof-zhiyong",
     "identified_at": "2023-08-20",

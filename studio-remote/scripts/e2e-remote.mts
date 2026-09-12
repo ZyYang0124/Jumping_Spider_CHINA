@@ -37,7 +37,7 @@ async function req(path: string, opts: any = {}): Promise<Response> {
     } catch (e: any) {
       lastErr = e;
       const msg = String(e?.cause?.code ?? e?.code ?? e);
-      if (!/ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED/.test(msg)) throw e;
+      if (!/ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED|HEADERS_TIMEOUT/.test(msg)) throw e;
       await sleep(1500);
     }
   }
@@ -426,6 +426,62 @@ function files_in(z: Record<string, Uint8Array>, name: string): boolean {
   return name in z;
 }
 
+// ---------- 场景 U：分类学变动流（改名 / 合并 / 导出跟随） ----------
+// 每次运行用唯一后缀，避免上一轮 merged 状态污染（同名编号不可复用）
+const uq = Math.random().toString(36).slice(2, 7).replace(/[0-9]/g, function (d) { return 'abcdefghij'[+d]; }); // 学名仅允许字母
+const uName1 = 'Plexippus aff. minor ' + uq;
+const uName2 = 'Plexippus aff. buttikeri ' + uq;
+const uSlug = 'plexippus-aff-minor-' + uq;
+async function d1poll(sql, tries = 10) {
+  for (let i = 0; i < tries; i++) {
+    const rows = d1(sql);
+    if (rows.length) return rows;
+    await sleep(500);
+  }
+  return [];
+}
+const uCreate = await (await req('/studio/api/taxa', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: uName1 }),
+})).json();
+ok(uCreate.ok === true && uCreate.taxon?.slug === uSlug, `U1 建立工作编号 ${uSlug}`);
+
+await req(`/studio/api/observations/${pidA}`, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ species_taxon_slug: uSlug, explicit: true }),
+});
+const uRename = await (await req(`/studio/api/taxa/${uSlug}`, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ scientific_name: uName2 }),
+})).json();
+const uD1 = await d1poll(`SELECT display_identification FROM identifications WHERE taxon_slug = '${uSlug}' AND is_current = 1`);
+ok(uRename.ok === true, `U2 改名成功（slug 不变、编号永久）`);
+ok((uD1[0]?.display_identification ?? '') === uName2, `U3 当前鉴定 display 已刷新（${uD1[0]?.display_identification}）`);
+
+const uMerge = await (await req('/studio/api/taxa/merge', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ from: uSlug, to: 'plexippus-paykulli' }),
+})).json();
+const obsRowId = d1(`SELECT id FROM observations WHERE public_id = '${pidA}'`)[0]?.id ?? 0;
+const uAfter = await d1poll(`SELECT taxon_slug, display_identification FROM identifications WHERE observation_id = ${obsRowId} AND is_current = 1`);
+ok(uMerge.ok === true && uMerge.moved >= 1, `U4 合并到正式类群（迁入 ${uMerge.moved} 条当前鉴定）`);
+ok(uAfter[0]?.taxon_slug === 'plexippus-paykulli' && uAfter[0]?.display_identification === 'Plexippus paykulli', `U5 合并后鉴定指向 Plexippus paykulli（${uAfter[0]?.display_identification}）`);
+// 合并是「同一类群的改名」，不伪造新的鉴定事件；痕迹留在审计与修订
+const uAudit = await d1poll(`SELECT action FROM audit_logs WHERE entity_type = 'taxon' AND action = 'working-taxon.merged' AND entity_id = '${uSlug}'`);
+ok(uAudit.length >= 1, `U6 合并写入审计`);
+const uMergedGone = d1(`SELECT status FROM working_taxa WHERE slug = '${uSlug}'`);
+ok(uMergedGone[0]?.status === 'merged', `U7 来源编号标记 merged`);
+const expU = await req('/studio/export');
+const zipU = unzipSync(new Uint8Array(await expU.arrayBuffer()));
+const taxaU = JSON.parse(new TextDecoder().decode(zipU['studio-taxa.json'] ?? new Uint8Array()));
+ok(!taxaU.some((t: any) => t.slug === uSlug), `U8 导出不再包含已合并编号`);
+
+// 还原 pidA 鉴定
+await req(`/studio/api/observations/${pidA}`, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ species_taxon_slug: 'salticidae', explicit: true }),
+});
+
 // ---------- 场景 F ----------
 // ---------- 场景 F ----------
 await req(`/studio/api/observations/${pidA}`, {
@@ -450,5 +506,5 @@ const anonApi = await fetchRetry(BASE + '/studio/api/observations', { method: 'P
 ok(anonApi.status === 401, 'S2 未登录 API 返回 401');
 
 writeFileSync(resolve(ROOT, '.e2e-manifest.json'), JSON.stringify({ pidA, pidB, pidC, cids, note: nd.slug }, null, 2));
-console.log(failures.length ? `\nE2E 失败 ${failures.length} 项` : '\nE2E 全部通过（远程版场景 A/B/C/D/H/T/F + 安全探测）');
+console.log(failures.length ? `\nE2E 失败 ${failures.length} 项` : '\nE2E 全部通过（远程版场景 A/B/C/D/H/T/U/F + 安全探测）');
 process.exit(failures.length ? 1 : 0);

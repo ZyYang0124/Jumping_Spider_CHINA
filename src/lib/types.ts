@@ -44,7 +44,8 @@ export type DatePrecision = 'day' | 'month' | 'year' | 'unknown';
 
 export type TaxonRank = 'family' | 'tribe' | 'genus' | 'species' | 'subspecies';
 
-export type TaxonStatus = 'accepted' | 'synonym' | 'provisional' | 'unresolved';
+/** working：Studio 建立的工作编号（cf./aff./sp. 等未定名类群），与 D1 working_taxa 的 status 对齐 */
+export type TaxonStatus = 'accepted' | 'synonym' | 'provisional' | 'unresolved' | 'working';
 
 export interface Profile {
   id: string;
@@ -130,6 +131,8 @@ export interface Observation {
   status: ObservationStatus;
   visibility: Visibility;
   trip_id: string | null;
+  /** 首次发布时间（Studio 导出；手写数据可为空，回退 observed_at 排序） */
+  published_at?: string | null;
   /** 挂接的地点实体（Place，§14）；Studio 记录导出时写入 */
   place_id?: string | null;
 }
@@ -183,6 +186,8 @@ export interface Trip {
   start_date: string;
   end_date: string;
   province: string;
+  /** 展示用区域（Studio 札记/调查来源）；手写数据可空回退 province */
+  region?: string;
   cover_media_id: string;
   summary: string;
   days: TripDay[];
@@ -220,7 +225,9 @@ export interface Post {
   id: string;
   slug: string;
   title: string;
+  subtitle?: string | null;
   author_name: string;
+  published_at?: string | null;
   created_at: string;
   cover_media_public_id: string | null;
   related_observation_public_ids: string[];

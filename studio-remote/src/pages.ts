@@ -463,7 +463,7 @@ export function page(
     <a href="/studio/drafts">记录</a>
     <a href="/studio/media">媒体</a>
     <a href="/studio/profile">个人资料</a>
-    ${user?.role === 'owner' ? '<a href="/studio/places-manage">地点管理</a><a href="/studio/quality">数据质量</a><a href="/studio/invite">邀请</a>' : ''}
+    ${user?.role === 'owner' ? '<a href="/studio/places-manage">地点管理</a><a href="/studio/taxa-manage">类群管理</a><a href="/studio/quality">数据质量</a><a href="/studio/invite">邀请</a>' : ''}
   </nav>
   <div class="right">
     <a class="site" href="${SITE_URL}" target="_blank" rel="noopener">Salticid Notes ↗</a>
@@ -850,6 +850,75 @@ export function obsEditorHtml(
     };
   </script>
   <script src="/studio-editor.js"></script>`, null, { editor: true, actions });
+}
+
+/** 类群管理（§21-§24 分类学变动流）：工作编号改名（slug 不变）与合并到正式类群/另一编号 */
+export function taxaManagePage(
+  rows: { slug: string; scientific_name: string; chinese_name: string | null; status: string; usage: number }[],
+  user: StudioUser,
+): string {
+  const staticOpts = TAXA.map((t) => `<option value="${esc(t.slug)}">${esc(t.scientific_name)}</option>`).join('');
+  const rowsHtml = rows
+    .map(
+      (w) => `<div class="pm-row" data-slug="${esc(w.slug)}">
+        <div class="pm-main">
+          <b>${esc(w.scientific_name)}</b>${w.chinese_name ? `<span class="pm-sub">${esc(w.chinese_name)}</span>` : ''}
+          <span class="pm-sub">${esc(w.slug)}（编号永久不变）</span>
+        </div>
+        <div class="pm-side"><span class="pm-count">${w.usage} 条当前鉴定</span>
+          <input class="pm-target wt-name" data-slug="${esc(w.slug)}" value="${esc(w.scientific_name)}" title="改为新学名（编号不变）" />
+          <button type="button" class="act-btn" data-rename="${esc(w.slug)}">改名</button>
+          <select class="pm-target wt-target" data-slug="${esc(w.slug)}"><option value="">合并到…</option>${staticOpts}</select>
+          <button type="button" class="act-btn" data-merge="${esc(w.slug)}">合并</button>
+        </div>
+      </div>`,
+    )
+    .join('');
+  return page('类群管理', `
+  <div class="wrap">
+    <div class="hello-wrap"><h1>类群管理</h1>
+    <p>分类学变动的收口处：研究确认后在这里改名或合并。<b>编号（slug）永久不变</b>——公开链接不会失效；改名只改显示名，合并会把当前鉴定整体迁到目标类群（鉴定历史保留原文）。正式类群的学名在仓库 taxa.json 里维护。</p></div>
+    ${rows.length ? `<div class="place-manage">${rowsHtml}</div>` : '<p class="empty">还没有工作编号——在记录编辑器的物种框输入列表外的学名即可建立。</p>'}
+  </div>
+  <script>
+  (function () {
+    function post(url, body) {
+      return fetch(url, { method: url.indexOf('/merge') !== -1 ? 'POST' : 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(function (r) { return r.json(); });
+    }
+    Array.prototype.slice.call(document.querySelectorAll('button[data-rename]')).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var slug = b.getAttribute('data-rename');
+        var input = document.querySelector('.wt-name[data-slug="' + slug + '"]');
+        var name = (input ? input.value : '').trim();
+        if (!name) { alert('先填新学名'); return; }
+        b.disabled = true;
+        post('/studio/api/taxa/' + slug, { scientific_name: name })
+          .then(function (j) {
+            if (j && j.ok) location.reload();
+            else { b.disabled = false; alert((j && j.error) || '改名失败'); }
+          })
+          .catch(function () { b.disabled = false; alert('网络异常，请重试'); });
+      });
+    });
+    Array.prototype.slice.call(document.querySelectorAll('button[data-merge]')).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var slug = b.getAttribute('data-merge');
+        var sel = document.querySelector('.wt-target[data-slug="' + slug + '"]');
+        var to = sel ? sel.value : '';
+        if (!to) { alert('先选择合并到的类群'); return; }
+        if (!confirm('确定合并？该编号的当前鉴定会全部迁到目标类群（鉴定历史保留原文），此操作不可撤销。')) return;
+        b.disabled = true;
+        post('/studio/api/taxa/merge', { from: slug, to: to })
+          .then(function (j) {
+            if (j && j.ok) location.reload();
+            else { b.disabled = false; alert((j && j.error) || '合并失败'); }
+          })
+          .catch(function () { b.disabled = false; alert('网络异常，请重试'); });
+      });
+    });
+  })();
+  </script>`, user);
 }
 
 // ---------- 札记编辑器（写作模式） ----------

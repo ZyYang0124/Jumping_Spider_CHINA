@@ -45,7 +45,7 @@ export async function workingTaxaRows(env: Env): Promise<WorkingTaxonRow[]> {
   return all<WorkingTaxonRow>(env.DB, 'SELECT * FROM working_taxa ORDER BY created_at, id');
 }
 
-/** 静态正式类群 + D1 工作编号，合成编辑器完整可选列表 */
+/** 静态正式类群 + D1 工作编号，合成编辑器完整可选列表（不含已合并的） */
 export async function allTaxonOptions(env: Env): Promise<TaxonOption[]> {
   const staticOptions: TaxonOption[] = STATIC_TAXA.map((t) => ({
     slug: t.slug,
@@ -53,23 +53,97 @@ export async function allTaxonOptions(env: Env): Promise<TaxonOption[]> {
     cn: t.chinese_name,
     rank: t.rank,
   }));
-  const working = (await workingTaxaRows(env)).map((t) => ({
-    slug: t.slug,
-    name: t.scientific_name,
-    cn: t.chinese_name,
-    rank: t.rank,
-    working: true,
-  }));
+  const working = (await workingTaxaRows(env))
+    .filter((t) => t.status !== 'merged')
+    .map((t) => ({
+      slug: t.slug,
+      name: t.scientific_name,
+      cn: t.chinese_name,
+      rank: t.rank,
+      working: true,
+    }));
   return [...staticOptions, ...working];
 }
 
-/** 鉴定写入用：slug → 类群（静态优先，工作编号兜底） */
+/** 鉴定写入用：slug → 类群（静态优先，工作编号兜底；已合并的编号不再可用） */
 export async function findTaxonOptionBySlug(env: Env, slug: string): Promise<TaxonOption | null> {
   const staticHit = STATIC_TAXA.find((t) => t.slug === slug);
   if (staticHit) return { slug: staticHit.slug, name: staticHit.scientific_name, cn: staticHit.chinese_name, rank: staticHit.rank };
-  const row = await get<WorkingTaxonRow>(env.DB, 'SELECT * FROM working_taxa WHERE slug = ?', slug);
+  const row = await get<WorkingTaxonRow>(env.DB, "SELECT * FROM working_taxa WHERE slug = ? AND status != 'merged'", slug);
   if (!row) return null;
   return { slug: row.slug, name: row.scientific_name, cn: row.chinese_name, rank: row.rank, working: true };
+}
+
+export type RenameTaxonResult =
+  | { ok: true; name: string; cn: string | null }
+  | { ok: false; error: string; status: 400 | 404 | 409 };
+
+/**
+ * 工作编号改名（分类学变动之一：拼写修正 / 新组合保留为工作编号）。
+ * slug 是永久标识（公开物种页 URL 依赖，规则 18/19 同理），改名不换 slug；
+ * 当前鉴定行的 display 同步刷新，历史鉴定行保持当时原文（规则 17）。
+ */
+export async function renameWorkingTaxon(
+  env: Env,
+  slug: string,
+  rawName: string,
+  rawCn: string | null | undefined,
+): Promise<RenameTaxonResult> {
+  const row = await get<WorkingTaxonRow>(env.DB, "SELECT * FROM working_taxa WHERE slug = ? AND status != 'merged'", slug);
+  if (!row) return { ok: false, status: 404, error: '工作编号不存在' };
+  const name = rawName.trim().replace(/\s+/g, ' ');
+  if (!NAME_RE.test(name)) return { ok: false, status: 400, error: '名称需为字母开头的学名（可含 cf. / aff. 等限定词）' };
+  const newSlug = slugifyTaxonName(name);
+  if (newSlug !== slug) {
+    const clashStatic = staticSlugs.has(newSlug);
+    const clashWorking = await get(env.DB, "SELECT 1 FROM working_taxa WHERE slug = ? AND slug != ?", newSlug, slug);
+    if (clashStatic || clashWorking) return { ok: false, status: 409, error: '新名称与其它类群冲突；如确认是同一类群请用「合并」' };
+  }
+  const cn = rawCn == null ? row.chinese_name : String(rawCn).trim().slice(0, 60) || null;
+  await run(env.DB, 'UPDATE working_taxa SET scientific_name = ?, chinese_name = ? WHERE slug = ?', name, cn, slug);
+  // 当前鉴定 display 跟随（历史行不动）
+  await run(
+    env.DB,
+    'UPDATE identifications SET display_identification = ? WHERE taxon_slug = ? AND is_current = 1',
+    name,
+    slug,
+  );
+  return { ok: true, name, cn };
+}
+
+export type MergeTaxonResult =
+  | { ok: true; moved: number; targetName: string }
+  | { ok: false; error: string; status: 400 | 404 };
+
+/**
+ * 合并（分类学变动之二：研究确认 cf./aff. 实为某正式类群，或两个工作编号实为同种）。
+ * 只重指向当前鉴定；历史鉴定保留原 slug 与原文；来源编号标记 merged 不再可选。
+ */
+export async function mergeWorkingTaxon(
+  env: Env,
+  fromSlug: string,
+  toSlug: string,
+): Promise<{ ok: true; moved: number; targetName: string } | { ok: false; error: string; status: 400 | 404 }> {
+  if (fromSlug === toSlug) return { ok: false, status: 400, error: '不能合并到自身' };
+  const from = await get<WorkingTaxonRow>(env.DB, "SELECT * FROM working_taxa WHERE slug = ? AND status != 'merged'", fromSlug);
+  if (!from) return { ok: false, status: 404, error: '来源工作编号不存在' };
+  const to = await findTaxonOptionBySlug(env, toSlug);
+  if (!to) return { ok: false, status: 404, error: '目标类群不存在' };
+  const display = ['species', 'subspecies'].includes(to.rank) ? to.name : to.name + ' sp.';
+  const cnt = await get<{ c: number }>(
+    env.DB,
+    'SELECT COUNT(*) AS c FROM identifications WHERE taxon_slug = ? AND is_current = 1',
+    fromSlug,
+  );
+  await run(
+    env.DB,
+    'UPDATE identifications SET taxon_slug = ?, display_identification = ? WHERE taxon_slug = ? AND is_current = 1',
+    to.slug,
+    display,
+    fromSlug,
+  );
+  await run(env.DB, "UPDATE working_taxa SET status = 'merged' WHERE slug = ?", fromSlug);
+  return { ok: true, moved: cnt?.c ?? 0, targetName: to.name };
 }
 
 export type CreateTaxonResult =

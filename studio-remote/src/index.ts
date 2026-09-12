@@ -27,10 +27,10 @@ import { renderArticle } from './article';
 import { buildResolvers } from './embeds';
 import { buildExportZip } from './export';
 import { syncToGitHub } from './github';
-import { esc, loginPage, mediaPage, noteEditorHtml, obsEditorHtml, page, STYLES, homePage, draftsPage, relTime, type FeedItem } from './pages';
+import { esc, loginPage, mediaPage, noteEditorHtml, obsEditorHtml, page, STYLES, homePage, draftsPage, relTime, taxaManagePage, type FeedItem } from './pages';
 import { invitePage } from './invites';
 import { OBS_EDITOR_SCRIPT, NOTE_EDITOR_SCRIPT, LOGIN_SCRIPT, PROFILE_SCRIPT } from './editorjs';
-import { allTaxonOptions, createWorkingTaxon, findTaxonOptionBySlug } from './taxa';
+import { allTaxonOptions, createWorkingTaxon, findTaxonOptionBySlug, mergeWorkingTaxon, renameWorkingTaxon } from './taxa';
 
 const app = new Hono<{ Bindings: Env; Variables: { user: StudioUser } }>();
 
@@ -755,6 +755,49 @@ app.post('/studio/api/taxa', async (c) => {
     await audit(c.env, u.display_name, 'taxon', res.taxon.slug, 'working-taxon.created', { name: res.taxon.name });
   }
   return c.json({ ok: true, taxon: res.taxon, created: res.created });
+});
+
+// ---------- 工作编号管理（分类学变动流）：改名 / 合并 ----------
+
+app.patch('/studio/api/taxa/:slug', async (c) => {
+  const u = user(c);
+  if (u.role !== 'owner') return c.json({ error: '只有站长可以管理类群' }, 403);
+  if (!sameOrigin(c.req.raw)) return c.json({ error: 'Forbidden' }, 403);
+  const b = (await c.req.json().catch(() => ({}))) as { scientific_name?: string; chinese_name?: string | null };
+  const res = await renameWorkingTaxon(c.env, c.req.param('slug'), String(b.scientific_name ?? ''), b.chinese_name);
+  if (!res.ok) return c.json({ error: res.error }, res.status);
+  await audit(c.env, u.display_name, 'taxon', c.req.param('slug'), 'working-taxon.renamed', { name: res.name });
+  return c.json({ ok: true, taxon: { slug: c.req.param('slug'), name: res.name, cn: res.cn, rank: 'species', working: true } });
+});
+
+app.post('/studio/api/taxa/merge', async (c) => {
+  const u = user(c);
+  if (u.role !== 'owner') return c.json({ error: '只有站长可以管理类群' }, 403);
+  if (!sameOrigin(c.req.raw)) return c.json({ error: 'Forbidden' }, 403);
+  const b = (await c.req.json().catch(() => ({}))) as { from?: string; to?: string };
+  const res = await mergeWorkingTaxon(c.env, String(b.from ?? ''), String(b.to ?? ''));
+  if (!res.ok) return c.json({ error: res.error }, res.status);
+  await audit(c.env, u.display_name, 'taxon', String(b.from), 'working-taxon.merged', {
+    from: b.from,
+    to: b.to,
+    moved: res.moved,
+  });
+  return c.json({ ok: true, moved: res.moved, targetName: res.targetName });
+});
+
+app.get('/studio/taxa-manage', async (c) => {
+  const u = user(c);
+  if (u.role !== 'owner') return c.text('只有站长可以管理类群。', 403);
+  const rows = await all<any>(
+    c.env.DB,
+    `SELECT w.*, (
+       SELECT COUNT(*) FROM identifications i
+       JOIN observations o ON o.id = i.observation_id
+       WHERE i.taxon_slug = w.slug AND i.is_current = 1 AND o.status != 'archived'
+     ) usage
+     FROM working_taxa w WHERE w.status != 'merged' ORDER BY w.created_at, w.id`,
+  );
+  return c.html(taxaManagePage(rows, u));
 });
 
 app.get('/studio/api/places', async (c) => {

@@ -22,7 +22,7 @@ import {
   tripById,
 } from './store';
 import mediaManifestJson from '../data/generated/media-manifest.json';
-import type { Evidence, LocationVisibility, MediaRecord, MediaViewType, Observation, TaxonRank } from './types';
+import type { Evidence, MediaRecord, MediaViewType, Observation, Taxon, TaxonRank } from './types';
 
 // 媒体尺寸清单（scripts/process-media.mjs 与 Studio 上传管线生成，构建期静态导入）
 const MEDIA_MANIFEST = mediaManifestJson as Record<
@@ -142,21 +142,32 @@ function publicLocation(locationId: string): PublicLocation {
 
 // ---------- 公开鉴定 ----------
 
-function publicIdentification(idn: {
-  display_identification: string;
-  taxon_id: string;
-  evidence: Evidence;
-  identified_by_profile_id: string | null;
-  identified_by_text?: string | null;
-  identified_at: string;
-  remarks: string | null;
-}): PublicIdentification {
+/** 权威显示名从 Taxon 记录推导（规则 15）：分类学变动只改类群记录，全部页面跟随 */
+function derivedTaxonDisplay(taxon: Taxon): string {
+  return taxon.rank === 'species' || taxon.rank === 'subspecies'
+    ? taxon.scientific_name
+    : taxon.scientific_name + ' sp.';
+}
+
+function publicIdentification(
+  idn: {
+    display_identification: string;
+    taxon_id: string;
+    evidence: Evidence;
+    identified_by_profile_id: string | null;
+    identified_by_text?: string | null;
+    identified_at: string;
+    remarks: string | null;
+  },
+  /** 当前鉴定传 true：display 跟随类群记录实时推导；历史鉴定保持当时写下的原文 */
+  deriveDisplay = false,
+): PublicIdentification {
   const taxon = taxonById.get(idn.taxon_id);
   if (!taxon) throw new Error(`鉴定引用的 taxon ${idn.taxon_id} 不存在（规则 6）`);
   const identifiedBy =
     displayNameOf(idn.identified_by_profile_id) ?? idn.identified_by_text ?? idn.identified_by_profile_id ?? '未知';
   return {
-    display: idn.display_identification,
+    display: deriveDisplay ? derivedTaxonDisplay(taxon) : idn.display_identification,
     taxon_slug: taxon.slug,
     taxon_rank: taxon.rank,
     evidence: idn.evidence,
@@ -208,7 +219,7 @@ export function toPublicObservation(o: Observation): PublicObservation {
   }
   const mediaList = publicMedia(o.id);
   const current = currentIdentificationByObservation.get(o.id) ?? null;
-  const history = (identificationsByObservation.get(o.id) ?? []).map(publicIdentification);
+  const history = (identificationsByObservation.get(o.id) ?? []).map((h) => publicIdentification(h));
   const spec = specimenByObservation.get(o.id) ?? null;
   const trip = o.trip_id ? tripById.get(o.trip_id) ?? null : null;
   const observer = profileById.get(o.observer);
@@ -229,7 +240,7 @@ export function toPublicObservation(o: Observation): PublicObservation {
     observer_profile_slug: observer?.profile_visibility === 'public' ? observer.slug : null,
     media: mediaList,
     cover: mediaList.find((m) => m.is_cover) ?? mediaList[0] ?? null,
-    identification: current ? publicIdentification(current) : null,
+    identification: current ? publicIdentification(current, true) : null,
     identification_history: history,
     specimen:
       spec != null
