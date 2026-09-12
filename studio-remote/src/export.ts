@@ -79,7 +79,7 @@ export async function collectExport(env: Env): Promise<ExportData> {
         sort_order: m.sort_order,
         is_cover: Boolean(m.is_cover),
         photographer_profile_id: null,
-        photographer_name: m.photographer_name,
+        photographer_name: m.photographer_name || creatorProfile.get(o.id) || null,
         license: m.license,
         visibility: 'public',
       });
