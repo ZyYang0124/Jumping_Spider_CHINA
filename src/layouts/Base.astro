@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import SearchBox from '../components/SearchBox.astro';
 import { ClientRouter } from 'astro:transitions';
 import { siteConfig } from '../lib/store';
 import { withBase } from '../lib/privacy';
@@ -76,6 +77,7 @@ const nav = [
             </a>
           ))}
         </nav>
+        <SearchBox />
         <button class="menu-btn" type="button" aria-label="打开菜单" aria-expanded="false" data-menu-open>
           <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
             <path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />

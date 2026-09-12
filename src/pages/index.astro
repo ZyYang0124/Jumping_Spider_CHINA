@@ -238,10 +238,11 @@ const places = getLocalityCards().slice(0, 3);
 
 
 <style>
-  .home-search { max-width: 640px; margin: var(--s-8) auto 0; padding: 0 24px; }
+  /* 与下方内容栏左缘对齐（§113 三宽度系统的 normal 栏） */
+  .home-search { max-width: var(--content); margin: var(--s-8) auto 0; padding: 0 24px; }
   .home-search form {
     display: flex; align-items: center; gap: var(--s-3);
-    border-bottom: 1px solid var(--line); padding-bottom: 10px;
+    max-width: 640px; border-bottom: 1px solid var(--line); padding-bottom: 10px;
   }
   .home-search input {
     flex: 1; font-family: var(--serif); font-size: 19px;
