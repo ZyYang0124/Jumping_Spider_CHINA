@@ -46,9 +46,9 @@ archive.sort((a, b) => b.media.public_id.localeCompare(a.media.public_id));
               {display ? <span set:html={sciNameHtml(display, 'species')} /> : <span>未鉴定的跳蛛</span>}
             </div>
             <div class="sub">
-              {VIEW_TYPE_ZH[media.view_type as keyof typeof VIEW_TYPE_ZH] ?? media.view_type} · © {media.photographer}
+              {VIEW_TYPE_ZH[media.view_type as keyof typeof VIEW_TYPE_ZH] ?? media.view_type}
               <br />
-              <span>{observationPublicId}</span>
+              <span class="who">© {media.photographer}</span>
             </div>
           </div>
         </a>
