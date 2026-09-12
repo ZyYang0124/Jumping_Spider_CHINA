@@ -4,11 +4,10 @@ import Base from '../../layouts/Base.astro';
 import ObsCard from '../../components/ObsCard.astro';
 import MediaGallery from '../../components/MediaGallery.astro';
 import PictureImage from '../../components/PictureImage.astro';
-import { getSpeciesGroup, getSpeciesGroups, getMediaOfObservations, speciesSlug } from '../../lib/queries';
-import { shortRegion } from '../../lib/format';
+import PlaceMap from '../../components/PlaceMap.astro';
+import { getSpeciesGroup, getSpeciesGroups, getMediaOfObservations, speciesSlug, observationPlaceId } from '../../lib/queries';
 import { withBase } from '../../lib/privacy';
 import { sciNameHtml } from '../../lib/format';
-import { RANK_ZH } from '../../lib/labels';
 
 export function getStaticPaths() {
   return getSpeciesGroups().map((g) => ({ params: { slug: speciesSlug(g) } }));
@@ -21,78 +20,173 @@ if (!group) return Astro.redirect(withBase('/species/'));
 const monthSet = [...new Set(group.observations.map((o) => o.observed_at.slice(5, 7)))]
   .map((m) => String(Number(m)))
   .sort((a, b) => Number(a) - Number(b));
-const placeSet = new Map<string, string[]>();
-for (const o of group.observations) {
-  const key = shortRegion(o.location);
-  const nameParts = [o.location.admin2, o.location.locality ?? o.location.site_name].filter(Boolean) as string[];
-  const list = placeSet.get(key) ?? [];
-  for (const part of nameParts) {
-    if (!list.includes(part)) list.push(part);
-  }
-  placeSet.set(key, list);
-}
 const speciesMedia = getMediaOfObservations(group.observations);
+
+// 代表照：有主体的照片优先（生境照不作类群肖像）
+const repPhoto =
+  group.observations.find((o) => o.cover && o.cover.view_type !== 'habitat')?.cover ??
+  group.observations.find((o) => o.cover)?.cover ??
+  null;
+
+// 在哪里遇见：地点实体 chips（可点）+ 地图点位
+const placeChips = new Map<string, { name: string; url: string | null; count: number }>();
+const points = [];
+for (const o of group.observations) {
+  const name = [o.location.admin2, o.location.locality ?? o.location.site_name].filter(Boolean).join('·') || o.location.admin1;
+  const pid = observationPlaceId(o);
+  const key = pid ?? name;
+  const e = placeChips.get(key);
+  if (e) e.count += 1;
+  else placeChips.set(key, { name, url: pid ? withBase(`/places/${pid}/`) : null, count: 1 });
+  if (o.location.latitude != null && o.location.longitude != null) {
+    points.push({ lat: o.location.latitude, lng: o.location.longitude, label: name });
+  }
+}
+
+// 影像按类型分组（§36）：空组不显示
+const MEDIA_GROUPS: [string, string[]][] = [
+  ['活体', ['live_dorsal', 'live_frontal', 'live_lateral']],
+  ['行为', ['behavior']],
+  ['生境', ['habitat']],
+  ['标本', ['specimen_dorsal', 'specimen_ventral']],
+  ['生殖器与镜检', ['male_palp', 'epigyne', 'vulva', 'microscopy']],
+  ['其他', ['other']],
+];
+const grouped = MEDIA_GROUPS.map(([label, types]) => ({
+  label,
+  media: speciesMedia.filter((m) => types.includes(m.view_type)),
+})).filter((g) => g.media.length > 0);
 ---
 
-<Base title={group.display} description={`${group.display}：本站共 ${group.observations.length} 条已发布观察记录。`}>
-  <header class="species-hero">
-    <div class="container-wide">
-      <div class="kicker on-paper">{RANK_ZH[group.rank] ?? group.rank}级 · 本站记录</div>
-      <h1 style="margin-top: 10px;">
-        <span set:html={sciNameHtml(group.display, group.rank)} />
-        {group.taxon_status === 'provisional' && <span class="status-tag">暂定类群</span>}
-      </h1>
-      {group.chinese_name && <div class="zh-name">{group.chinese_name}</div>}
-      <div class="counts">
-        {group.observations.length} 次相遇
-        {group.regions.length > 0 && <> · {group.regions.join('、')}</>}
-        {monthSet.length > 0 && <> · 相遇于 {monthSet.join('、')} 月</>}
+<Base title={`${group.display}${group.chinese_name ? '（' + group.chinese_name + '）' : ''} · 物种`} description={`${group.display}：本站共 ${group.observations.length} 条已发布观察记录。`}>
+  {/* --- 观察肖像 Hero：代表照 + 名字与相遇概况（§32/§33） --- */}
+  <header class="sd-hero container">
+    <div class="sd-photo">
+      {repPhoto ? (
+        <PictureImage media={repPhoto} sizes="(max-width: 800px) 92vw, 520px" alt={`${group.display} 的代表照`} eager={true} fetchpriority="high" />
+      ) : (
+        <div class="sd-photo-empty" aria-hidden="true"></div>
+      )}
+    </div>
+    <div class="sd-intro">
+      <div class="kicker on-paper">本站记录</div>
+      <h1><span set:html={sciNameHtml(group.display, group.rank)} /></h1>
+      {group.chinese_name && <div class="sd-zh">{group.chinese_name}</div>}
+      <div class="sd-facts">
+        <span>{group.observations.length} 次相遇</span>
+        {group.regions.length > 0 && <span>{group.regions.slice(0, 4).join(' · ')}</span>}
+        {monthSet.length > 0 && <span>相遇于 {monthSet.join('、')} 月</span>}
       </div>
     </div>
   </header>
 
-  <div class="container-wide">
-    {group.personal_note && (
-      <div class="personal-note reveal">
-        <div class="label">从 野 外 笔 记 看</div>
+  {group.personal_note && (
+    <section class="sd-note container">
+      <h2 class="sd-note-label">从野外笔记看</h2>
+      <blockquote>
         <p>{group.personal_note}</p>
-      </div>
-    )}
-
-    <section class="section" style="padding-top: 10px;">
-      <div class="section-head reveal"><h2>来自观察记录</h2></div>
-      <div class="card-grid">
-        {group.observations.map((o) => <ObsCard obs={o} />)}
-      </div>
+        <cite>来自 {group.observations.length} 次观察</cite>
+      </blockquote>
     </section>
+  )}
 
-    {speciesMedia.length > 0 && (
-      <section class="section">
-        <div class="section-head">
-          <h2>照片档案</h2>
-          <a class="more" href={withBase('/media/')}>进入照片档案 →</a>
+  <section class="container sd-section">
+    <h2 class="sd-section-title">观察记录</h2>
+    <div class="card-grid">
+      {group.observations.map((o) => <ObsCard obs={o} />)}
+    </div>
+  </section>
+
+  {grouped.length > 0 && (
+    <section class="container sd-section">
+      <h2 class="sd-section-title">影像档案</h2>
+      {grouped.map((g) => (
+        <div class="sd-mediagroup">
+          <h3>{g.label}<span>{g.media.length} 张</span></h3>
+          <MediaGallery media={g.media} curatedLimit={8} />
         </div>
-        <p class="section-lede">该类群在本站的全部公开影像，共 {speciesMedia.length} 张，每张都有稳定编号与出处。</p>
-        <MediaGallery media={speciesMedia} curatedLimit={8} />
-      </section>
-    )}
+      ))}
+    </section>
+  )}
 
-    {placeSet.size > 0 && (
-      <section class="section">
-        <div class="section-head"><h2>在哪里遇见</h2></div>
-        <div class="side-secondary" style="max-width: 720px;">
-          {[...placeSet.entries()].map(([prov, locals]) => (
-            <div style="margin-bottom: 8px;">
-              <strong style="color: var(--ink); font-weight: 600;">{prov}</strong>
-              {locals.length > 0 && <> · {locals.join('、')}</>}
-            </div>
-          ))}
+  {(placeChips.size > 0 || points.length > 0) && (
+    <section class="container sd-section">
+      <h2 class="sd-section-title">在哪里遇见</h2>
+      {placeChips.size > 0 && (
+        <div class="sd-places">
+          {[...placeChips.values()].map((p) =>
+            p.url ? <a class="sd-place" href={p.url}>{p.name}<span class="n">{p.count}</span></a>
+                  : <span class="sd-place">{p.name}<span class="n">{p.count}</span></span>,
+          )}
         </div>
-      </section>
-    )}
+      )}
+      {points.length > 0 && <div style="margin-top: var(--s-5);"><PlaceMap points={points} height={300} /></div>}
+    </section>
+  )}
 
-    <p class="disclaimer" style="padding-bottom: 70px;">
-      本页仅显示本站实际记录，不代表该类群的完整分布。
-    </p>
-  </div>
+  <p class="sd-disclaimer container">
+    本页仅展示 Salticid Notes 中实际记录的相遇地点，不代表该类群的完整分布。
+  </p>
 </Base>
+
+<style>
+  /* ---- 观察肖像 Hero：desktop 双栏（§32），mobile 竖排（§115） ---- */
+  .sd-hero {
+    display: grid; grid-template-columns: minmax(280px, 480px) 1fr; gap: var(--s-8);
+    align-items: center; padding: var(--s-8) 0 var(--s-7);
+  }
+  .sd-photo :global(img) { width: 100%; height: auto; max-height: 72vh; object-fit: contain; display: block; background: var(--paper-deep); }
+  .sd-photo-empty { width: 100%; aspect-ratio: 4/3; background: repeating-linear-gradient(0deg, transparent 0 15px, var(--line-soft) 15px 16px), var(--paper-deep); }
+  .sd-intro h1 {
+    font-family: var(--serif); font-weight: 400; /* 学名 weight 400 italic（§8） */
+    font-size: clamp(38px, 5vw, 60px); line-height: 1.15; margin: var(--s-3) 0 0;
+  }
+  .sd-zh { color: var(--muted); font-size: 18px; margin-top: var(--s-2); letter-spacing: 0.04em; }
+  .sd-facts {
+    display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); margin-top: var(--s-5);
+    font-size: 14px; color: var(--faint); letter-spacing: 0.03em;
+  }
+  .sd-facts span + span::before { content: '·'; margin-right: var(--s-4); color: var(--line); }
+
+  /* ---- 从野外笔记看：本页最独特的 section（§34） ---- */
+  .sd-note { margin: 0 0 var(--section-gap); }
+  .sd-note-label {
+    font-family: var(--serif); font-size: 13px; font-weight: 400; color: var(--terra);
+    letter-spacing: 0.1em; margin: 0 0 var(--s-3);
+  }
+  .sd-note blockquote { margin: 0; border-left: 2px solid var(--accent); padding: var(--s-2) 0 var(--s-2) var(--s-6); }
+  .sd-note blockquote p {
+    font-family: var(--serif); font-size: clamp(19px, 2.2vw, 23px); line-height: 2;
+    color: var(--ink); margin: 0; max-width: 680px;
+  }
+  .sd-note cite { display: block; margin-top: var(--s-3); font-size: 13px; color: var(--faint); font-style: normal; }
+
+  .sd-section { margin: 0 0 var(--section-gap); }
+  .sd-section-title {
+    font-family: var(--serif); font-size: clamp(20px, 2.4vw, 26px); font-weight: 700;
+    letter-spacing: 0.02em; margin: 0 0 var(--s-5); padding-bottom: var(--s-3);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .sd-mediagroup { margin-bottom: var(--s-6); }
+  .sd-mediagroup:last-child { margin-bottom: 0; }
+  .sd-mediagroup h3 {
+    font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: 0.06em;
+    margin: 0 0 var(--s-4);
+  }
+  .sd-mediagroup h3 span { color: var(--faint); font-weight: 400; font-size: 12.5px; margin-left: var(--s-3); }
+
+  .sd-places { display: flex; flex-wrap: wrap; gap: var(--s-3); }
+  .sd-place {
+    border: 1px solid var(--line); border-radius: 999px; padding: 6px 16px;
+    font-size: 14.5px; color: var(--ink); text-decoration: none;
+  }
+  a.sd-place:hover { border-color: var(--terra); }
+  .sd-place .n { color: var(--faint); font-size: 12px; margin-left: 6px; }
+
+  .sd-disclaimer { font-size: 12.5px; color: var(--faint); padding-bottom: var(--s-9); }
+
+  @media (max-width: 800px) {
+    .sd-hero { grid-template-columns: 1fr; gap: var(--s-5); padding-top: var(--s-6); }
+  }
+</style>
