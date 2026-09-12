@@ -10,6 +10,7 @@ import type {
 // 受控词表的中文标签（prompt.md §13：UI 不要写得太技术化）
 
 export const EVIDENCE_ZH: Record<Evidence, string> = {
+  field: '野外判断',
   tentative: '暂定参考',
   photo_based: '照片鉴定',
   specimen_examined: '标本检视',

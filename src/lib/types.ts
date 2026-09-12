@@ -18,6 +18,7 @@ export type Sex = 'male' | 'female' | 'unknown' | 'mixed' | 'not_applicable';
 export type LifeStage = 'adult' | 'subadult' | 'juvenile' | 'unknown' | 'mixed';
 
 export type Evidence =
+  | 'field'
   | 'tentative'
   | 'photo_based'
   | 'specimen_examined'

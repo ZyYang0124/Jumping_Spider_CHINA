@@ -2,14 +2,12 @@
 export const prerender = true;
 import Base from '../../layouts/Base.astro';
 import PictureImage from '../../components/PictureImage.astro';
-import SciName from '../../components/SciName.astro';
-import EvidenceBadge from '../../components/EvidenceBadge.astro';
-import MediaGallery from '../../components/MediaGallery.astro';
 import ObsCard from '../../components/ObsCard.astro';
+import MediaGallery from '../../components/MediaGallery.astro';
 import { getObservation, allPublicObservations } from '../../lib/queries';
 import { withBase } from '../../lib/privacy';
-import { SEX_ZH, LIFE_STAGE_ZH } from '../../lib/labels';
-import { formatDate, coordLabel, locationLine, sciNameHtml , formatLat, formatLng} from '../../lib/format';
+import { SEX_ZH, LIFE_STAGE_ZH, EVIDENCE_ZH } from '../../lib/labels';
+import { formatDate, coordLabel, locationLine, sciNameHtml, formatLat, formatLng } from '../../lib/format';
 
 export function getStaticPaths() {
   return allPublicObservations.map((o) => ({ params: { id: o.public_id } }));
@@ -19,14 +17,6 @@ const { id } = Astro.params;
 const obs = getObservation(id!);
 if (!obs) return Astro.redirect(withBase('/observations/'));
 const loc = obs.location;
-
-const traits: [string, string | null][] = [
-  ['性别', SEX_ZH[obs.sex as keyof typeof SEX_ZH] ?? null],
-  ['龄期', LIFE_STAGE_ZH[obs.life_stage as keyof typeof LIFE_STAGE_ZH] ?? null],
-  ['生境', obs.habitat],
-  ['小生境', obs.microhabitat],
-  ['行为', obs.behavior],
-];
 
 const photographer = obs.cover?.photographer ?? null;
 const shareData = {
@@ -52,14 +42,19 @@ const related = allPublicObservations
       o.public_id !== obs.public_id &&
       (o.identification?.display === obs.identification?.display ||
         o.trip?.slug === obs.trip?.slug ||
-        o.location.admin1 === obs.location.admin1 && o.location.country_code === obs.location.country_code),
+        (o.location.admin1 === obs.location.admin1 && o.location.country_code === obs.location.country_code)),
   )
   .slice(0, 3);
+
+// 记录详情（§63）：两栏四组，值缺省不显示
+const placeName = loc.locality ?? loc.site_name ?? loc.admin2 ?? loc.admin1;
+const gallery = obs.media.filter((m) => m.id !== obs.cover?.id);
 ---
 
 <Base title={`${obs.identification?.display ?? '未鉴定的跳蛛'} · ${obs.public_id}`} description={obs.field_note.slice(0, 80)}>
+  {/* --- 上半页：一次相遇 --- */}
   <figure class="obs-hero">
-    <div class="frame" id="hero-open" role="button" tabindex="0" aria-label="查看完整原始照片">
+    <div class="obs-hero-media" id="hero-open" role="button" tabindex="0" aria-label="查看完整原始照片">
       {obs.cover && (
         <PictureImage
           media={obs.cover}
@@ -71,9 +66,127 @@ const related = allPublicObservations
         />
       )}
     </div>
-    {obs.cover && <figcaption class="hint">点击查看完整原始照片 · {coordLabel(loc) ?? ''}</figcaption>}
   </figure>
 
+  <header class="obs-head container">
+    <h1>
+      {obs.identification ? (
+        <a href={obs.identification.taxon_slug ? withBase(`/species/${obs.identification.taxon_slug}/`) : undefined}>
+          <span set:html={sciNameHtml(obs.identification.display, obs.identification.taxon_rank)} />
+        </a>
+      ) : (
+        <span>未鉴定的跳蛛</span>
+      )}
+    </h1>
+    <div class="obs-where">
+      {locationLine(loc)}<br />
+      {formatDate(obs.observed_at, obs.observed_at_precision)} · 观察者 {obs.observer_name}
+    </div>
+    <div class="obs-pid">{obs.public_id}</div>
+  </header>
+
+  <section class="obs-note container-narrow">
+    <h2 class="obs-note-label">野外笔记</h2>
+    {obs.field_note.split('\n').filter(Boolean).map((p) => <p>{p}</p>)}
+    {obs.cover?.caption && <p class="obs-photo-caption">{obs.cover.caption}（© {obs.cover.photographer}）</p>}
+  </section>
+
+  {gallery.length > 0 && (
+    <section class="obs-gallery container">
+      <MediaGallery media={gallery} curatedLimit={6} />
+    </section>
+  )}
+
+  {/* --- 下半页：一份科学档案（§62-§65，两栏四组合并） --- */}
+  <section class="obs-record container">
+    <h2 class="obs-record-title">记录详情</h2>
+    <div class="obs-grid">
+      <div class="obs-cell">
+        <div class="k">鉴定</div>
+        <div class="v">
+          {obs.identification ? (
+            <>
+              <span class="strong" set:html={sciNameHtml(obs.identification.display, obs.identification.taxon_rank)} />
+              <span class="sub">{EVIDENCE_ZH[obs.identification.evidence as keyof typeof EVIDENCE_ZH] ?? obs.identification.evidence} · {obs.identification.identified_by} · {obs.identification.identified_at}</span>
+              {obs.identification.remarks && <span class="sub">{obs.identification.remarks}</span>}
+            </>
+          ) : (
+            <>
+              <span class="strong">未鉴定</span>
+              <span class="sub">未知与存疑的记录同样是有效观察。</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div class="obs-cell">
+        <div class="k">地点</div>
+        <div class="v">
+          <span class="strong">{placeName}</span>
+          <span class="sub">{[loc.country_name, loc.admin1].filter(Boolean).join(' · ')}</span>
+          {loc.elevation_m != null && <span class="sub">海拔约 {loc.elevation_m} m</span>}
+          {loc.latitude != null && loc.longitude != null ? (
+            <span class="sub">{formatLat(loc.latitude)} · {formatLng(loc.longitude)}（{coordLabel(loc)}）</span>
+          ) : (
+            <span class="sub">坐标待补充</span>
+          )}
+          {obs.trip && <span class="sub">来自调查 <a href={withBase(`/trips/${obs.trip.slug}/`)}>{obs.trip.title} →</a></span>}
+        </div>
+      </div>
+
+      <div class="obs-cell">
+        <div class="k">观察</div>
+        <div class="v">
+          <span class="strong">{[SEX_ZH[obs.sex as keyof typeof SEX_ZH], LIFE_STAGE_ZH[obs.life_stage as keyof typeof LIFE_STAGE_ZH]].filter(Boolean).join(' · ') || '—'}</span>
+          {obs.habitat && <span class="sub">生境：{obs.habitat}</span>}
+          {obs.microhabitat && <span class="sub">小生境：{obs.microhabitat}</span>}
+          {obs.behavior && <span class="sub">行为：{obs.behavior}</span>}
+        </div>
+      </div>
+
+      {obs.specimen && (
+        <div class="obs-cell">
+          <div class="k">标本</div>
+          <div class="v">
+            <span class="strong">{obs.specimen.catalog_number}</span>
+            <span class="sub">{obs.specimen.repository}{obs.specimen.preservation ? ` · ${obs.specimen.preservation}` : ''}</span>
+            {obs.specimen.notes && <span class="sub">{obs.specimen.notes}</span>}
+          </div>
+        </div>
+      )}
+    </div>
+
+    {obs.identification_history.length > 1 && (
+      <details class="obs-history">
+        <summary>鉴定历史（{obs.identification_history.length} 条 · 鉴定可变，记录不变）</summary>
+        <ul>
+          {obs.identification_history.map((h) => (
+            <li class={obs.identification && h.identified_at !== obs.identification.identified_at ? 'old' : ''}>
+              {h.identified_at} · <span set:html={sciNameHtml(h.display, h.taxon_rank)} />
+              （{h.evidence}）— {h.identified_by}
+            </li>
+          ))}
+        </ul>
+      </details>
+    )}
+  </section>
+
+  {/* --- 分享：页面结尾，非常轻（§66） --- */}
+  <section class="obs-share container" aria-label="分享">
+    <button type="button" class="share-btn" data-card="postcard">导出明信片</button>
+    <button type="button" class="share-btn" data-card="idcard">物种身份卡</button>
+  </section>
+
+  {related.length > 0 && (
+    <section class="obs-related container">
+      <h2 class="obs-record-title">相关记录</h2>
+      <div class="card-grid">
+        {related.map((o) => <ObsCard obs={o} />)}
+      </div>
+    </section>
+  )}
+
+  {/* 原图灯箱（§58 点击 contain 查看完整原图） */}
   <div class="lightbox" id="hero-lightbox" role="dialog" aria-modal="true" aria-label="原始照片">
     <button class="close" type="button" aria-label="关闭">×</button>
     {obs.cover && <img src={obs.cover.large} alt={obs.cover.caption ?? obs.public_id} />}
@@ -83,143 +196,9 @@ const related = allPublicObservations
     </div>
   </div>
 
-  <div class="container">
-    <header class="obs-title">
-      <div class="pub-id">{obs.public_id}</div>
-      <h1>
-        {obs.identification ? (
-          <span set:html={sciNameHtml(obs.identification.display, obs.identification.taxon_rank)} />
-        ) : (
-          <span>未鉴定的跳蛛</span>
-        )}
-      </h1>
-      <div class="byline">
-        {locationLine(loc)} · {formatDate(obs.observed_at, obs.observed_at_precision)}
-        <br />
-        观察者 {obs.observer_name}
-      </div>
-    </header>
-
-    <div class="obs-body">
-      <article>
-        <section class="field-note">
-          <div class="label">野 外 笔 记</div>
-          {obs.field_note.split('\n').map((p) => <p>{p}</p>)}
-        </section>
-
-        {obs.media.length > 0 && (
-          <section style="margin-top: 26px;">
-            <MediaGallery media={obs.media} curatedLimit={6} />
-          </section>
-        )}
-
-        <section class="side-block" style="margin-top: 30px; border-top: none; padding-top: 0;">
-          {obs.identification ? (
-            <>
-              <h3 class="side-kicker">鉴 定</h3>
-              <div class="side-primary">
-                <SciName display={obs.identification.display} rank={obs.identification.taxon_rank} />
-                <EvidenceBadge evidence={obs.identification.evidence} />
-              </div>
-              <div class="side-footnote">
-                {obs.identification.identified_by} · {obs.identification.identified_at}
-                {obs.identification.remarks && <br />}
-                {obs.identification.remarks}
-              </div>
-            </>
-          ) : (
-            <>
-              <h3 class="side-kicker">鉴 定</h3>
-              <p class="side-secondary" style="margin: 0;">
-                暂无鉴定。未知与存疑的记录同样是有效观察。
-              </p>
-            </>
-          )}
-          {obs.identification_history.length > 1 && (
-            <div class="id-history">
-              <details>
-                <summary>鉴定历史（{obs.identification_history.length} 条，鉴定可变而记录不变）</summary>
-                <ul>
-                  {obs.identification_history.map((h) => (
-                    <li class={obs.identification && h.identified_at !== obs.identification.identified_at ? 'old' : ''}>
-                      {h.identified_at} · <span set:html={sciNameHtml(h.display, h.taxon_rank)} />
-                      （{h.evidence}）— {h.identified_by}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            </div>
-          )}
-        </section>
-
-        {obs.specimen && (
-          <section class="side-block">
-            <h3 class="side-kicker">标 本</h3>
-            <div class="side-secondary">
-              {obs.specimen.catalog_number} · {obs.specimen.repository}
-              {obs.specimen.preservation ? ` · ${obs.specimen.preservation}` : ''}
-              {obs.specimen.notes && <br />}
-              {obs.specimen.notes}
-            </div>
-          </section>
-        )}
-      </article>
-
-      <aside>
-        <section class="side-block" style="border-top: none; padding-top: 0;">
-          <h3 class="side-kicker">地 点</h3>
-          <div class="side-primary">{loc.locality ?? loc.site_name ?? loc.admin2 ?? loc.admin1}</div>
-          <div class="side-secondary">{[loc.country_name, loc.admin1].filter(Boolean).join(' · ')}</div>
-          <div class="side-footnote">
-            {loc.elevation_m != null && <>海拔约 {loc.elevation_m} m<br /></>}
-            {loc.latitude != null && loc.longitude != null ? (
-              <>{formatLat(loc.latitude)} · {formatLng(loc.longitude)}<br />{coordLabel(loc)}</>
-            ) : (
-              '坐标待补充'
-            )}
-          </div>
-          {obs.trip && (
-            <p class="side-link" style="margin-bottom: 0;">
-              来自调查 <a href={withBase(`/trips/${obs.trip.slug}/`)} style="text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px;">{obs.trip.title} →</a>
-            </p>
-          )}
-        </section>
-
-        <section class="side-block">
-          <h3 class="side-kicker">分 享</h3>
-          <div class="share-actions">
-            <button type="button" class="share-btn" data-card="postcard">导出明信片</button>
-            <button type="button" class="share-btn" data-card="idcard">物种身份卡</button>
-          </div>
-          <p class="side-footnote">生成精美卡片图片，适合分享传播。</p>
-        </section>
-
-        {traits.some(([, v]) => v) && (
-          <section class="side-block">
-            <h3 class="side-kicker">观 察</h3>
-            <div class="side-list">
-              {traits.filter(([, v]) => v).map(([k, v]) => (
-                <div class="row"><span class="k">{k}</span><span>{v}</span></div>
-              ))}
-            </div>
-          </section>
-        )}
-      </aside>
-    </div>
-
-    {related.length > 0 && (
-      <section class="section" style="padding-bottom: 70px;">
-        <div class="section-head"><h2>相关记录</h2></div>
-        <div class="card-grid">
-          {related.map((o) => <ObsCard obs={o} />)}
-        </div>
-      </section>
-    )}
-
-    <script type="application/json" id="share-data" set:html={JSON.stringify(shareData)} />
-    <script is:inline src={withBase('/vendor/qrcode-1.4.4.js')}></script>
-    <script is:inline src={withBase('/share-cards.js')}></script>
-  </div>
+  <script type="application/json" id="share-data" set:html={JSON.stringify(shareData)} />
+  <script is:inline src={withBase('/vendor/qrcode-1.4.4.js')}></script>
+  <script is:inline src={withBase('/share-cards.js')}></script>
 </Base>
 
 <script>
@@ -253,16 +232,76 @@ const related = allPublicObservations
     if (e.key === 'Escape') closeHero();
   });
 </script>
-  </div>
-</Base>
 
 <style>
-  .share-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  /* ---- 上半页：相遇 ---- */
+  .obs-hero { margin: var(--s-4) auto 0; max-width: var(--content-wide); padding: 0 24px; }
+  .obs-hero-media { cursor: zoom-in; overflow: hidden; background: var(--paper-deep); }
+  .obs-hero-media :global(img) { width: 100%; height: auto; max-height: 76vh; object-fit: cover; display: block; }
+
+  .obs-head { padding: var(--s-6) 0 0; }
+  .obs-head h1 {
+    font-family: var(--serif); font-weight: 400; /* 学名 400 italic（§8） */
+    font-size: clamp(34px, 4.6vw, 56px); line-height: 1.18; margin: 0;
+  }
+  .obs-head h1 a { color: inherit; text-decoration: none; }
+  .obs-where { margin-top: var(--s-3); font-size: 15.5px; color: var(--muted); line-height: 1.85; }
+  .obs-pid { margin-top: var(--s-3); font-size: 13px; color: var(--faint); letter-spacing: 0.08em; }
+
+  /* ---- 野外笔记：第二视觉重点，无卡片背景（§60） ---- */
+  .obs-note { margin: var(--s-7) auto; }
+  .obs-note-label {
+    font-family: var(--serif); font-size: 13px; font-weight: 400; color: var(--terra);
+    letter-spacing: 0.1em; margin: 0 0 var(--s-4);
+  }
+  .obs-note p {
+    font-family: var(--serif); font-size: clamp(18px, 2vw, 21px); line-height: 2.05;
+    color: var(--ink); margin: 0 0 1.4em;
+  }
+  .obs-photo-caption { font-family: var(--sans) !important; font-size: 13px !important; color: var(--faint) !important; }
+
+  .obs-gallery { margin: 0 auto var(--section-gap); }
+
+  /* ---- 下半页：科学档案，两栏四组（§63-§65） ---- */
+  .obs-record { margin: 0 auto var(--s-6); padding-top: var(--s-5); border-top: 1px solid var(--line); }
+  .obs-record-title {
+    font-family: var(--serif); font-size: clamp(20px, 2.4vw, 26px); font-weight: 700;
+    letter-spacing: 0.02em; margin: 0 0 var(--s-5);
+  }
+  .obs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6) var(--s-9); }
+  .obs-cell { display: grid; grid-template-columns: 64px 1fr; gap: var(--s-4); align-items: start; }
+  .obs-cell .k { font-size: 13px; color: var(--faint); letter-spacing: 0.06em; padding-top: 3px; }
+  .obs-cell .v { display: flex; flex-direction: column; gap: 3px; font-size: 16px; color: var(--ink); line-height: 1.75; }
+  .obs-cell .strong { font-size: 17px; }
+  .obs-cell .sub { font-size: 13.5px; color: var(--muted); }
+  .obs-cell .v a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .obs-cell .v a:hover { color: var(--terra); text-decoration-color: var(--terra); }
+
+  .obs-history { margin-top: var(--s-6); }
+  .obs-history summary { cursor: pointer; font-size: 13.5px; color: var(--muted); }
+  .obs-history summary:hover { color: var(--ink); }
+  .obs-history ul { list-style: none; margin: var(--s-3) 0 0; padding: 0; }
+  .obs-history li { font-size: 13.5px; color: var(--muted); padding: 6px 0; border-bottom: 1px solid var(--line-soft); }
+  .obs-history li.old { color: var(--faint); }
+
+  /* ---- 分享与相关：轻（§66） ---- */
+  .obs-share {
+    display: flex; gap: var(--s-3); align-items: center; flex-wrap: wrap;
+    margin: 0 auto var(--section-gap); padding-top: var(--s-4); border-top: 1px solid var(--line-soft);
+  }
   .share-btn {
-    font: inherit; font-size: 13.5px; color: var(--ink);
-    border: 1px solid var(--line); border-radius: 99px; background: #fff;
-    padding: 7px 14px; cursor: pointer;
-    transition: color 0.2s ease, border-color 0.2s ease;
+    font: inherit; font-size: 13px; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 99px; background: none;
+    padding: 6px 14px; cursor: pointer;
   }
   .share-btn:hover { color: var(--ink); border-color: var(--faint); }
+
+  .obs-related { margin: 0 auto; padding-bottom: var(--s-9); }
+
+  @media (max-width: 700px) {
+    /* Mobile（§113）：Hero → 标题 → 信息 → 笔记 → 图库 → 档案 的自然竖排 */
+    .obs-hero { padding: 0 16px; }
+    .obs-hero-media :global(img) { max-height: 62vh; }
+    .obs-grid { grid-template-columns: 1fr; gap: var(--s-5); }
+  }
 </style>
