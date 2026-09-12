@@ -82,5 +82,17 @@
     "latitude": 15.298317,
     "longitude": 103.98879,
     "elevation_m": null
+  },
+  {
+    "id": "loc-studio-21",
+    "country_code": "",
+    "country_name": "中国",
+    "admin1": "云南",
+    "admin2": "楚雄",
+    "locality": "啦啦村",
+    "site_name": null,
+    "latitude": 41.43998,
+    "longitude": 99.533186,
+    "elevation_m": null
   }
 ]

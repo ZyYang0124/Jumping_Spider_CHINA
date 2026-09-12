@@ -54,5 +54,61 @@
     "elevation_m": null,
     "description": null,
     "merged_into_id": null
+  },
+  {
+    "id": "place-5",
+    "name": "云南",
+    "country": "中国",
+    "admin1": "云南",
+    "admin2": "",
+    "locality": "",
+    "site_name": "",
+    "latitude": 41.43998,
+    "longitude": 99.533186,
+    "elevation_m": null,
+    "description": null,
+    "merged_into_id": null
+  },
+  {
+    "id": "place-6",
+    "name": "楚雄",
+    "country": "中国",
+    "admin1": "云南",
+    "admin2": "楚雄",
+    "locality": "",
+    "site_name": "",
+    "latitude": 41.43998,
+    "longitude": 99.533186,
+    "elevation_m": null,
+    "description": null,
+    "merged_into_id": null
+  },
+  {
+    "id": "place-7",
+    "name": "啦啦",
+    "country": "中国",
+    "admin1": "云南",
+    "admin2": "楚雄",
+    "locality": "啦啦",
+    "site_name": "",
+    "latitude": 41.43998,
+    "longitude": 99.533186,
+    "elevation_m": null,
+    "description": null,
+    "merged_into_id": null
+  },
+  {
+    "id": "place-8",
+    "name": "啦啦村",
+    "country": "中国",
+    "admin1": "云南",
+    "admin2": "楚雄",
+    "locality": "啦啦村",
+    "site_name": "",
+    "latitude": 41.43998,
+    "longitude": 99.533186,
+    "elevation_m": null,
+    "description": null,
+    "merged_into_id": null
   }
 ]
