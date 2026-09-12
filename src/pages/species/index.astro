@@ -157,12 +157,13 @@ const tree = getTaxonomyBrowse();
 </script>
 
 <style>
-  .browse-toggle { display: inline-flex; gap: 0; margin-top: 18px; border: 1px solid var(--line); width: fit-content; }
+  .browse-toggle { display: inline-flex; gap: var(--s-5); margin-top: 18px; width: fit-content; border-bottom: 1px solid var(--line); }
   .browse-toggle button {
-    font-family: var(--sans); font-size: 13px; letter-spacing: 0.1em;
-    background: none; border: none; padding: 7px 18px; cursor: pointer; color: var(--muted);
+    font-family: var(--sans); font-size: 14px; letter-spacing: 0.06em;
+    background: none; border: none; padding: 8px 2px 10px; cursor: pointer; color: var(--muted);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
   }
-  .browse-toggle button.active { background: var(--ink); color: var(--paper); }
+  .browse-toggle button.active { color: var(--ink); border-bottom-color: var(--terra); }
   .taxonomy-view { font-size: 15px; }
   .tax-root { font-family: var(--serif); font-size: 19px; margin-bottom: 18px; }
   .tax-rank { display: inline-block; font-size: 11px; color: var(--faint); letter-spacing: 0.2em; margin-right: 10px; }
