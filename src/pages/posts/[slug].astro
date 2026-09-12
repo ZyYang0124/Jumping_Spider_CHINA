@@ -135,14 +135,26 @@ const older = idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null; //
   .story-body :global(p) { margin: 0 0 1.55em; text-align: justify; }
   /* 小节标题 = 居中章节分隔：字距拉开 + 短线（红栏杆 motif 的克制用法） */
   .story-body :global(h2) {
-    text-align: center; font-family: var(--serif); font-size: 1.3rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; gap: 18px;
+    font-family: var(--serif); font-size: 1.28rem; font-weight: 700;
     letter-spacing: 0.2em; text-indent: 0.2em; color: var(--ink);
-    margin: 3em 0 1.8em;
+    margin: 3em 0 1.6em; text-align: center; white-space: nowrap;
   }
+  /* 参考自然史故事页：标题两侧细线 */
+  .story-body :global(h2)::before,
   .story-body :global(h2)::after {
-    content: ''; display: block; width: 26px; height: 2px;
-    background: var(--terra); opacity: 0.75; margin: 16px auto 0;
+    content: ''; flex: 1; height: 1px; background: var(--line); min-width: 40px;
   }
+  /* 左图右文小节（§参考）：桌面图左文右，窄屏堆叠 */
+  .story-body :global(.duo) {
+    display: grid; grid-template-columns: minmax(0, 44%) minmax(0, 1fr);
+    gap: 30px; align-items: center; margin: 2.2em 0;
+  }
+  .story-body :global(.duo .article-media),
+  .story-body :global(.duo figure) { margin: 0; max-width: none; }
+  .story-body :global(.duo img) { margin: 0; max-height: 62vh; }
+  .story-body :global(.duo .duo-text p) { margin: 0 0 1.3em; }
+  .story-body :global(.duo .duo-text p:last-child) { margin-bottom: 0; }
   .story-body :global(h3) {
     font-size: 17px; letter-spacing: 0.06em; margin: 2em 0 0.8em; color: var(--ink);
   }
@@ -248,6 +260,8 @@ const older = idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null; //
     .story-hero { margin: 28px auto 30px; }
     .hero-title { letter-spacing: 0.06em; text-indent: 0.06em; }
     .story-body :global(.amg-triptych) { grid-template-columns: 1fr; }
+    .story-body :global(.duo) { grid-template-columns: 1fr; gap: 14px; }
+    .story-body :global(h2) { white-space: normal; }
     .story-body :global(.am-portrait) { max-width: 100%; }
   }
 </style>

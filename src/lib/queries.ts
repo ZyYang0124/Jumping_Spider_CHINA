@@ -21,7 +21,7 @@ import {
   taxonById,
 } from './store';
 import type { Taxon, TaxonRank } from './types';
-import { renderBodyMd } from './markdown';
+import { renderBodyMd, applyDuoLayout } from './markdown';
 import { shortRegion } from './format';
 
 const publishedObservationIds = new Set(
@@ -578,10 +578,13 @@ export function getPublishedPosts(): PublicPost[] {
             return o ? { public_id: o.public_id, url: o.url, display: o.identification?.display ?? null } : null;
           })
           .filter((x): x is NonNullable<typeof x> => x != null),
-        bodyHtml: p.body_html ?? renderBodyMd(hand.body_md ?? '', (pid) => {
-          const rec = media.find((m) => m.public_id === pid && m.visibility === 'public');
-          return rec ? publicMediaFromRecord(rec) : null;
-        }),
+        bodyHtml: applyDuoLayout(
+          p.body_html ??
+            renderBodyMd(hand.body_md ?? '', (pid) => {
+              const rec = media.find((m) => m.public_id === pid && m.visibility === 'public');
+              return rec ? publicMediaFromRecord(rec) : null;
+            }),
+        ),
         region: hand.region ?? null,
         dateRange: hand.date_range ?? null,
       };
