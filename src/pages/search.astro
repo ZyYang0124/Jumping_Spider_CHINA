@@ -82,6 +82,10 @@ import { withBase } from '../lib/privacy';
         html || '<div class="search-empty">没有匹配的记录。换个词试试？比如「Siler」「云南」「求偶」。</div>';
     }
 
+    // 支持 /search/?q=… 预填（首页搜索入口跳转）
+    const initial = new URLSearchParams(location.search).get('q');
+    if (initial) input.value = initial;
+
     fetch(`${BASE}data/search-index.json`)
       .then((r) => r.json())
       .then((data: SearchIndex) => {

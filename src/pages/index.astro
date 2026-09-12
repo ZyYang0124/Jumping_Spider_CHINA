@@ -77,6 +77,14 @@ const places = getLocalityCards().slice(0, 3);
     {hero && <span class="hero-credit">© <span data-hero-credit>{hero.photographer}</span></span>}
   </section>
 
+  <!-- 全站搜索：表单直达 /search/，无 JS 可用 -->
+  <section class="home-search">
+    <form action={withBase('/search/')} method="get" role="search">
+      <input type="search" name="q" placeholder="搜索物种、地点、伙伴、年份……" aria-label="全站搜索" autocomplete="off" />
+      <button type="submit" aria-label="搜索">→</button>
+    </form>
+  </section>
+
   <script data-astro-rerun>
     (function () {
       function init() {
@@ -228,3 +236,22 @@ const places = getLocalityCards().slice(0, 3);
   </div>
 </Base>
 
+
+<style>
+  .home-search { max-width: 640px; margin: var(--s-8) auto 0; padding: 0 24px; }
+  .home-search form {
+    display: flex; align-items: center; gap: var(--s-3);
+    border-bottom: 1px solid var(--line); padding-bottom: 10px;
+  }
+  .home-search input {
+    flex: 1; font-family: var(--serif); font-size: 19px;
+    border: none; background: none; color: var(--ink); outline: none; min-width: 0;
+  }
+  .home-search input::placeholder { color: var(--faint); }
+  .home-search input:focus::placeholder { color: var(--muted); }
+  .home-search button {
+    font: inherit; font-size: 18px; background: none; border: none;
+    cursor: pointer; color: var(--muted); padding: 0 2px;
+  }
+  .home-search button:hover { color: var(--terra); }
+</style>
