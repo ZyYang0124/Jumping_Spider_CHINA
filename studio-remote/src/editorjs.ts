@@ -1049,29 +1049,67 @@ const NOTE_EDITOR_JS = `
     }
   });
 
-  // ---- 编辑 ⇄ 预览 ----
+  // ---- 编辑 ⇄ 预览（宽屏左写右排 · 边写边排版）----
   var paneEdit = $('#pane-edit'), panePrev = $('#pane-preview');
+  var pvTitle = panePrev.querySelector('.pv-title'), pvSub = panePrev.querySelector('.pv-sub'), pvBody = panePrev.querySelector('.pv-body');
   var seg = $('#note-seg');
+  var splitQuery = window.matchMedia('(min-width:1100px)');
+  var previewTimer = null, previewSeq = 0;
+
+  function renderPreview() {
+    var seq = ++previewSeq;
+    return fetch('/studio/api/notes/preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body_md: body.value }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (seq !== previewSeq) return; // 过期响应丢弃
+        pvTitle.textContent = title.value || '（无标题）';
+        pvSub.textContent = sub.value || '';
+        pvSub.style.display = sub.value ? '' : 'none';
+        pvBody.innerHTML = j.html || '<p style="color:var(--faint)">（正文为空）</p>';
+      })
+      .catch(function () { setStatus('预览生成失败（网络）', true); });
+  }
+  function schedulePreview() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(renderPreview, 450);
+  }
+  // 输入即排版（防抖 450ms）
+  body.addEventListener('input', schedulePreview);
+  title.addEventListener('input', schedulePreview);
+  sub.addEventListener('input', schedulePreview);
+  // 滚动同步：编辑栏滚动比例映射到排版栏
+  body.addEventListener('scroll', function () {
+    if (!splitQuery.matches) return;
+    var max = body.scrollHeight - body.clientHeight;
+    if (max <= 0) return;
+    panePrev.scrollTop = (panePrev.scrollHeight - panePrev.clientHeight) * (body.scrollTop / max);
+  });
+
   function setView(v) {
     Array.prototype.slice.call(seg.querySelectorAll('button')).forEach(function (b) {
       b.classList.toggle('on', b.getAttribute('data-view') === v);
     });
+    if (splitQuery.matches) {
+      // 宽屏分栏：双栏常驻，切换器不可见，永远不隐藏编辑栏
+      paneEdit.hidden = false;
+      panePrev.hidden = false;
+      fab.style.display = 'none';
+      renderPreview();
+      previewing = true;
+      return;
+    }
     if (v === 'preview') {
       setStatus('正在生成预览…');
-      fetch('/studio/api/notes/preview', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body_md: body.value }),
-      })
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          panePrev.innerHTML = '<h1 style="font-family:var(--serif);font-weight:400;font-size:34px;margin:0 0 4px">' + escHtml(title.value || '（无标题）') + '</h1>' +
-            (sub.value ? '<p style="color:var(--muted);margin:0 0 30px">' + escHtml(sub.value) + '</p>' : '') + j.html;
-          paneEdit.hidden = true;
-          panePrev.hidden = false;
-          fab.style.display = 'none';
-          setStatus('预览 · 由 Article Engine 自动排版');
-          window.scrollTo(0, 0);
-        });
+      renderPreview().then(function () {
+        paneEdit.hidden = true;
+        panePrev.hidden = false;
+        fab.style.display = 'none';
+        setStatus('预览 · 由 Article Engine 自动排版');
+        window.scrollTo(0, 0);
+      });
       previewing = true;
     } else {
       previewing = false;
@@ -1087,6 +1125,9 @@ const NOTE_EDITOR_JS = `
   $('#btn-preview2').addEventListener('click', function () {
     setView(previewing ? 'edit' : 'preview');
   });
+  // 初始与宽度跨越时同步视图
+  splitQuery.addEventListener('change', function () { setView(splitQuery.matches ? 'preview' : 'edit'); });
+  if (splitQuery.matches) { panePrev.hidden = false; fab.style.display = 'none'; renderPreview(); previewing = true; }
 
   // ---- 设置抽屉 ----
   $('#btn-settings').addEventListener('click', function () { document.body.classList.add('drawer-open'); });

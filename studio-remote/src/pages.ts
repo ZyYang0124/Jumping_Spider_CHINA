@@ -332,6 +332,29 @@ details.more .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 22px
 
 /* ---- 野外笔记：写作模式 ---- */
 .write-main { max-width:var(--w-note); margin:0 auto; padding:44px 24px 160px; }
+/* ---- 宽屏：左写右排（边写边排版） ---- */
+@media (min-width:1100px) {
+  .write-main.split {
+    display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:0; max-width:none; width:100%; height:calc(100vh - 58px);
+    padding:0; margin:0; overflow:hidden;
+  }
+  .write-main.split #pane-edit { overflow-y:auto; padding:44px 30px 160px; }
+  .write-main.split #pane-preview {
+    overflow-y:auto; height:100%; padding:44px 30px 160px;
+    border-left:1px solid var(--line-soft); background:var(--paper);
+  }
+  .write-main.split .preview-label {
+    display:block; font-size:11.5px; letter-spacing:.12em; color:var(--faint); margin:0 0 18px;
+  }
+}
+.preview-label { display:none; }
+/* 宽屏下切换器与独立预览按钮隐藏 */
+@media (min-width:1100px) {
+  .write-main.split ~ .fab-add { left: calc(25vw + 44px); right: auto; }
+  /* 分栏常驻时切换器与独立预览按钮无意义 */
+  #note-seg, #btn-preview2 { display:none; }
+}
 .title-line, .subtitle-line {
   width:100%; border:none; background:transparent; font-family:var(--serif); color:var(--ink); padding:0;
 }
@@ -368,6 +391,9 @@ details.more .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 22px
 .seg button { border:none; background:none; padding:4px 14px; border-radius:99px; font-size:13px; color:var(--muted); transition:all var(--fast) ease; }
 .seg button.on { background:#fff; color:var(--ink); }
 .preview-pane { animation:fadein var(--normal) var(--ease); }
+.preview-pane .pv-title { font-family:var(--serif); font-weight:400; font-size:34px; margin:0 0 4px; color:var(--ink); }
+.preview-pane .pv-sub { color:var(--muted); margin:0 0 30px; }
+.preview-pane .pv-body:empty + .pv-sub, .preview-pane .pv-body:empty { display:none; }
 @keyframes fadein { from { opacity:0; } to { opacity:1; } }
 /* 设置抽屉 */
 .drawer-mask { position:fixed; inset:0; background:rgba(38,34,28,.18); z-index:60; opacity:0; pointer-events:none; transition:opacity var(--normal) var(--ease); }
@@ -923,13 +949,18 @@ export function noteEditorHtml(slug: string | null, data: Record<string, any>): 
     <div class="seg" id="note-seg"><button type="button" class="on" data-view="edit">写作</button><button type="button" data-view="preview">预览</button></div>
     <button type="button" class="ghost" id="btn-settings">设置</button>`;
   return page(slug ? `编辑：${data.title ?? slug}` : '写一篇野外笔记', `
-  <main class="write-main">
+  <main class="write-main split">
     <div id="pane-edit">
       <input id="n-title" class="title-line" placeholder="标题" value="${esc(data.title ?? '')}" autocomplete="off" />
       <input id="n-subtitle" class="subtitle-line" placeholder="副标题（可选）" value="${esc(data.subtitle ?? '')}" autocomplete="off" />
       <textarea id="n-body" class="body-line" placeholder="从这里开始写……">${esc(data.body_md ?? '')}</textarea>
     </div>
-    <div id="pane-preview" class="article-body preview-pane" hidden></div>
+    <div id="pane-preview" class="article-body preview-pane" hidden>
+      <span class="preview-label">实 时 排 版</span>
+      <h1 class="pv-title"></h1>
+      <p class="pv-sub"></p>
+      <div class="pv-body"></div>
+    </div>
   </main>
 
   <button type="button" class="fab-add" id="fab-add" title="插入（也可用 / 呼出）">＋</button>
