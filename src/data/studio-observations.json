@@ -18,8 +18,7 @@
     "weather": null,
     "field_note": "编辑复核：补充生境描述（发布后修订）。",
     "status": "published",
-    "visibility": "public",
-    "trip_id": null
+    "visibility": "public"
   },
   {
     "id": "studio-13",
@@ -40,8 +39,7 @@
     "weather": null,
     "field_note": "阴天，溪边巨石背面，一只亚成体。",
     "status": "published",
-    "visibility": "public",
-    "trip_id": null
+    "visibility": "public"
   },
   {
     "id": "studio-14",
@@ -62,8 +60,7 @@
     "weather": null,
     "field_note": "",
     "status": "published",
-    "visibility": "public",
-    "trip_id": null
+    "visibility": "public"
   },
   {
     "id": "studio-17",
@@ -84,8 +81,7 @@
     "weather": null,
     "field_note": "雨后山径，两只跳蛛在叶面游猎，雄性成体，极警觉。",
     "status": "published",
-    "visibility": "public",
-    "trip_id": null
+    "visibility": "public"
   },
   {
     "id": "studio-18",
@@ -106,8 +102,7 @@
     "weather": null,
     "field_note": "",
     "status": "published",
-    "visibility": "public",
-    "trip_id": null
+    "visibility": "public"
   },
   {
     "id": "studio-19",
@@ -128,8 +123,7 @@
     "weather": null,
     "field_note": "",
     "status": "published",
-    "visibility": "public",
-    "trip_id": null
+    "visibility": "public"
   },
   {
     "id": "studio-20",
@@ -150,7 +144,6 @@
     "weather": null,
     "field_note": "测试",
     "status": "published",
-    "visibility": "public",
-    "trip_id": null
+    "visibility": "public"
   }
 ]
