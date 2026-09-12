@@ -148,7 +148,7 @@
     "behavior": null,
     "plant": null,
     "weather": null,
-    "field_note": "",
+    "field_note": "测试",
     "status": "published",
     "visibility": "public",
     "trip_id": null
