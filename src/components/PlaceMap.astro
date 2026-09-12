@@ -1,0 +1,89 @@
+---
+// 懒加载 Leaflet 地图：进入视口才拉取库与瓦片（性能 §129）。
+// 公开站只读展示；坐标为精确公开口径（Studio SOP §7）。
+interface Props {
+  points: { lat: number; lng: number; label?: string }[];
+  height?: number;
+  zoom?: number;
+}
+const { points, height = 320, zoom } = Astro.props;
+const valid = points.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+const id = `placemap-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+{
+  valid.length > 0 && (
+    <div class="placemap" id={id} style={`height:${height}px`} data-points={JSON.stringify(valid)} data-zoom={zoom ?? ''}>
+      <noscript>
+        <a
+          href={`https://www.openstreetmap.org/?mlat=${valid[0].lat}&mlon=${valid[0].lng}#map=11/${valid[0].lat}/${valid[0].lng}`}
+          target="_blank"
+          rel="noopener">
+          在 OpenStreetMap 中查看坐标
+        </a>
+      </noscript>
+    </div>
+  )
+}
+
+<script>
+  // IntersectionObserver 懒初始化；astro:page-load 后重新绑定（客户端导航）
+  function initPlaceMaps() {
+    const boxes = document.querySelectorAll<HTMLElement>('.placemap[data-points]');
+    if (!boxes.length) return;
+    const load = (box: HTMLElement) => {
+      if (box.dataset.mapInit === '1') return;
+      box.dataset.mapInit = '1';
+      const points = JSON.parse(box.dataset.points || '[]') as { lat: number; lng: number; label?: string }[];
+      const ready = () => {
+        const L = (window as any).L;
+        if (!L) return;
+        const map = L.map(box, { scrollWheelZoom: false, zoomControl: false, attributionControl: true });
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+        const latlngs = points.map((p) => [p.lat, p.lng] as [number, number]);
+        latlngs.forEach((ll, i) =>
+          L.marker(ll, { title: points[i].label ?? '' }).addTo(map),
+        );
+        const z = box.dataset.zoom;
+        if (latlngs.length === 1) {
+          map.setView(latlngs[0], Number(z) || 11);
+        } else {
+          map.fitBounds(L.latLngBounds(latlngs).pad(0.35));
+        }
+      };
+      if (!document.getElementById('leaflet-css')) {
+        const css = document.createElement('link');
+        css.id = 'leaflet-css';
+        css.rel = 'stylesheet';
+        css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(css);
+      }
+      if ((window as any).L) {
+        ready();
+      } else {
+        const js = document.createElement('script');
+        js.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        js.onload = () => ready();
+        document.head.appendChild(js);
+      }
+    };
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) if (e.isIntersecting) load(e.target as HTMLElement);
+      },
+      { rootMargin: '200px' },
+    );
+    boxes.forEach((b) => io.observe(b));
+  }
+  document.addEventListener('astro:page-load', initPlaceMaps);
+  initPlaceMaps();
+</script>
+
+<style>
+  .placemap {
+    border: 1px solid var(--line);
+    background: var(--paper-deep);
+    z-index: 0;
+  }
+  .placemap :global(a) { color: var(--muted); }
+</style>

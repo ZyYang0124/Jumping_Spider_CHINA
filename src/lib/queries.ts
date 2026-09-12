@@ -399,10 +399,16 @@ export function getPublicPlaces(): (PublicPlace & { count: number; cover: Public
 export interface PlacePageData {
   place: PublicPlace;
   observations: PublicObservation[];
-  /** 在此记录过的物种（按观察数排序，链接到物种页） */
-  species: { display: string; rank: TaxonRank | null; slug: string | null; count: number }[];
+  /** 在此记录过的物种（按观察数排序，链接到物种页；带代表照） */
+  species: { display: string; rank: TaxonRank | null; slug: string | null; count: number; cover: PublicMedia | null }[];
   /** 相关札记：文中观察落在该地点 */
   posts: { title: string; url: string }[];
+  /** 生境 Hero：优先生境类型照片，其次横构图照片 */
+  heroPhoto: PublicMedia | null;
+  /** 生境影像组（横构图优先，用于「生境影像」一节） */
+  habitatPhotos: PublicMedia[];
+  /** 该地点出现过的生境描述（「关于这个地方」的素材） */
+  habitats: string[];
 }
 
 export function getPlacePage(id: string): PlacePageData | undefined {
@@ -411,15 +417,32 @@ export function getPlacePage(id: string): PlacePageData | undefined {
   const observations = allPublicObservations
     .filter((o) => observationPlaceId(o) === id)
     .sort((a, b) => b.observed_at.localeCompare(a.observed_at));
-  const speciesMap = new Map<string, { display: string; rank: TaxonRank | null; slug: string | null; count: number }>();
+  const speciesMap = new Map<string, { display: string; rank: TaxonRank | null; slug: string | null; count: number; cover: PublicMedia | null }>();
+  const habitats: string[] = [];
+  const allPhotos: PublicMedia[] = [];
   for (const o of observations) {
     const idn = o.identification;
-    if (!idn) continue;
-    const key = idn.taxon_slug ?? idn.display;
-    const e = speciesMap.get(key);
-    if (e) e.count += 1;
-    else speciesMap.set(key, { display: idn.display, rank: idn.taxon_rank, slug: idn.taxon_slug, count: 1 });
+    if (idn) {
+      const key = idn.taxon_slug ?? idn.display;
+      const e = speciesMap.get(key);
+      if (e) e.count += 1;
+      else speciesMap.set(key, { display: idn.display, rank: idn.taxon_rank, slug: idn.taxon_slug, count: 1, cover: null });
+    }
+    if (o.habitat && !habitats.includes(o.habitat)) habitats.push(o.habitat);
+    for (const m of o.media) {
+      allPhotos.push(m);
+      if (idn) {
+        const e = speciesMap.get(idn.taxon_slug ?? idn.display)!;
+        // 物种代表照：跳过生境照，优先有主体的照片
+        if (!e.cover && m.view_type !== 'habitat') e.cover = m;
+      }
+    }
   }
+  // §110：蜘蛛 macro 不得替代生境 Hero——生境照优先，行为照（通常含环境）次之，否则中性占位（§13）
+  const habitatTyped = allPhotos.filter((m) => m.view_type === 'habitat');
+  const behaviorTyped = allPhotos.filter((m) => m.view_type === 'behavior' && m.width > m.height);
+  const heroPhoto = habitatTyped[0] ?? behaviorTyped[0] ?? null;
+  const habitatPhotos = habitatTyped.slice(0, 4);
   const obsIds = new Set(observations.map((o) => o.public_id));
   const posts = getPublishedPosts()
     .filter((p) => p.relatedObservations.some((ro) => obsIds.has(ro.public_id)))
@@ -429,6 +452,9 @@ export function getPlacePage(id: string): PlacePageData | undefined {
     observations,
     species: [...speciesMap.values()].sort((a, b) => b.count - a.count),
     posts,
+    heroPhoto,
+    habitatPhotos,
+    habitats,
   };
 }
 

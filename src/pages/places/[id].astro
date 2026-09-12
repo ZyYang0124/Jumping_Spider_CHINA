@@ -3,6 +3,7 @@ export const prerender = true;
 import Base from '../../layouts/Base.astro';
 import ObsCard from '../../components/ObsCard.astro';
 import PictureImage from '../../components/PictureImage.astro';
+import PlaceMap from '../../components/PlaceMap.astro';
 import { getPlacePage, getPlaceRedirect, getPublicPlaces } from '../../lib/queries';
 import { placeMergedInto } from '../../lib/store';
 import { withBase } from '../../lib/privacy';
@@ -20,116 +21,189 @@ const redirect = getPlaceRedirect(id!);
 if (redirect) return Astro.redirect(redirect);
 const data = getPlacePage(id!);
 if (!data) return Astro.redirect(withBase('/places/'));
-const { place, observations, species, posts } = data;
-const photos = observations.flatMap((o) => o.media.slice(0, 2)).slice(0, 10);
+const { place, observations, species, posts, heroPhoto, habitatPhotos, habitats } = data;
+const points = [...new Map(
+  observations
+    .filter((o) => o.location.latitude != null && o.location.longitude != null)
+    .map((o) => [`${o.location.latitude},${o.location.longitude}`, { lat: o.location.latitude!, lng: o.location.longitude!, label: place.name }]),
+).values()];
+
+// 「关于这个地方」：description 优先；否则从记录中的生境描述生成一句短简介
+const aboutText =
+  place.description ??
+  (habitats.length
+    ? `在我们的 ${observations.length} 次记录里，这里最常见的生境是${habitats.slice(0, 2).join('与')}。`
+    : null);
 ---
 
 <Base title={`${place.name} · 地点`} description={`${place.name}：本站共 ${observations.length} 条观察记录。`}>
-  <div class="container-wide place-page">
-    <header class="place-hero">
-      <div class="kicker on-paper">地 点 · {place.country}</div>
-      <h1>{place.name}</h1>
-      <div class="place-region">
-        {[place.admin1, place.admin2, place.locality, place.site_name].filter(Boolean).join(' · ')}
-      </div>
-      <div class="place-meta">
-        {place.elevation_m != null && <span>海拔约 {place.elevation_m} m</span>}
-        {place.latitude != null && place.longitude != null && (
-          <span>{formatLat(place.latitude)} · {formatLng(place.longitude)}</span>
-        )}
-        <span>{observations.length} 次相遇</span>
-        <span>{species.length} 个类群</span>
-      </div>
-      {place.description && <p class="place-desc">{place.description}</p>}
-    </header>
-
-    {photos.length > 0 && (
-      <section class="place-photos">
-        {photos.map((m) => (
-          <a class="place-photo" href={m.detail_url}>
-            <PictureImage media={m} sizes="(max-width: 700px) 46vw, 24vw" alt={m.caption ?? place.name} />
-          </a>
-        ))}
-      </section>
-    )}
-
-    {species.length > 0 && (
-      <section class="place-section">
-        <h2>在此记录的物种</h2>
-        <div class="place-species">
-          {species.map((s) => (
-            <a class="species-chip" href={s.slug ? withBase(`/species/${s.slug}/`) : undefined}>
-              <span set:html={sciNameHtml(s.display, s.rank ?? 'species')} />
-              <span class="n">{s.count}</span>
-            </a>
-          ))}
+  {/* --- 生境 Hero：先看见地方，再看见数据 --- */}
+  <figure class="place-hero">
+    <div class="place-hero-media">
+      {heroPhoto ? (
+        <PictureImage media={heroPhoto} sizes="(max-width: 1320px) 100vw, 1320px" alt={heroPhoto.caption ?? `${place.name} 的生境`} eager={true} fetchpriority="high" />
+      ) : (
+        <div class="place-hero-placeholder" aria-hidden="true"></div>
+      )}
+    </div>
+    <figcaption class="place-hero-caption">
+      <div class="container-wide">
+        <div class="kicker on-paper">地 点</div>
+        <h1>{place.name}</h1>
+        <div class="place-region">{[place.admin1, place.admin2, place.locality, place.site_name].filter(Boolean).join(' · ')}</div>
+        <div class="place-coords">
+          {place.elevation_m != null && <span>海拔约 {place.elevation_m} m</span>}
+          {place.latitude != null && place.longitude != null && (
+            <span>{formatLat(place.latitude)} · {formatLng(place.longitude)}</span>
+          )}
+          <span>{observations.length} 次相遇</span>
         </div>
-      </section>
-    )}
+        {heroPhoto?.caption && <div class="place-hero-credit">{heroPhoto.caption} · © {heroPhoto.photographer}</div>}
+      </div>
+    </figcaption>
+  </figure>
 
-    <section class="place-section">
-      <h2>观察记录</h2>
-      <div class="card-grid">
-        {observations.map((o) => <ObsCard obs={o} />)}
+  {aboutText && (
+    <section class="place-about container-narrow">
+      <h2>关于这个地方</h2>
+      <p>{aboutText}</p>
+    </section>
+  )}
+
+  {habitatPhotos.length > 0 && (
+    <section class="container-wide place-section">
+      <h2 class="place-section-title">生境影像</h2>
+      <div class="place-habitats">
+        {habitatPhotos.map((m) => (
+          <figure class="place-habitat">
+            <a href={m.detail_url}>
+              <PictureImage media={m} sizes="(max-width: 800px) 50vw, 320px" alt={m.caption ?? '生境'} />
+            </a>
+            {m.caption && <figcaption>{m.caption}</figcaption>}
+          </figure>
+        ))}
       </div>
     </section>
+  )}
 
-    {posts.length > 0 && (
-      <section class="place-section">
-        <h2>相关札记</h2>
-        <ul class="place-posts">
-          {posts.map((p) => (
-            <li><a href={p.url}>{p.title}</a></li>
-          ))}
-        </ul>
-      </section>
-    )}
+  {species.length > 0 && (
+    <section class="container place-section">
+      <h2 class="place-section-title">在那里遇见的跳蛛</h2>
+      <div class="place-species-cards">
+        {species.map((s) => (
+          <a class="psp-card" href={s.slug ? withBase(`/species/${s.slug}/`) : undefined}>
+            <span class="psp-photo">
+              {s.cover ? (
+                <PictureImage media={s.cover} sizes="(max-width: 700px) 30vw, 120px" alt={s.display} />
+              ) : (
+                <span class="psp-empty" aria-hidden="true"></span>
+              )}
+            </span>
+            <span class="psp-name"><span set:html={sciNameHtml(s.display, s.rank ?? 'species')} /></span>
+            <span class="psp-count">{s.count} 次</span>
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
 
-    <p class="place-legend">
-      本站观察地点坐标均精确公开。返回 <a href={withBase('/places/')}>全部地点</a> 或到 <a href={withBase('/observations/')}>观察</a> 页按永久编号检索。
-    </p>
-  </div>
+  <section class="container place-section">
+    <h2 class="place-section-title">观察记录</h2>
+    <div class="card-grid">
+      {observations.map((o) => <ObsCard obs={o} />)}
+    </div>
+  </section>
+
+  {posts.length > 0 && (
+    <section class="container place-section">
+      <h2 class="place-section-title">相关札记</h2>
+      <ul class="place-posts">
+        {posts.map((p) => (
+          <li><a href={p.url}>{p.title}</a></li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {points.length > 0 && (
+    <section class="container place-section">
+      <h2 class="place-section-title">地图</h2>
+      <PlaceMap points={points} height={340} />
+      <p class="place-map-note">坐标精确公开，可在地图中直接查看。</p>
+    </section>
+  )}
+
+  <p class="place-legend container">
+    本页仅显示本站实际记录，不代表任何物种的完整分布。返回 <a href={withBase('/places/')}>全部地点</a> 或到 <a href={withBase('/observations/')}>观察</a> 页按永久编号检索。
+  </p>
 </Base>
 
 <style>
-  .place-page { padding-bottom: 70px; }
-  .place-hero { padding: 44px 0 26px; border-bottom: 1px solid var(--line); margin-bottom: 30px; }
-  .place-hero h1 {
-    font-family: var(--serif); font-weight: 700; letter-spacing: 0.06em;
-    font-size: clamp(30px, 4.5vw, 44px); margin: 14px 0 10px;
+  /* ---- 生境 Hero：先地方后数据 ---- */
+  .place-hero { margin: 0 0 var(--s-8); }
+  .place-hero-media {
+    max-width: var(--content-wide); margin: 0 auto;
+    aspect-ratio: 16 / 7; overflow: hidden; background: var(--paper-deep);
   }
-  .place-region { color: var(--muted); font-size: 15px; letter-spacing: 0.04em; }
-  .place-meta {
-    display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px;
+  .place-hero-media :global(img) { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .place-hero-placeholder {
+    width: 100%; height: 100%;
+    background:
+      repeating-linear-gradient(0deg, transparent 0 15px, var(--line-soft) 15px 16px),
+      var(--paper-deep);
+  }
+  .place-hero-caption { padding: var(--s-5) 0 0; }
+  .place-hero-caption h1 {
+    font-family: var(--serif); font-weight: 700; letter-spacing: 0.04em;
+    font-size: clamp(34px, 5vw, 54px); margin: var(--s-2) 0 var(--s-2);
+  }
+  .place-region { color: var(--muted); font-size: 15px; letter-spacing: 0.03em; }
+  .place-coords {
+    display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: var(--s-3);
     font-size: 13px; color: var(--faint); letter-spacing: 0.04em;
   }
-  .place-desc { max-width: 640px; color: var(--ink); line-height: 1.9; margin: 18px 0 0; }
+  .place-hero-credit { margin-top: var(--s-2); font-size: 12.5px; color: var(--faint); }
 
-  .place-photos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 44px; }
-  .place-photo { display: block; }
-  .place-photo :global(img) { width: 100%; height: 100%; object-fit: cover; aspect-ratio: 1; display: block; }
+  /* ---- 关于这个地方：700px 阅读栏 ---- */
+  .place-about { padding: var(--s-4) 0 var(--s-6); }
+  .place-about p { font-size: 17.5px; line-height: 1.95; color: var(--ink); }
 
-  .place-section { margin: 0 0 48px; }
-  .place-section h2 {
-    font-family: var(--serif); font-size: 20px; font-weight: 700; letter-spacing: 0.12em;
-    margin: 0 0 18px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
+  /* ---- 分区标题：plain 中文 + 字号与细线建立层级（§9） ---- */
+  .place-section { margin: 0 0 var(--section-gap); }
+  .place-section-title {
+    font-family: var(--serif); font-size: clamp(20px, 2.4vw, 26px); font-weight: 700;
+    letter-spacing: 0.02em; margin: 0 0 var(--s-5); padding-bottom: var(--s-3);
+    border-bottom: 1px solid var(--line);
   }
-  .place-species { display: flex; flex-wrap: wrap; gap: 10px; }
-  .species-chip {
-    display: inline-flex; align-items: baseline; gap: 8px;
-    border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px;
-    font-size: 14px; text-decoration: none; color: var(--ink); background: #fff;
-  }
-  .species-chip:hover { border-color: var(--terra); }
-  .species-chip .n { font-size: 12px; color: var(--faint); }
+
+  /* ---- 生境影像：横构图横排 ---- */
+  .place-habitats { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s-4); }
+  .place-habitat { margin: 0; }
+  .place-habitat :global(img) { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block; }
+  .place-habitat figcaption { font-size: 12.5px; color: var(--muted); margin-top: var(--s-2); }
+
+  /* ---- 在那里遇见的跳蛛：轻量图像卡 ---- */
+  .place-species-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--s-4) var(--s-5); }
+  .psp-card { display: flex; align-items: center; gap: var(--s-4); text-decoration: none; color: inherit; }
+  .psp-photo { flex: none; width: 96px; height: 96px; overflow: hidden; background: var(--paper-deep); }
+  .psp-photo :global(img) { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .psp-empty { display: block; width: 100%; height: 100%; background: var(--paper-deep); }
+  .psp-name { font-size: 16px; min-width: 0; }
+  .psp-count { margin-left: auto; font-size: 12.5px; color: var(--faint); flex: none; }
+
   .place-posts { list-style: none; margin: 0; padding: 0; }
-  .place-posts li { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+  .place-posts li { padding: var(--s-3) 0; border-bottom: 1px solid var(--line-soft); font-size: 15.5px; }
   .place-posts a { color: var(--ink); text-decoration: none; }
   .place-posts a:hover { color: var(--terra); }
-  .place-legend { font-size: 12.5px; color: var(--faint); line-height: 1.9; }
+  .place-map-note { font-size: 12.5px; color: var(--faint); margin-top: var(--s-3); }
+  .place-legend { font-size: 12.5px; color: var(--faint); line-height: 1.9; padding-bottom: var(--s-9); }
   .place-legend a { color: var(--muted); }
 
+  /* ---- Mobile（§112/§116）：Hero 近满宽，文字在下 ---- */
   @media (max-width: 700px) {
-    .place-photos { grid-template-columns: repeat(2, 1fr); }
+    .place-hero-media { aspect-ratio: 4 / 3; }
+    .place-hero { margin-bottom: var(--s-6); }
+    .place-species-cards { grid-template-columns: 1fr; }
+    .place-habitats { grid-template-columns: 1fr 1fr; }
   }
 </style>
