@@ -18,31 +18,44 @@ const observed = trip.observations.length;
 const withId = trip.observations.filter((o) => o.identification);
 const distinctNames = [...new Set(withId.map((o) => o.identification!.display))];
 const timeline = [...trip.observations].sort((a, b) => a.observed_at.localeCompare(b.observed_at));
+
+// 中文日期（§50 去 DAY 01 式英文）：07·15
+const zhDate = (iso: string) => {
+  const [, m, d] = iso.split('-');
+  return m && d ? `${Number(m)} 月 ${Number(d)} 日` : iso;
+};
+const shortDate = (iso: string) => {
+  const [, m, d] = iso.split('-');
+  return m && d ? `${m} · ${d}` : iso;
+};
 ---
 
 <Base title={trip.title} description={trip.summary}>
+  {/* --- 生境 Hero：先感受旅程（§49） --- */}
   <section class="trip-hero">
     {trip.cover && <img src={trip.cover.large} alt={`${trip.title} 封面照片`} fetchpriority="high" />}
     <div class="veil"></div>
     <div class="inner">
-      <div class="kicker">Field Trip · {trip.region}</div>
+      <div class="kicker">野外调查 · {trip.region}</div>
       <h1>{trip.title}</h1>
       {trip.subtitle && <div class="sub">{trip.subtitle}</div>}
-      <div class="dates">{trip.start_date} — {trip.end_date}</div>
+      <div class="dates">{zhDate(trip.start_date)} — {zhDate(trip.end_date)}</div>
     </div>
   </section>
 
-  <div class="container">
-    <div class="trip-days">
-      <p style="font-size: 17px; color: var(--muted); margin: 0 0 8px;">{trip.summary}</p>
-      {trip.days.map((d) => (
-        <section class="trip-day">
-          <div class="day-label">{d.label}</div>
+  {/* --- 逐日时间线：日期左栏 + 720px 正文（§51/§52） --- */}
+  <div class="trip-body">
+    <p class="trip-summary">{trip.summary}</p>
+    {trip.days.map((d) => (
+      <section class="trip-day">
+        <div class="day-when">
+          <span class="day-date">{shortDate(d.date)}</span>
+        </div>
+        <div class="day-what">
           <h3>{d.title}</h3>
-          <div class="day-date">{d.date}</div>
           <p>{d.text}</p>
           {d.media.length > 0 && (
-            <div class="day-media">
+            <div class={`day-media ${d.media.length === 2 ? 'pair' : ''}`}>
               {d.media.map((m) => (
                 <figure class={`m-${m.ratio}`}>
                   <img src={m.medium} alt={m.caption ?? ''} loading="lazy" />
@@ -51,25 +64,86 @@ const timeline = [...trip.observations].sort((a, b) => a.observed_at.localeCompa
               ))}
             </div>
           )}
-        </section>
-      ))}
-    </div>
-
-    <section class="section" style="padding-top: 30px;">
-      <div class="section-head">
-        <h2>本期记录</h2>
-        <span class="more">{observed} 条观察{distinctNames.length > 0 && ` · ${distinctNames.length} 个已鉴定类群`}</span>
-      </div>
-      {distinctNames.length > 0 && (
-        <p class="section-lede" set:html={distinctNames.map((n) => sciNameHtml(n, 'species')).join('、')} />
-      )}
-      <div class="card-grid" style="margin-top: 22px;">
-        {timeline.map((o) => <ObsCard obs={o} />)}
-      </div>
-    </section>
-
-    <p class="disclaimer" style="padding-bottom: 70px;">
-      本页仅汇总本站已发布的记录；敏感情形只公开到地名，甚至完全保密。
-    </p>
+        </div>
+      </section>
+    ))}
   </div>
+
+  {/* --- 这一程的相遇：照片卡 + 轻标注 --- */}
+  <section class="container trip-obs">
+    <h2 class="trip-section-title">这一程的相遇</h2>
+    <div class="trip-obs-meta">{observed} 条观察</div>
+    {distinctNames.length > 0 && (
+      <p class="trip-names" set:html={distinctNames.map((n) => `<span>${sciNameHtml(n, 'species')}</span>`).join('、')} />
+    )}
+    <div class="card-grid">
+      {timeline.map((o) => <ObsCard obs={o} />)}
+    </div>
+  </section>
+
+  <p class="trip-disclaimer container">
+    本页仅汇总本站已发布的记录；敏感情形只公开到地名，甚至完全保密。
+  </p>
 </Base>
+
+<style>
+  /* ---- 生境 Hero：全宽影像 + 暗纱 + 刊头 ---- */
+  .trip-hero { position: relative; max-width: var(--content-wide); margin: 0 auto var(--s-8); overflow: hidden; }
+  .trip-hero img { width: 100%; height: min(62vh, 560px); object-fit: cover; display: block; }
+  .trip-hero .veil { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20,17,12,0.05) 30%, rgba(20,17,12,0.62)); }
+  .trip-hero .inner { position: absolute; left: 0; right: 0; bottom: 0; padding: var(--s-8) var(--s-6) var(--s-6); max-width: var(--content-wide); color: var(--paper-on-dark); }
+  .trip-hero .kicker { font-size: 12.5px; letter-spacing: 0.18em; opacity: 0.92; }
+  .trip-hero h1 {
+    font-family: var(--serif); font-weight: 700; letter-spacing: 0.04em;
+    font-size: clamp(30px, 4.6vw, 52px); margin: var(--s-2) 0 var(--s-1);
+  }
+  .trip-hero .sub { font-size: clamp(15px, 1.8vw, 19px); opacity: 0.92; letter-spacing: 0.04em; }
+  .trip-hero .dates { margin-top: var(--s-3); font-size: 13.5px; opacity: 0.8; letter-spacing: 0.06em; }
+
+  /* ---- 时间线：日期左栏 + 正文右栏 ---- */
+  .trip-body { max-width: calc(var(--width-text, 680px) + 120px); margin: 0 auto; padding: 0 24px; }
+  .trip-summary { font-size: 18px; line-height: 2; color: var(--ink); margin: 0 0 var(--s-7); }
+  .trip-day {
+    display: grid; grid-template-columns: 96px 1fr; gap: var(--s-6);
+    margin-bottom: var(--s-8);
+  }
+  .day-when { text-align: right; }
+  .day-date {
+    font-family: var(--serif); font-size: 19px; color: var(--terra);
+    letter-spacing: 0.06em; position: sticky; top: 76px;
+  }
+  .day-what { max-width: 680px; }
+  .day-what h3 {
+    font-family: var(--serif); font-size: 20px; font-weight: 700; letter-spacing: 0.04em;
+    margin: 0 0 var(--s-3);
+  }
+  .day-what p { font-size: 17px; line-height: 2; color: var(--ink); margin: 0 0 var(--s-4); }
+
+  /* 图像节奏：单图 900px 内，成对双列（§53/§55） */
+  .day-media { display: grid; gap: var(--s-3); max-width: 900px; }
+  .day-media.pair { grid-template-columns: 1fr 1fr; }
+  .day-media figure { margin: 0; }
+  .day-media img { width: 100%; height: auto; display: block; }
+  .day-media figcaption { font-size: 12.5px; color: var(--muted); margin-top: var(--s-2); line-height: 1.7; }
+
+  /* ---- 这一程的相遇 ---- */
+  .trip-obs { margin: 0 auto var(--s-6); padding-top: var(--s-5); border-top: 1px solid var(--line); }
+  .trip-section-title {
+    font-family: var(--serif); font-size: clamp(20px, 2.4vw, 26px); font-weight: 700;
+    letter-spacing: 0.02em; margin: 0 0 var(--s-3);
+  }
+  .trip-obs-meta { font-size: 13.5px; color: var(--faint); margin-bottom: var(--s-2); }
+  .trip-names { font-size: 15px; color: var(--muted); margin: 0 0 var(--s-5); }
+  .trip-names :global(span + span)::before { content: '、'; color: var(--line); }
+  .trip-disclaimer { font-size: 12.5px; color: var(--faint); padding-bottom: var(--s-9); }
+
+  @media (max-width: 700px) {
+    .trip-hero img { height: 46vh; }
+    .trip-hero .inner { padding: var(--s-5) var(--s-4); }
+    /* mobile（§112）：日期回到上方，正文单栏 */
+    .trip-day { grid-template-columns: 1fr; gap: var(--s-2); }
+    .day-when { text-align: left; }
+    .day-date { position: static; }
+    .day-media.pair { grid-template-columns: 1fr; }
+  }
+</style>
