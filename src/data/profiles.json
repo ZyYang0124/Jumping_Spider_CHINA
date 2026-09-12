@@ -22,17 +22,6 @@
     "favorite_media_id": null
   },
   {
-    "id": "prof-yi",
-    "display_name": "义",
-    "display_name_en": null,
-    "slug": "yi",
-    "role": "contributor",
-    "profile_visibility": "public",
-    "title": "自然观察与摄影",
-    "bio": null,
-    "favorite_media_id": null
-  },
-  {
     "id": "prof-private-friend",
     "display_name": "（一位选择不公开主页的朋友）",
     "display_name_en": null,
