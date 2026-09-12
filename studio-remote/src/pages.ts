@@ -458,7 +458,7 @@ export function page(
     ? `<a class="back" href="/studio"><span>← </span>工作台</a><div id="save-status" aria-live="polite"></div><div class="right">${opts.actions ?? ''}</div>`
     : `<a class="brand" href="/studio">Studio<small>SALTICID NOTES</small></a>
   <nav>
-    <a href="/studio/observations/new">记录</a>
+    <a href="/studio/observations/new">新建</a>
     <a href="/studio/notes/new">札记</a>
     <a href="/studio/drafts">记录</a>
     <a href="/studio/media">媒体</a>
