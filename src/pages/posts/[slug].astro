@@ -18,7 +18,7 @@ const links = getPostLinks(post);
 <Base title={post.title} description={post.bodyHtml.replace(/<[^>]+>/g, ' ').slice(0, 90)}>
   <article class="story">
     <header class="story-hero">
-      <div class="hero-kicker">札记</div>
+      <div class="hero-kicker">野外笔记</div>
       <h1 class="hero-title">{post.title}</h1>
       {post.subtitle && <p class="hero-dek">{post.subtitle}</p>}
       <div class="hero-meta">

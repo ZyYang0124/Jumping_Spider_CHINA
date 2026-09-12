@@ -19,9 +19,9 @@ import {
   profiles,
   taxa,
   taxonById,
-  trips,
 } from './store';
 import type { Taxon, TaxonRank } from './types';
+import { renderBodyMd } from './markdown';
 import { shortRegion } from './format';
 
 const publishedObservationIds = new Set(
@@ -206,80 +206,8 @@ export function getMediaOfObservations(obs: PublicObservation[]): PublicMedia[] 
   return obs.flatMap((o) => o.media);
 }
 
-// ---------- 调查 ----------
+// ---------- 调查已并入野外笔记（posts）----------
 
-export interface PublicTripDay {
-  label: string;
-  title: string;
-  date: string;
-  text: string;
-  media: { medium: string; large: string; caption: string | null; photographer: string; ratio: 'landscape' | 'portrait' | 'square' }[];
-}
-
-export interface PublicTrip {
-  slug: string;
-  title: string;
-  subtitle: string | null;
-  start_date: string;
-  end_date: string;
-  region: string;
-  summary: string;
-  cover: { medium: string; large: string } | null;
-  days: PublicTripDay[];
-  observations: PublicObservation[];
-}
-
-/** 仅解析「已发布且公开」观察所属的媒体，供 Trip 正文插图使用 */
-function safeTripMedia(mediaIds: string[]) {
-  return mediaIds
-    .map((id) => mediaById.get(id))
-    .filter(
-      (m): m is NonNullable<ReturnType<typeof mediaById.get>> =>
-        !!m && m.visibility === 'public' && m.observation_id !== null && publishedObservationIds.has(m.observation_id),
-    )
-    .map((m) => {
-      const pm = publicMediaFromRecord(m);
-      const ratio = pm.width / pm.height > 1.15 ? 'landscape' : pm.width / pm.height < 0.87 ? 'portrait' : 'square';
-      return {
-        medium: pm.medium,
-        large: pm.large,
-        caption: pm.caption,
-        photographer: pm.photographer,
-        ratio: ratio as 'landscape' | 'portrait' | 'square',
-      };
-    });
-}
-
-export function getPublicTrips(): PublicTrip[] {
-  return trips
-    .filter((t) => t.visibility === 'public')
-    .map((t) => {
-      const cover = t.cover_media_id ? mediaById.get(t.cover_media_id) : null;
-      return {
-        slug: t.slug,
-        title: t.title,
-        subtitle: t.subtitle,
-        start_date: t.start_date,
-        end_date: t.end_date,
-        region: t.region ?? t.province,
-        summary: t.summary,
-        cover: cover ? publicMediaFromRecord(cover) : null,
-        days: t.days.map((d) => ({
-          label: d.label,
-          title: d.title,
-          date: d.date,
-          text: d.text,
-          media: safeTripMedia(d.media_ids),
-        })),
-        observations: allPublicObservations.filter((o) => o.trip?.slug === t.slug),
-      };
-    })
-    .sort((a, b) => b.start_date.localeCompare(a.start_date));
-}
-
-export function getPublicTrip(slug: string): PublicTrip | undefined {
-  return getPublicTrips().find((t) => t.slug === slug);
-}
 
 // ---------- 地点（面向访客的地点视觉卡；观测 ID 留在详情页） ----------
 
@@ -621,6 +549,9 @@ export interface PublicPost {
   cover: { thumb: string; medium: string; large: string } | null;
   relatedObservations: { public_id: string; url: string; display: string | null }[];
   bodyHtml: string;
+  /** 野外笔记元信息（由调查合并而来的篇目携带） */
+  region?: string | null;
+  dateRange?: string | null;
 }
 
 function postCover(mediaPublicId: string | null) {
@@ -631,21 +562,31 @@ function postCover(mediaPublicId: string | null) {
 }
 
 export function getPublishedPosts(): PublicPost[] {
-  return posts.map((p) => ({
-    slug: p.slug,
-    title: p.title,
-    subtitle: p.subtitle ?? null,
-    author: p.author_name,
-    created_at: p.created_at,
-    cover: postCover(p.cover_media_public_id),
-    relatedObservations: p.related_observation_public_ids
-      .map((pid) => {
-        const o = getObservation(pid);
-        return o ? { public_id: o.public_id, url: o.url, display: o.identification?.display ?? null } : null;
-      })
-      .filter((x): x is NonNullable<typeof x> => x != null),
-    bodyHtml: p.body_html,
-  }));
+  return posts
+    .map((p) => {
+      const hand = p as typeof p & { region?: string | null; date_range?: string | null; body_md?: string };
+      return {
+        slug: p.slug,
+        title: p.title,
+        subtitle: p.subtitle ?? null,
+        author: p.author_name,
+        created_at: p.created_at,
+        cover: postCover(p.cover_media_public_id),
+        relatedObservations: p.related_observation_public_ids
+          .map((pid) => {
+            const o = getObservation(pid);
+            return o ? { public_id: o.public_id, url: o.url, display: o.identification?.display ?? null } : null;
+          })
+          .filter((x): x is NonNullable<typeof x> => x != null),
+        bodyHtml: p.body_html ?? renderBodyMd(hand.body_md ?? '', (pid) => {
+          const rec = media.find((m) => m.public_id === pid && m.visibility === 'public');
+          return rec ? publicMediaFromRecord(rec) : null;
+        }),
+        region: hand.region ?? null,
+        dateRange: hand.date_range ?? null,
+      };
+    })
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 export function getPublishedPost(slug: string): PublicPost | undefined {
@@ -682,15 +623,6 @@ export function buildSearchIndex() {
     text: [g.chinese_name ?? '', g.personal_note ?? ''].join(' '),
     thumb: g.observations.find((o) => o.cover)?.cover?.thumb ?? null,
   }));
-  const tripIndex = getPublicTrips().map((t) => ({
-    type: 'trip',
-    id: t.slug,
-    url: withBase(`/trips/${t.slug}/`),
-    title: t.title,
-    meta: `${t.start_date.slice(0, 7)} · ${t.region}`,
-    text: [t.subtitle ?? '', t.summary].join(' '),
-    thumb: null,
-  }));
   const postIndex = getPublishedPosts().map((p) => ({
     type: 'post',
     id: p.slug,
@@ -700,5 +632,5 @@ export function buildSearchIndex() {
     text: p.bodyHtml.replace(/<[^>]+>/g, ' ').slice(0, 400),
     thumb: p.cover?.thumb ?? null,
   }));
-  return { observations: obs, species, trips: tripIndex, posts: postIndex };
+  return { observations: obs, species, posts: postIndex };
 }

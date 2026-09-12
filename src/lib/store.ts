@@ -12,7 +12,6 @@ import type {
   SiteConfig,
   Specimen,
   Taxon,
-  Trip,
 } from './types';
 
 // 数据以 Vite 静态导入内联进构建产物；这里的 JSON 即「数据库」的源表。
@@ -24,7 +23,7 @@ import locationsJson from '../data/locations.json';
 import observationsJson from '../data/observations.json';
 import identificationsJson from '../data/identifications.json';
 import mediaJson from '../data/media.json';
-import tripsJson from '../data/trips.json';
+import postsJson from '../data/posts.json';
 import specimensJson from '../data/specimens.json';
 
 const studioModules = import.meta.glob('../data/studio-*.json', { eager: true });
@@ -78,9 +77,14 @@ export const identifications = [
   ...loadStudio<Identification>('identifications'),
 ];
 export const media = [...(mediaJson as unknown as MediaRecord[]), ...loadStudio<MediaRecord>('media')];
-export const trips = tripsJson as unknown as Trip[];
 export const specimens = specimensJson as unknown as Specimen[];
-export const posts = loadStudio<Post>('posts');
+// 野外笔记 = 手写文章（含由调查合并而来的篇目）+ Studio 发布的文章；同 slug 时 Studio 为真源
+const handPosts = (postsJson as unknown as (Post & { region?: string | null; date_range?: string | null })[]);
+const studioPosts = loadStudio<Post>('posts');
+export const posts = [
+  ...handPosts.filter((p) => !studioPosts.some((sp) => sp.slug === p.slug)),
+  ...studioPosts,
+];
 
 // ---------- 校验（dev/构建期 "migration gate"） ----------
 
@@ -95,7 +99,6 @@ function validate(): void {
   const observationIds = new Set(observations.map((o) => o.id));
   const mediaIds = new Set(media.map((m) => m.id));
   const mediaPublicIds = new Set<string>();
-  const tripIds = new Set(trips.map((t) => t.id));
   const placeIds = new Set(places.map((p) => p.id));
   const publicIds = new Set<string>();
 
@@ -110,7 +113,6 @@ function validate(): void {
     if (!observationIds.has(o.id)) fail(`观察 ${o.public_id} 自引用异常`);
     if (!profileIds.has(o.observer)) fail(`观察 ${o.public_id} 的 observer 不存在`);
     if (!locationIds.has(o.location_id)) fail(`观察 ${o.public_id} 的 location_id 不存在`);
-    if (o.trip_id && !tripIds.has(o.trip_id)) fail(`观察 ${o.public_id} 的 trip_id 不存在`);
   }
 
   // 规则 6/7：每条鉴定必须引用 taxon 记录；每条观察至多一条当前鉴定
@@ -135,9 +137,6 @@ function validate(): void {
     if (m.photographer_profile_id && !profileIds.has(m.photographer_profile_id)) {
       fail(`媒体 ${m.id} 的 photographer 不存在`);
     }
-  }
-  for (const t of trips) {
-    if (t.cover_media_id && !mediaIds.has(t.cover_media_id)) fail(`调查 ${t.id} 的封面媒体不存在`);
   }
   for (const s of specimens) {
     if (!observationIds.has(s.observation_id)) fail(`标本 ${s.id} 指向不存在的观察`);
@@ -188,7 +187,6 @@ for (const list of mediaByObservation.values()) {
   list.sort((a, b) => a.sort_order - b.sort_order);
 }
 export const mediaById = new Map(media.map((m) => [m.id, m]));
-export const tripById = new Map(trips.map((t) => [t.id, t]));
 export const placeById = new Map(places.map((p) => [p.id, p]));
 /** 合并跳转：merged 地点 id → 保留地点 id（多级合并一次解析） */
 export const placeMergedInto = new Map<string, string>();

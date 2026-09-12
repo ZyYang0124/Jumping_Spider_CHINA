@@ -135,7 +135,6 @@ export async function collectExport(env: Env): Promise<ExportData> {
     field_note: o.field_note,
     status: o.status,
     visibility: o.visibility,
-    trip_id: o.trip_slug || null,
   }));
 
   const locationsOut = observations.map((o: any) => ({

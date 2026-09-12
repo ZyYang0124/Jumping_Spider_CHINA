@@ -4,7 +4,7 @@ import Base from '../layouts/Base.astro';
 import PictureImage from '../components/PictureImage.astro';
 import ObsCard from '../components/ObsCard.astro';
 import FieldPostcard from '../components/FieldPostcard.astro';
-import { allPublicObservations, getPublicTrips, getLocalityCards, getSpeciesGroups, speciesSlug } from '../lib/queries';
+import { allPublicObservations, getPublishedPosts, getLocalityCards, getSpeciesGroups, speciesSlug } from '../lib/queries';
 import { withBase } from '../lib/privacy';
 import { siteConfig } from '../lib/store';
 import { sciNameHtml, formatDate, shortRegion } from '../lib/format';
@@ -20,26 +20,23 @@ const heroPreload = hero
     }
   : undefined;
 const recent = allPublicObservations.slice(0, 5);
-const [leadTrip, sideTrip] = getPublicTrips().slice(0, 2);
-// 明信片（§100/§102 首页 1 张）：头条调查的正面 + 背面取该程最新一条真实札记
-const leadNoteObs = leadTrip
-  ? allPublicObservations
-      .filter((o) => o.trip?.slug === leadTrip.slug && o.field_note)
-      .sort((a, b) => b.observed_at.localeCompare(a.observed_at))[0]
-  : undefined;
-const leadPostcard = leadTrip && leadTrip.cover
+// 来自野外（§100/§102）：带封面的野外笔记，头条做明信片，背面取笔记开篇文字
+const fieldPosts = getPublishedPosts().filter((p) => p.cover);
+const [leadPost, sidePost] = fieldPosts.slice(0, 2);
+const leadPostcard = leadPost
   ? {
-      photo: leadTrip.cover,
-      place: leadTrip.title,
-      region: leadTrip.region,
-      date: leadTrip.start_date.slice(0, 4) + ' · ' + leadTrip.start_date.slice(5, 7),
-      dateFull:
-        `${Number(leadTrip.start_date.slice(0, 4))} 年 ${Number(leadTrip.start_date.slice(5, 7))} 月 ${Number(leadTrip.start_date.slice(8, 10))} 日 — ${Number(leadTrip.end_date.slice(5, 7))} 月 ${Number(leadTrip.end_date.slice(8, 10))} 日`,
-      id: leadNoteObs?.public_id ?? null,
-      note: leadNoteObs?.field_note ?? null,
-      lat: leadNoteObs?.location.latitude ?? null,
-      lng: leadNoteObs?.location.longitude ?? null,
-      href: `/trips/${leadTrip.slug}/`,
+      photo: leadPost.cover,
+      place: leadPost.title,
+      region: leadPost.region ?? null,
+      date: leadPost.dateRange
+        ? leadPost.dateRange.slice(0, 4) + ' · ' + leadPost.dateRange.slice(5, 7)
+        : leadPost.created_at.slice(0, 4) + ' · ' + leadPost.created_at.slice(5, 7),
+      dateFull: leadPost.dateRange ?? leadPost.created_at.slice(0, 10),
+      id: leadPost.relatedObservations[0]?.public_id ?? null,
+      note: leadPost.subtitle ?? leadPost.bodyHtml.replace(/<[^>]+>/g, ' ').trim().slice(0, 110) ?? null,
+      lat: null,
+      lng: null,
+      href: `/posts/${leadPost.slug}/`,
     }
   : null;
 const species = getSpeciesGroups().slice(0, 4);
@@ -71,7 +68,7 @@ const places = getLocalityCards().slice(0, 3);
       <p>{siteConfig.subtitle}</p>
       <div class="actions">
         <a class="btn solid" href={withBase('/observations/')}>浏览观察</a>
-        <a class="btn" href={withBase('/trips/')}>阅读野外调查</a>
+        <a class="btn" href={withBase('/posts/')}>阅读野外笔记</a>
       </div>
     </div>
     {hero && <span class="hero-credit">© <span data-hero-credit>{hero.photographer}</span></span>}
@@ -127,9 +124,9 @@ const places = getLocalityCards().slice(0, 3);
     <section class="section reveal">
       <div class="section-head">
         <h2>来自野外</h2>
-        <a class="more" href={withBase('/trips/')}>全部调查 →</a>
+        <a class="more" href={withBase('/posts/')}>全部野外笔记 →</a>
       </div>
-      {leadTrip && (
+      {leadPost && (
       <div class="story-grid">
         {leadPostcard ? (
           <FieldPostcard
@@ -144,39 +141,33 @@ const places = getLocalityCards().slice(0, 3);
             lng={leadPostcard.lng}
             href={withBase(leadPostcard.href)}
           />
-        ) : (
-        <a class="story story-lead" href={withBase(`/trips/${leadTrip.slug}/`)}>
-          <div class="frame">
-            {leadTrip.cover && (
-              <PictureImage
-                media={leadTrip.cover}
-                sizes="(max-width: 900px) 92vw, 60vw"
-                alt={`${leadTrip.title} 封面`}
-                transitionName={`trip-${leadTrip.slug}`}
-              />
-            )}
-          </div>
-          <div class="dates">{leadTrip.region} · {leadTrip.start_date} – {leadTrip.end_date} · {leadTrip.observations.length} 次相遇</div>
-          <h2>{leadTrip.title}</h2>
-          {leadTrip.subtitle && <div class="story-sub">{leadTrip.subtitle}</div>}
-          <p>{leadTrip.summary}</p>
-        </a>
-        )}
-        {sideTrip && (
-          <a class="story story-side" href={withBase(`/trips/${sideTrip.slug}/`)}>
+        ) : null}
+        {leadPost && !leadPostcard && (
+          <a class="story story-lead" href={withBase(`/posts/${leadPost.slug}/`)}>
             <div class="frame">
-              {sideTrip.cover && (
+              {leadPost.cover && (
+                <PictureImage media={leadPost.cover} sizes="(max-width: 900px) 92vw, 60vw" alt={`${leadPost.title} 封面`} />
+              )}
+            </div>
+            <div class="dates">{leadPost.dateRange ?? leadPost.created_at.slice(0, 10)}</div>
+            <h2>{leadPost.title}</h2>
+            {leadPost.subtitle && <div class="story-sub">{leadPost.subtitle}</div>}
+          </a>
+        )}
+        {sidePost && (
+          <a class="story story-side" href={withBase(`/posts/${sidePost.slug}/`)}>
+            <div class="frame">
+              {sidePost.cover && (
                 <PictureImage
-                  media={sideTrip.cover}
+                  media={sidePost.cover}
                   sizes="(max-width: 900px) 92vw, 34vw"
-                  alt={`${sideTrip.title} 封面`}
-                  transitionName={`trip-${sideTrip.slug}`}
+                  alt={`${sidePost.title} 封面`}
                 />
               )}
             </div>
-            <div class="dates">{sideTrip.region} · {sideTrip.start_date} – {sideTrip.end_date} · {sideTrip.observations.length} 次相遇</div>
-            <h2>{sideTrip.title}</h2>
-            {sideTrip.subtitle && <div class="story-sub">{sideTrip.subtitle}</div>}
+            <div class="dates">{sidePost.dateRange ?? sidePost.created_at.slice(0, 10)}{sidePost.region ? ' · ' + sidePost.region : ''}</div>
+            <h2>{sidePost.title}</h2>
+            {sidePost.subtitle && <div class="story-sub">{sidePost.subtitle}</div>}
           </a>
         )}
       </div>

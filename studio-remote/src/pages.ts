@@ -2,14 +2,12 @@
 // 定位：野外记录本 + 写作桌 —— 不是 CMS / 后台。
 // 与公开站同一套自然纸张语言：低饱和、安静、留白、图片优先。
 import taxaJson from './taxa-data.json';
-import tripsJson from './trips-data.json';
 import type { StudioUser } from './auth';
 
 export const esc = (s: unknown): string =>
   String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string));
 
 export const TAXA = taxaJson as unknown as { slug: string; scientific_name: string; rank: string; chinese_name: string | null }[];
-export const TRIPS = (tripsJson as any[]).map((t) => ({ slug: t.slug, title: t.title }));
 
 export const SITE_URL = 'https://salticidnotes.cn';
 
@@ -332,7 +330,7 @@ details.more .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 22px
 .pm-count { font-size:12.5px; color:var(--faint); }
 .pm-target { font:inherit; font-size:13px; padding:6px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
 
-/* ---- 札记：写作模式 ---- */
+/* ---- 野外笔记：写作模式 ---- */
 .write-main { max-width:var(--w-note); margin:0 auto; padding:44px 24px 160px; }
 .title-line, .subtitle-line {
   width:100%; border:none; background:transparent; font-family:var(--serif); color:var(--ink); padding:0;
@@ -459,7 +457,7 @@ export function page(
     : `<a class="brand" href="/studio">Studio<small>跳蛛观察志</small></a>
   <nav>
     <a href="/studio/observations/new">新建</a>
-    <a href="/studio/notes/new">札记</a>
+    <a href="/studio/notes/new">野外笔记</a>
     <a href="/studio/drafts">记录</a>
     <a href="/studio/media">媒体</a>
     <a href="/studio/profile">个人资料</a>
@@ -528,7 +526,7 @@ function feedHtml(items: FeedItem[], emptyHtml: string, showAuthor = false): str
     .map(
       (it) => `<li><a href="${esc(it.href)}">
       <span class="t">${esc(it.title)}</span>
-      <span class="meta">${it.kind === 'obs' ? '观察' : '札记'} · ${showAuthor && it.author ? esc(it.author) + ' · ' : ''}<span class="${it.status === 'draft' ? 'st-draft' : 'st-pub'}">${STATUS_ZH[it.status] ?? it.status}</span> · ${esc(it.timeText)}</span>
+      <span class="meta">${it.kind === 'obs' ? '观察' : '野外笔记'} · ${showAuthor && it.author ? esc(it.author) + ' · ' : ''}<span class="${it.status === 'draft' ? 'st-draft' : 'st-pub'}">${STATUS_ZH[it.status] ?? it.status}</span> · ${esc(it.timeText)}</span>
     </a></li>`,
     )
     .join('')}</ul>`;
@@ -546,7 +544,7 @@ export function homePage(user: StudioUser, recent: FeedItem[]): string {
         <span class="ic">＋</span><b>记录一次相遇</b><span class="sub">照片、地点和观察</span>
       </a>
       <a class="action-card" href="/studio/notes/new">
-        <span class="ic">✎</span><b>写一篇札记</b><span class="sub">调查、故事和思考</span>
+        <span class="ic">✎</span><b>写一篇野外笔记</b><span class="sub">调查、故事和思考</span>
       </a>
     </div>
     <h2 class="kicker">最近</h2>
@@ -582,7 +580,7 @@ export function homePage(user: StudioUser, recent: FeedItem[]): string {
 export function draftsPage(user: StudioUser, items: FeedItem[], showAuthor = false): string {
   const by = (st: FeedItem['status']) => items.filter((i) => i.status === st);
   const sections: { label: string; empty: string; items: FeedItem[] }[] = [
-    { label: '草稿', empty: '还没有草稿。<a href="/studio/observations/new">记录第一次相遇</a> 或 <a href="/studio/notes/new">写一篇札记</a>。', items: by('draft') },
+    { label: '草稿', empty: '还没有草稿。<a href="/studio/observations/new">记录第一次相遇</a> 或 <a href="/studio/notes/new">写一篇野外笔记</a>。', items: by('draft') },
     { label: '已发布', empty: '还没有发布过。', items: by('published') },
     { label: '私密', empty: '没有私密记录。', items: by('private') },
     { label: '已归档', empty: '没有已归档的记录。', items: by('archived') },
@@ -617,7 +615,7 @@ export function draftsPage(user: StudioUser, items: FeedItem[], showAuthor = fal
               (it) => `<li><div class="feed-row">
         <a href="${esc(it.href)}">
           <span class="t">${esc(it.title)}</span>
-          <span class="meta">${it.kind === 'obs' ? '观察' : '札记'} · <span class="${it.status === 'draft' ? 'st-draft' : 'st-pub'}">${STATUS_ZH[it.status]}</span> · ${esc(it.timeText)}</span>
+          <span class="meta">${it.kind === 'obs' ? '观察' : '野外笔记'} · <span class="${it.status === 'draft' ? 'st-draft' : 'st-pub'}">${STATUS_ZH[it.status]}</span> · ${esc(it.timeText)}</span>
         </a>
         <div class="acts">${actions(it)}</div>
       </div></li>`,
@@ -673,7 +671,7 @@ export function mediaPage(
     }
     ${
       owner
-        ? `<div class="home-foot"><a href="/studio/export">导出备份（zip）· 当前观察 ${counts.observations} 条 · 札记 ${counts.posts} 篇</a></div>`
+        ? `<div class="home-foot"><a href="/studio/export">导出备份（zip）· 当前观察 ${counts.observations} 条 · 野外笔记 ${counts.posts} 篇</a></div>`
         : ''
     }
   </div>`, user);
@@ -711,10 +709,7 @@ export function obsEditorHtml(
   meta: ObsBootMeta,
   taxaOptions: EditorTaxon[],
 ): string {
-  const tripOptions = [
-    '<option value="">—— 不关联 ——</option>',
-    ...TRIPS.map((t) => `<option value="${esc(t.slug)}">${esc(t.title)}</option>`),
-  ].join('');
+
   const photoGrid = photos
     .map(
       (p, i) => `<div class="photo${p.is_cover ? ' cover' : ''}" data-pid="${p.public_id}">
@@ -798,7 +793,6 @@ export function obsEditorHtml(
         <div class="field"><label>所在植物</label><input data-field="plant" /></div>
         <div class="field"><label>天气</label><input data-field="weather" placeholder="雨后 / 晴…" /></div>
         <div class="field"><label>国家</label><input data-field="country_name" /></div>
-        <div class="field"><label>关联调查</label><select data-field="trip_slug">${tripOptions}</select></div>
       </div>
     </details>
   </main>
@@ -921,14 +915,14 @@ export function taxaManagePage(
   </script>`, user);
 }
 
-// ---------- 札记编辑器（写作模式） ----------
+// ---------- 野外笔记编辑器（写作模式） ----------
 
 export function noteEditorHtml(slug: string | null, data: Record<string, any>): string {
   const published = data.status === 'published';
   const actions = `
     <div class="seg" id="note-seg"><button type="button" class="on" data-view="edit">写作</button><button type="button" data-view="preview">预览</button></div>
     <button type="button" class="ghost" id="btn-settings">设置</button>`;
-  return page(slug ? `编辑：${data.title ?? slug}` : '写一篇札记', `
+  return page(slug ? `编辑：${data.title ?? slug}` : '写一篇野外笔记', `
   <main class="write-main">
     <div id="pane-edit">
       <input id="n-title" class="title-line" placeholder="标题" value="${esc(data.title ?? '')}" autocomplete="off" />

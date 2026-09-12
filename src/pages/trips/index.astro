@@ -1,50 +1,9 @@
 ---
+// 调查已并入野外笔记：旧 URL 永久跳转（规则 29）
 export const prerender = true;
-import Base from '../../layouts/Base.astro';
-import { getPublicTrips } from '../../lib/queries';
-import PictureImage from '../../components/PictureImage.astro';
-import { withBase } from '../../lib/privacy';
+import { withBase } from '../lib/privacy';
 ---
-
-<Base title="野外调查" description="每一次野外调查都是一册 field journal——路线、生境、故事与当时的记录。">
-  <div class="container-wide">
-    <div class="page-title">
-      <h1>野外调查</h1>
-      <p class="lede">调查页是野外日记，不是采样点表格。地点、天气、遇见——按时间线记下来。</p>
-    </div>
-    <div class="trip-list" style="padding-bottom: 70px;">
-      {getPublicTrips().map((t, i) => (
-        <a class={`trip-row ${i % 2 === 1 ? 'flip' : ''}`} href={withBase(`/trips/${t.slug}/`)}>
-          <div class="cover">{t.cover && <img src={t.cover.large} alt={`${t.title} 封面`} loading="lazy" />}</div>
-          <div class="body">
-            <div class="kicker">{t.region}</div>
-            <h2>{t.title}</h2>
-            {t.subtitle && <div class="sub-title">{t.subtitle}</div>}
-            <div class="dates">{t.start_date} – {t.end_date} · {t.observations.length} 次相遇</div>
-            <p>{t.summary}</p>
-          </div>
-        </a>
-      ))}
-    </div>
-  </div>
-</Base>
-
-<style>
-  /* 野外调查摄影目录：大图 + 文字，左右交替（§77），内容最多五项（§78） */
-  .trip-list { display: flex; flex-direction: column; gap: var(--s-9); padding-top: var(--s-4); }
-  .trip-row { display: grid; grid-template-columns: minmax(0, 560px) 1fr; gap: var(--s-7); align-items: center; text-decoration: none; color: inherit; }
-  .trip-row.flip { grid-template-columns: 1fr minmax(0, 560px); }
-  .trip-row.flip .cover { order: 2; }
-  .trip-row .cover { overflow: hidden; background: var(--paper-deep); aspect-ratio: 16 / 10; }
-  .trip-row .cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.6s ease; }
-  .trip-row:hover .cover img { transform: scale(1.02); }
-  .trip-row .kicker { font-size: 12.5px; font-weight: 600; letter-spacing: 0.1em; color: var(--terra); }
-  .trip-row h2 { font-family: var(--serif); font-size: clamp(24px, 2.8vw, 32px); font-weight: 700; letter-spacing: 0.03em; margin: var(--s-2) 0 0; }
-  .trip-row .sub-title { color: var(--muted); font-size: 15.5px; margin-top: var(--s-2); }
-  .trip-row .dates { font-size: 13px; color: var(--faint); letter-spacing: 0.05em; margin: var(--s-3) 0; }
-  .trip-row p { color: var(--ink); font-size: 15px; line-height: 1.95; margin: 0; }
-  @media (max-width: 800px) {
-    .trip-row, .trip-row.flip { grid-template-columns: 1fr; gap: var(--s-4); }
-    .trip-row.flip .cover { order: 0; }
-  }
-</style>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>野外笔记</title>
+<meta http-equiv="refresh" content="0; url=../posts/" />
+<link rel="canonical" href="/posts/" /></head>
+<body>野外调查已并入 <a href="../posts/">野外笔记</a>。</body></html>

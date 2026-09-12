@@ -15,11 +15,11 @@ import {
   mediaByObservation,
   observations,
   placeById,
+  posts,
   placeMergedInto,
   profileById,
   specimenByObservation,
   taxonById,
-  tripById,
 } from './store';
 import mediaManifestJson from '../data/generated/media-manifest.json';
 import type { Evidence, MediaRecord, MediaViewType, Observation, Taxon, TaxonRank } from './types';
@@ -113,6 +113,14 @@ const BASE = import.meta.env.BASE_URL === '/' ? '' : import.meta.env.BASE_URL;
 
 export function withBase(path: string): string {
   return `${BASE}${path}`;
+}
+
+/** 观察 → 野外笔记反查（笔记的 related 列表声明关联） */
+const obsNoteByPublicId = new Map<string, { slug: string; title: string }>();
+for (const p of posts) {
+  for (const pid of p.related_observation_public_ids ?? []) {
+    if (!obsNoteByPublicId.has(pid)) obsNoteByPublicId.set(pid, { slug: p.slug, title: p.title });
+  }
 }
 
 // ---------- 公开地点：单一坐标模型（全量精确公开，Studio SOP §7） ----------
@@ -221,7 +229,7 @@ export function toPublicObservation(o: Observation): PublicObservation {
   const current = currentIdentificationByObservation.get(o.id) ?? null;
   const history = (identificationsByObservation.get(o.id) ?? []).map((h) => publicIdentification(h));
   const spec = specimenByObservation.get(o.id) ?? null;
-  const trip = o.trip_id ? tripById.get(o.trip_id) ?? null : null;
+  const trip = obsNoteByPublicId.get(o.public_id) ?? null;
   const observer = profileById.get(o.observer);
   return {
     public_id: o.public_id,

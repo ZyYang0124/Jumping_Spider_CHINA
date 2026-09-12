@@ -137,7 +137,7 @@ const gallery = obs.media.filter((m) => m.id !== obs.cover?.id);
           ) : (
             <span class="sub">坐标待补充</span>
           )}
-          {obs.trip && <span class="sub">来自调查 <a href={withBase(`/trips/${obs.trip.slug}/`)}>{obs.trip.title} →</a></span>}
+          {obs.trip && <span class="sub">相关野外笔记 <a href={withBase(`/posts/${obs.trip.slug}/`)}>{obs.trip.title} →</a></span>}
         </div>
       </div>
 

@@ -131,7 +131,8 @@ export interface Observation {
   field_note: string;
   status: ObservationStatus;
   visibility: Visibility;
-  trip_id: string | null;
+  /** 历史遗留列（调查已并入野外笔记；关联关系由笔记的 related 列表反查） */
+  trip_id?: string | null;
   /** 首次发布时间（Studio 导出；手写数据可为空，回退 observed_at 排序） */
   published_at?: string | null;
   /** 挂接的地点实体（Place，§14）；Studio 记录导出时写入 */
@@ -167,31 +168,6 @@ export interface MediaRecord {
   photographer_profile_id: string | null;
   photographer_name: string | null;
   license: License;
-  visibility: Visibility;
-}
-
-/** Trip 的逐日日志段：支持正文插图与图注（field journal 形态） */
-export interface TripDay {
-  label: string;
-  title: string;
-  date: string;
-  text: string;
-  media_ids: string[];
-}
-
-export interface Trip {
-  id: string;
-  slug: string;
-  title: string;
-  subtitle: string | null;
-  start_date: string;
-  end_date: string;
-  province: string;
-  /** 展示用区域（Studio 札记/调查来源）；手写数据可空回退 province */
-  region?: string;
-  cover_media_id: string;
-  summary: string;
-  days: TripDay[];
   visibility: Visibility;
 }
 
