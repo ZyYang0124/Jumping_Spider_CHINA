@@ -120,6 +120,8 @@ const UPLOAD_LIB = `
 window.__sfnPrepareUpload = async function (file) {
   if (!window.createImageBitmap || !window.OffscreenCanvas) throw new Error('浏览器不支持本地图片处理，请改用现代浏览器');
   var bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  // 只生成 jpg 档：主站发布会从原图统一重新生成全部格式，
+  // Studio 自身只用 -480.jpg 缩略图；浏览器端 AVIF/WebP 编码极慢且无人消费，纯属拖慢上传
   var widths = [480, 768, 1280, 1920].filter(function (w) { return w <= bmp.width; });
   if (!widths.length) widths = [480];
   var variants = [];
@@ -128,8 +130,6 @@ window.__sfnPrepareUpload = async function (file) {
     var c = new OffscreenCanvas(w, Math.max(1, Math.round(bmp.height * w / bmp.width)));
     c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
     variants.push({ name: w + '.jpg', blob: await c.convertToBlob({ type: 'image/jpeg', quality: 0.82 }) });
-    try { variants.push({ name: w + '.webp', blob: await c.convertToBlob({ type: 'image/webp', quality: 0.72 }) }); } catch (e) {}
-    try { variants.push({ name: w + '.avif', blob: await c.convertToBlob({ type: 'image/avif', quality: 0.45 }) }); } catch (e) {}
   }
   return { original: file, width: bmp.width, height: bmp.height, variants: variants };
 };
@@ -138,6 +138,11 @@ window.__sfnAppendUpload = function (fd, prepared) {
   fd.append('width', String(prepared.width));
   fd.append('height', String(prepared.height));
   prepared.variants.forEach(function (v) { fd.append('variant', v.blob, v.name); });
+};
+window.__sfnFetch = function (url, opts, timeoutMs) {
+  var ctrl = new AbortController();
+  var t = setTimeout(function () { ctrl.abort(); }, timeoutMs || 90000);
+  return fetch(url, Object.assign({}, opts, { signal: ctrl.signal })).finally(function () { clearTimeout(t); });
 };
 `;
 
@@ -230,16 +235,19 @@ const OBS_EDITOR_JS = `
   function lsClear() { try { localStorage.removeItem(LS_KEY); } catch (e) {} }
 
   function create() {
-    return fetch('/studio/api/observations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j.public_id) {
-          publicId = j.public_id;
-          history.replaceState(null, '', '/studio/observations/' + publicId + '/edit');
-          $('h1').textContent = publicId;
-        }
+    // 失败必须可见：会话过期/网络错误不能静默成「点了没反应」
+    return window.__sfnFetch('/studio/api/observations', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    }).then(function (r) {
+      return r.json().catch(function () { throw new Error('服务返回异常（' + r.status + '）'); }).then(function (j) {
+        if (r.status === 401 || j.error === '未登录') throw new Error('登录已过期，请刷新页面重新登录');
+        if (!r.ok || !j.public_id) throw new Error('创建记录失败（' + r.status + (j.error ? '：' + j.error : '') + '）');
+        publicId = j.public_id;
+        history.replaceState(null, '', '/studio/observations/' + publicId + '/edit');
+        $('h1').textContent = publicId;
         return publicId;
       });
+    });
   }
 
   function saveNow(silent, explicit) {
@@ -363,7 +371,8 @@ const OBS_EDITOR_JS = `
     var qLower = q.toLowerCase();
     var exact = q && list.some(function (t) { return t.name.toLowerCase() === qLower; });
     // 与正式类群重名的输入不提供建立入口（服务端也会拒绝）；形如学名的输入才提示
-    var nameLike = /^[A-Za-z][A-Za-z.\- ]{1,79}$/.test(q);
+    // 模板字符串里正则不能写 \-（转义被吃掉形成非法区间，整个脚本解析失败）；连字符放类尾
+    var nameLike = /^[A-Za-z][A-Za-z. -]{1,79}$/.test(q);
     var createOpt = q && nameLike && !exact
       ? '<div class="opt place-new" data-new-taxon="1">＋ 建立工作编号「' + escHtml(q) + '」</div>'
       : '';
@@ -667,18 +676,26 @@ const OBS_EDITOR_JS = `
   if (photos.length) bindGrid();
 
   function handleFiles(fileList) {
-    var files = Array.prototype.slice.call(fileList || []).filter(function (f) { return /image\\/(jpeg|png)/.test(f.type); });
+    var all = Array.prototype.slice.call(fileList || []);
+    var files = all.filter(function (f) { return /image\\/(jpeg|png)/.test(f.type); });
+    // 被类型过滤掉的照片必须可见（iPhone HEIC 默认不被接受——这就是「点了没反应」的常见来源）
+    if (all.length && !files.length) {
+      showPhotoErr('所选照片都不是 JPG/PNG（iPhone 相机默认 HEIC 不受支持，可在相机设置改为「兼容性最佳」）。');
+      return;
+    }
     if (!files.length) return;
     clearPhotoErr();
+    if (addBtn) addBtn.disabled = true;
+    dropBig.style.pointerEvents = 'none';
     var ensure = publicId ? Promise.resolve(publicId) : create();
     ensure.then(function (pid) {
       if (!pid) { setStatus('创建记录失败', true); return; }
       var first = files[0];
       var fd0 = new FormData();
       fd0.append('photo', first);
-      setStatus('读取 EXIF…');
-      return fetch('/studio/api/exif-preview', { method: 'POST', body: fd0 })
-        .then(function (r) { return r.json(); })
+      setStatus('读取照片信息…');
+      return window.__sfnFetch('/studio/api/exif-preview', { method: 'POST', body: fd0 }, 30000)
+        .then(function (r) { return r.ok ? r.json() : {}; })
         .then(function (xj) {
           var x = xj.results && xj.results[0];
           if (x) {
@@ -695,33 +712,44 @@ const OBS_EDITOR_JS = `
         })
         .catch(function () {})
         .then(async function () {
-          setStatus('正在处理照片（' + files.length + ' 张）…');
-          var added = [];
+          var added = [], failed = 0;
           for (var i = 0; i < files.length; i++) {
             var prepared;
             try { prepared = await window.__sfnPrepareUpload(files[i]); }
-            catch (err) { showPhotoErr(err.message || '图片处理失败'); continue; }
+            catch (err) { showPhotoErr(err.message || '图片处理失败'); failed++; continue; }
             var fd = new FormData();
             window.__sfnAppendUpload(fd, prepared);
             setStatus('上传照片 ' + (i + 1) + '/' + files.length + '…');
-            var r = await fetch('/studio/observations/' + pid + '/photos', { method: 'POST', body: fd });
-            var j = await r.json().catch(function () { return {}; });
-            if (!r.ok || !j.ok) { showPhotoErr('照片上传失败：' + ((j && j.error) || '请重试')); continue; }
-            (j.added || []).forEach(function (pid2) {
-              added.push(pid2);
-              photos.push(pid2);
-              window.__photoMeta[pid2] = { caption: '', photographer_name: '' };
-              rerenderGrid();
-            });
+            try {
+              var r = await window.__sfnFetch('/studio/observations/' + pid + '/photos', { method: 'POST', body: fd });
+              var j = await r.json().catch(function () { return {}; });
+              if (r.status === 401) { showPhotoErr('登录已过期，请刷新页面重新登录'); failed++; break; }
+              if (!r.ok || !j.ok) { showPhotoErr('照片上传失败：' + ((j && j.error) || '请重试')); failed++; continue; }
+              (j.added || []).forEach(function (pid2) {
+                added.push(pid2);
+                photos.push(pid2);
+                window.__photoMeta[pid2] = { caption: '', photographer_name: '' };
+                rerenderGrid();
+              });
+            } catch (e2) {
+              showPhotoErr(e2 && e2.name === 'AbortError' ? '上传超时，请检查网络后重试' : '上传失败，请检查网络后重试');
+              failed++;
+            }
           }
           if (added.length) {
             lastPublishedSnapshot = null; // 新照片视为发布后修改
             lsClear();
-            setStatus('已添加 ' + added.length + ' 张照片');
+            setStatus('已添加 ' + added.length + ' 张照片' + (failed ? '，' + failed + ' 张失败' : ''));
             await saveNow(true);
+          } else if (!failed) {
+            setStatus('没有照片被添加', true);
           }
-        })
-        .catch(function (e) { showPhotoErr('上传失败，请重试'); });
+        });
+    }).catch(function (e) {
+      showPhotoErr(e && e.message ? e.message : '上传未能开始，请重试');
+    }).finally(function () {
+      if (addBtn) addBtn.disabled = false;
+      dropBig.style.pointerEvents = '';
     });
   }
   [$('[data-field="observed_at"]')].forEach(function (el) {
@@ -944,9 +972,9 @@ const NOTE_EDITOR_JS = `
       window.__sfnPrepareUpload(f).then(function (prepared) {
         var fd = new FormData();
         window.__sfnAppendUpload(fd, prepared);
-        return fetch('/studio/api/media/upload', { method: 'POST', body: fd }).then(function (r) { return r.json(); });
+        return window.__sfnFetch('/studio/api/media/upload', { method: 'POST', body: fd }).then(function (r) { return r.json(); });
       }).then(function (j) {
-        if (!j.ok) { setStatus('图片上传失败', true); return; }
+        if (!j.ok) { setStatus(j.error ? '图片上传失败：' + j.error : '图片上传失败', true); return; }
         var cap = window.prompt('图注（可留空）', '') || '';
         var ref = '\\n![' + cap + '](media:' + j.public_id + ')\\n\\n';
         body.value += ref;
@@ -1087,9 +1115,9 @@ export const PROFILE_SCRIPT = UPLOAD_LIB + `
       window.__sfnPrepareUpload(f).then(function (prepared) {
         var fd = new FormData();
         window.__sfnAppendUpload(fd, prepared);
-        return fetch('/studio/api/media/upload', { method: 'POST', body: fd }).then(readJson);
+        return window.__sfnFetch('/studio/api/media/upload', { method: 'POST', body: fd }).then(readJson);
       }).then(function (j) {
-        if (!j || !j.ok) { setStatus('照片上传失败', true); return; }
+        if (!j || !j.ok) { setStatus(j && j.error ? '照片上传失败：' + j.error : '照片上传失败', true); return; }
         photoPublicId = j.public_id;
         slot.innerHTML = '<img src="/media/derivatives/' + j.public_id + '-480.jpg" alt="" />';
         slot.removeAttribute('data-empty');

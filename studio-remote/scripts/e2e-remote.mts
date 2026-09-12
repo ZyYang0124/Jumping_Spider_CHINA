@@ -88,9 +88,19 @@ await req('/studio/login/otp', {
   body: `email=${encodeURIComponent(EMAIL)}`,
 });
 await sleep(500);
-const log = readFileSync(LOG, 'utf8');
-const codes = [...log.matchAll(new RegExp(`${EMAIL} 的登录验证码：(\\d{6})`, 'g'))].map((m) => m[1]);
-const code = codes[codes.length - 1];
+// 验证码优先从 D1 读取（与邮件投递解耦——Resend 发送成功时控制台不打印）；
+// wrangler CLI 与 dev server 是两个连接，写入可见性偶有延迟，轮询兜底
+let code = '';
+for (let i = 0; i < 16 && !code; i++) {
+  const rows = d1(`SELECT code FROM otp_codes WHERE lower(email) = '${EMAIL}' ORDER BY created_at DESC, id DESC LIMIT 1`);
+  if (rows[0]?.code) code = String(rows[0].code);
+  else await sleep(800);
+}
+if (!code) {
+  const log = readFileSync(LOG, 'utf8');
+  const codes = [...log.matchAll(new RegExp(`${EMAIL} 的登录验证码：(\\d{6})`, 'g'))].map((m) => m[1]);
+  code = codes[codes.length - 1] ?? '';
+}
 ok(/^\d{6}$/.test(code ?? ''), `A0 登录：取得验证码（${code}）`);
 const vres = await req('/studio/login/verify', {
   method: 'POST',
