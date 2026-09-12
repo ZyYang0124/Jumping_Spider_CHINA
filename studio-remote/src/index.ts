@@ -180,7 +180,9 @@ async function recentItems(env: Env, userId: number, limit: number, includeAll =
   const obsRows = await all<any>(
     env.DB,
     `SELECT o.public_id, o.status, o.updated_at, o.published_at, o.created_by,
-            u.display_name AS author, i.display_identification
+            u.display_name AS author, i.display_identification,
+            o.admin1, o.locality,
+            (SELECT public_id FROM media m WHERE m.observation_id = o.id AND m.is_cover = 1 LIMIT 1) AS cover_id
      FROM observations o
      LEFT JOIN identifications i ON i.observation_id = o.id AND i.is_current = 1
      LEFT JOIN users u ON u.id = o.created_by
@@ -204,7 +206,13 @@ async function recentItems(env: Env, userId: number, limit: number, includeAll =
   for (const o of obsRows) {
     const published = o.status === 'published';
     const ts = toTs(published ? o.published_at || o.updated_at : o.updated_at);
-    items.push({ kind: 'obs', publicId: o.public_id, href: `/studio/observations/${o.public_id}/edit`, title: o.display_identification || o.public_id, status: o.status, author: o.author, timeText: relTime(new Date(ts).toISOString()), ts });
+    items.push({
+      kind: 'obs', publicId: o.public_id, href: `/studio/observations/${o.public_id}/edit`,
+      title: o.display_identification || o.public_id, status: o.status, author: o.author,
+      timeText: relTime(new Date(ts).toISOString()), ts,
+      thumb: o.cover_id ? `/media/derivatives/${o.cover_id}-480.jpg` : null,
+      place: [o.admin1, o.locality].filter(Boolean).join(' · ') || null,
+    });
   }
   for (const n of noteRows) {
     const published = n.status === 'published';

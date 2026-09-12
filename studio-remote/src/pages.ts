@@ -215,6 +215,54 @@ button.act-btn { cursor:pointer; }
 .all-link:hover { color:var(--ink); }
 .empty { color:var(--faint); font-size:14.5px; padding:18px 4px; }
 .empty a { color:var(--accent); }
+/* ---- 首页（§4）：新建观察为绝对视觉中心 ---- */
+.home .hello-wrap { margin-bottom: var(--s-6); }
+.new-obs {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  width: 100%; padding: 34px 20px; margin: 0 0 10px;
+  border: 1.5px solid var(--ink); border-radius: 8px;
+  font-family: var(--serif); font-size: 24px; font-weight: 700; letter-spacing: 0.08em;
+  color: var(--ink); text-decoration: none; background: var(--paper-soft);
+  transition: border-color var(--normal) var(--ease), color var(--normal) var(--ease);
+}
+.new-obs:hover { border-color: var(--terra); color: var(--terra); }
+.new-obs .plus { font-size: 30px; line-height: 1; }
+.alt-link { display: inline-block; margin: 0 0 var(--s-8); font-size: 13.5px; color: var(--muted); text-decoration: none; }
+.alt-link:hover { color: var(--terra); }
+.home .kicker { margin-top: 0; }
+.feed { list-style: none; margin: 0 0 var(--s-5); padding: 0; }
+.feed > li { border-bottom: 1px solid var(--line-soft); }
+.feed > li a {
+  display: flex; align-items: center; gap: 14px; padding: 12px 4px;
+  text-decoration: none; color: var(--ink);
+}
+.feed .thumb { width: 52px; height: 52px; object-fit: cover; flex: none; background: var(--paper-deep); display: block; }
+.feed .t { font-family: var(--serif); font-size: 16.5px; display: block; min-width: 0; }
+.feed .meta { display: block; font-size: 12.5px; color: var(--faint); }
+.feed .go { margin-left: auto; color: var(--faint); flex: none; }
+.feed > li a:hover .t { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+/* ---- 数据页 ---- */
+.data-sync { border: 1px solid var(--line-soft); border-radius: 8px; background: var(--paper-soft); padding: 6px 18px; margin-bottom: var(--s-6); }
+.data-sync .ro { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
+.data-sync .ro:last-child { border-bottom: none; }
+.data-sync b { font-size: 14.5px; flex: none; }
+.data-sync span { color: var(--muted); font-size: 13.5px; flex: 1; min-width: 200px; }
+.data-links { display: flex; flex-direction: column; }
+.data-row {
+  display: flex; align-items: baseline; gap: 14px; padding: 15px 4px;
+  border-bottom: 1px solid var(--line-soft); text-decoration: none; color: var(--ink);
+}
+.data-row b { font-size: 15.5px; flex: none; }
+.data-row span { color: var(--muted); font-size: 13.5px; flex: 1; }
+.data-row .go { color: var(--faint); flex: none; }
+.data-row:hover b { color: var(--terra); }
+/* ---- 记录列表搜索 ---- */
+.rec-search { padding: 18px 0 4px; }
+.rec-search input {
+  width: 100%; max-width: 420px; font: inherit; font-size: 14px; color: var(--ink);
+  padding: 9px 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; outline: none;
+}
+.rec-search input:focus { border-color: var(--terra); }
 .home-foot { margin-top:64px; padding-top:18px; border-top:1px solid var(--line-soft); display:flex; gap:18px; }
 .home-foot a { font-size:12.5px; color:var(--faint); text-decoration:none; }
 .home-foot a:hover { color:var(--ink); }
@@ -495,16 +543,12 @@ export function page(
     ? `<a class="back" href="/studio"><span>← </span>工作台</a><div id="save-status" aria-live="polite"></div><div class="right">${opts.actions ?? ''}</div>`
     : `<a class="brand" href="/studio">Studio<small>红栏杆跳蛛观察志</small></a>
   <nav>
-    <a href="/studio/observations/new">新建</a>
-    <a href="/studio/notes/new">札记</a>
-    <a href="/studio/drafts">记录</a>
-    <a href="/studio/media">媒体</a>
-    <a href="/studio/profile">个人资料</a>
-    ${user?.role === 'owner' ? '<a href="/studio/places-manage">地点管理</a><a href="/studio/taxa-manage">类群管理</a><a href="/studio/quality">数据质量</a><a href="/studio/invite">邀请</a>' : ''}
+    <a href="/studio/drafts">观察</a>
+    ${user?.role === 'owner' ? '<a href="/studio/places-manage">地点</a><a href="/studio/data">数据</a>' : ''}
   </nav>
   <div class="right">
-    <a class="site" href="${SITE_URL}" target="_blank" rel="noopener">红栏杆跳蛛观察志 ↗</a>
-    ${user ? `<details class="avatar"><summary>${esc(initial)}</summary><div class="menu"><span class="who">${esc(user.display_name)}</span><a href="/studio/logout">退出登录</a></div></details>` : ''}
+    <a class="site" href="${SITE_URL}" target="_blank" rel="noopener">查看主站 ↗</a>
+    ${user ? `<details class="avatar"><summary>${esc(initial)}</summary><div class="menu"><span class="who">${esc(user.display_name)}</span><a href="/studio/profile">个人资料</a><a href="/studio/logout">退出登录</a></div></details>` : ''}
   </div>`;
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -555,6 +599,10 @@ export interface FeedItem {
   timeText: string;
   /** 排序键：源时间戳（毫秒） */
   ts: number;
+  /** 封面缩略图（观察） */
+  thumb?: string | null;
+  /** 地点摘要（观察） */
+  place?: string | null;
 }
 
 const STATUS_ZH: Record<string, string> = { draft: '草稿', published: '已发布', private: '私密', archived: '已归档' };
@@ -564,8 +612,11 @@ function feedHtml(items: FeedItem[], emptyHtml: string, showAuthor = false): str
   return `<ul class="feed">${items
     .map(
       (it) => `<li><a href="${esc(it.href)}">
+      ${it.thumb ? `<img class="thumb" src="${esc(it.thumb)}" alt="" loading="lazy" />` : ''}
       <span class="t">${esc(it.title)}</span>
+      ${it.place ? `<span class="meta">${esc(it.place)}</span>` : ''}
       <span class="meta">${it.kind === 'obs' ? '观察' : '札记'} · ${showAuthor && it.author ? esc(it.author) + ' · ' : ''}<span class="${it.status === 'draft' ? 'st-draft' : 'st-pub'}">${STATUS_ZH[it.status] ?? it.status}</span> · ${esc(it.timeText)}</span>
+      <span class="go" aria-hidden="true">→</span>
     </a></li>`,
     )
     .join('')}</ul>`;
@@ -573,43 +624,57 @@ function feedHtml(items: FeedItem[], emptyHtml: string, showAuthor = false): str
 
 export function homePage(user: StudioUser, recent: FeedItem[]): string {
   return page('工作台', `
-  <div class="wrap">
+  <div class="wrap home">
     <div class="hello-wrap">
       <h1>${greetingWord()}，${esc(user.display_name)}</h1>
-      <p>今天想记录什么？</p>
+      <p>把一次相遇留下来。</p>
     </div>
-    <div class="action-cards">
-      <a class="action-card" href="/studio/observations/new">
-        <span class="ic">＋</span><b>记录一次相遇</b><span class="sub">照片、地点和观察</span>
-      </a>
-      <a class="action-card" href="/studio/notes/new">
-        <span class="ic">✎</span><b>写一篇札记</b><span class="sub">调查、故事和思考</span>
-      </a>
+    <a class="new-obs" href="/studio/observations/new"><span class="plus">＋</span> 新建观察</a>
+    <a class="alt-link" href="/studio/notes/new">或写一篇札记 →</a>
+    <h2 class="kicker">最近编辑</h2>
+    ${feedHtml(recent.slice(0, 6), '还没有记录。从上面的「新建观察」开始。', user.role === 'owner')}
+    <a class="all-link" href="/studio/drafts">查看全部观察 →</a>
+  </div>`, user);
+}
+
+// 数据页（§43）：技术型功能统一归拢，不进入日常记录流
+export function dataPage(user: StudioUser): string {
+  const rows: { label: string; desc: string; href: string }[] = [
+    { label: '数据质量', desc: '缺坐标、未挂接地点、WSC 变动等体检结果', href: '/studio/quality' },
+    { label: '类群管理', desc: '工作编号改名与合并（WSC 变动的收口处）', href: '/studio/taxa-manage' },
+    { label: '媒体库', desc: '独立插图与头像等非观察媒体', href: '/studio/media' },
+    { label: '邀请伙伴', desc: '受邀邮箱列表与新邀请', href: '/studio/invite' },
+  ];
+  return page('数据', `
+  <div class="wrap">
+    <div class="hello-wrap"><h1>数据</h1><p>备份、体检与内部管理。日常记录用不到这里。</p></div>
+    <div class="data-sync">
+      <div class="ro"><b>同步公开站</b><span id="sync-status">发布时会自动同步；这里可手动触发。</span></div>
+      <div class="ro"><b>导出备份</b><span>全部已发布内容与原图打包（zip）</span><a class="act-btn" href="/studio/export">下载</a></div>
     </div>
-    <h2 class="kicker">最近</h2>
-    ${feedHtml(recent, '还没有记录。从上面两张卡片开始。')}
-    <a class="all-link" href="/studio/drafts">全部草稿与发布 →</a>
-    <div class="home-foot">
-      <a href="#" id="btn-sync">同步到公开站</a><span id="sync-status"></span>
-      ${user.role === 'owner' ? '<a href="/studio/export">导出备份（zip）</a>' : ''}
+    <div class="data-links">
+      ${rows
+        .map((r) => `<a class="data-row" href="${r.href}"><b>${r.label}</b><span>${r.desc}</span><span class="go">→</span></a>`)
+        .join('')}
     </div>
   </div>
   <script>
   (function () {
-    var btn = document.getElementById('btn-sync');
+    var btn = document.querySelector('.data-sync .ro b');
     if (!btn) return;
-    btn.addEventListener('click', function (e) {
-      e.preventDefault();
-      var st = document.getElementById('sync-status');
-      btn.style.pointerEvents = 'none';
+    var row = btn.parentElement;
+    var act = document.createElement('button');
+    act.className = 'act-btn'; act.type = 'button'; act.textContent = '立即同步';
+    row.insertBefore(act, row.querySelector('span'));
+    act.addEventListener('click', function () {
+      act.disabled = true;
+      var st = row.querySelector('span');
+      var old = st.textContent;
       st.textContent = '同步中…';
       fetch('/studio/api/sync', { method: 'POST' })
         .then(function (r) { return r.json(); })
-        .then(function (j) {
-          st.textContent = j.ok ? '已同步 ✓（公开站构建约 1-2 分钟后上线）' : '同步失败：' + (j.detail || '');
-          btn.style.pointerEvents = '';
-        })
-        .catch(function () { st.textContent = '网络异常，请重试'; btn.style.pointerEvents = ''; });
+        .then(function (j) { st.textContent = j.ok ? '已同步 ✓（公开站构建约 1-2 分钟后上线）' : '同步失败：' + (j.detail || ''); act.disabled = false; })
+        .catch(function () { st.textContent = '网络异常，请重试'; act.disabled = false; });
     });
   })();
   </script>`, user);
@@ -624,6 +689,7 @@ export function draftsPage(user: StudioUser, items: FeedItem[], showAuthor = fal
     { label: '私密', empty: '没有私密记录。', items: by('private') },
     { label: '已归档', empty: '没有已归档的记录。', items: by('archived') },
   ];
+  const searchBox = `<input id="rec-search" placeholder="搜索学名、地点、编号…" autocomplete="off" />`;
   const actions = (it: FeedItem): string => {
     const id = esc(it.publicId);
     const api = (act: string) => `/studio/api/${it.kind === 'obs' ? 'observations' : 'notes'}/${id}/${act}`;
@@ -663,9 +729,10 @@ export function draftsPage(user: StudioUser, items: FeedItem[], showAuthor = fal
         : `<p class="empty">${s.empty}</p>`
     }
   `;
-  return page('记录', `
+  return page('观察', `
   <div class="wrap">
-    <div class="hello-wrap"><h1>记录</h1><p>草稿、已发布、私密与已归档都在这里。</p></div>
+    <div class="hello-wrap"><h1>观察</h1><p>草稿、已发布、私密与已归档都在这里。</p></div>
+    <div class="rec-search">${searchBox}</div>
     ${sections.map(section).join('')}
   </div>
   <script>
@@ -682,6 +749,15 @@ export function draftsPage(user: StudioUser, items: FeedItem[], showAuthor = fal
           .catch(function () { b.disabled = false; alert('网络异常，请重试'); });
       });
     });
+    var rs = document.getElementById('rec-search');
+    if (rs) {
+      rs.addEventListener('input', function () {
+        var q = rs.value.trim().toLowerCase();
+        Array.prototype.slice.call(document.querySelectorAll('.feed > li')).forEach(function (li) {
+          li.style.display = !q || li.textContent.toLowerCase().indexOf(q) !== -1 ? '' : 'none';
+        });
+      });
+    }
   })();
   </script>`, user);
 }
