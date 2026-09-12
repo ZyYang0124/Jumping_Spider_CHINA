@@ -3,20 +3,148 @@ export const prerender = true;
 import Base from '../../layouts/Base.astro';
 import ObsCard from '../../components/ObsCard.astro';
 import { allPublicObservations } from '../../lib/queries';
-import { withBase } from '../../lib/privacy';
+import { SEX_ZH, LIFE_STAGE_ZH } from '../../lib/labels';
+
+const obs = allPublicObservations;
+
+function uniq(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh'));
+}
+const placeLabel = (o: (typeof obs)[number]) =>
+  [o.location.admin2, o.location.locality ?? o.location.site_name].filter(Boolean).join('·') || o.location.admin1;
+
+// §109 常用筛选：分类 / 国家 / 地点 / 伙伴 / 年份 / 性别 / 发育阶段 / 野外调查
+const speciesOptions = uniq(obs.map((o) => o.identification?.display ?? '未鉴定的跳蛛'));
+const countryOptions = uniq(obs.map((o) => o.location.country_name));
+const placeOptions = uniq(obs.map(placeLabel));
+const contributorOptions = uniq(obs.map((o) => o.observer_name));
+const yearOptions = uniq(obs.map((o) => o.observed_at.slice(0, 4))).reverse();
+const sexOptions = uniq(obs.map((o) => SEX_ZH[o.sex as keyof typeof SEX_ZH] ?? o.sex));
+const stageOptions = uniq(obs.map((o) => LIFE_STAGE_ZH[o.life_stage as keyof typeof LIFE_STAGE_ZH] ?? o.life_stage));
+const tripOptions = uniq(obs.map((o) => o.trip?.title ?? ''));
 ---
 
-<Base title="观察记录" description="全部已发布的跳蛛观察记录。">
+<Base title="观察记录" description="全部已发布的跳蛛观察记录，可按分类、地点、伙伴、年份等筛选。">
   <div class="container">
     <div class="page-title">
       <h1>观察记录</h1>
-      <p class="lede">每条记录都有永久编号（CSFN-YYYY-NNNNNN），鉴定可以改变，观察本身不会过期。</p>
+      <p class="lede">每条记录都有永久编号（SFN-YYYY-NNNNNN），鉴定可以改变，观察本身不会过期。</p>
     </div>
-    <div class="card-grid" style="padding: 34px 0 70px;">
-      {allPublicObservations.map((o) => <ObsCard obs={o} />)}
+
+    <div class="filter-bar" id="obs-filter">
+      <select data-f="species" aria-label="按分类筛选">
+        <option value="">分类：全部</option>
+        {speciesOptions.map((s) => <option value={s}>{s}</option>)}
+      </select>
+      <select data-f="country" aria-label="按国家筛选">
+        <option value="">国家：全部</option>
+        {countryOptions.map((s) => <option value={s}>{s}</option>)}
+      </select>
+      <select data-f="place" aria-label="按地点筛选">
+        <option value="">地点：全部</option>
+        {placeOptions.map((s) => <option value={s}>{s}</option>)}
+      </select>
+      <select data-f="contributor" aria-label="按伙伴筛选">
+        <option value="">伙伴：全部</option>
+        {contributorOptions.map((s) => <option value={s}>{s}</option>)}
+      </select>
+      <select data-f="year" aria-label="按年份筛选">
+        <option value="">年份：全部</option>
+        {yearOptions.map((s) => <option value={s}>{s}</option>)}
+      </select>
+      <select data-f="sex" aria-label="按性别筛选">
+        <option value="">性别：全部</option>
+        {sexOptions.map((s) => <option value={s}>{s}</option>)}
+      </select>
+      <select data-f="stage" aria-label="按发育阶段筛选">
+        <option value="">龄期：全部</option>
+        {stageOptions.map((s) => <option value={s}>{s}</option>)}
+      </select>
+      <select data-f="trip" aria-label="按野外调查筛选">
+        <option value="">调查：全部</option>
+        {tripOptions.map((s) => <option value={s}>{s}</option>)}
+      </select>
+      <button type="button" id="f-clear" hidden>清除筛选</button>
+      <span id="f-count">共 {obs.length} 条</span>
     </div>
-    {allPublicObservations.length === 0 && (
-      <div class="empty-state">还没有已发布的观察记录。</div>
-    )}
+
+    <div class="card-grid" id="obs-grid" style="padding: 26px 0 70px;">
+      {obs.map((o) => (
+        <div
+          class="obs-item"
+          data-species={o.identification?.display ?? '未鉴定的跳蛛'}
+          data-country={o.location.country_name}
+          data-place={placeLabel(o)}
+          data-contributor={o.observer_name}
+          data-year={o.observed_at.slice(0, 4)}
+          data-sex={SEX_ZH[o.sex as keyof typeof SEX_ZH] ?? o.sex}
+          data-stage={LIFE_STAGE_ZH[o.life_stage as keyof typeof LIFE_STAGE_ZH] ?? o.life_stage}
+          data-trip={o.trip?.title ?? ''}
+        >
+          <ObsCard obs={o} />
+        </div>
+      ))}
+    </div>
+    <div class="empty-state" id="f-empty" hidden>没有符合条件的记录——放宽一点筛选试试。</div>
   </div>
 </Base>
+
+<script>
+  // §109 常用筛选：构建期已把各维度写进 data-*，纯客户端显隐，无额外请求
+  function initObsFilter() {
+    const bar = document.getElementById('obs-filter');
+    const grid = document.getElementById('obs-grid');
+    if (!bar || !grid || bar.dataset.init === '1') return;
+    bar.dataset.init = '1';
+
+    const selects = Array.from(bar.querySelectorAll<HTMLSelectElement>('select[data-f]'));
+    const countEl = document.getElementById('f-count');
+    const clearBtn = document.getElementById('f-clear');
+    const emptyEl = document.getElementById('f-empty');
+    const items = Array.from(grid.querySelectorAll<HTMLElement>('.obs-item'));
+    const total = items.length;
+
+    function apply() {
+      const active = selects.filter((s) => s.value);
+      let shown = 0;
+      for (const el of items) {
+        const ok = active.every((s) => el.getAttribute('data-' + s.dataset.f) === s.value);
+        el.hidden = !ok;
+        if (ok) shown++;
+      }
+      if (countEl) countEl.textContent = active.length ? `筛出 ${shown} / ${total} 条` : `共 ${total} 条`;
+      if (clearBtn) clearBtn.hidden = active.length === 0;
+      if (emptyEl) emptyEl.hidden = shown !== 0;
+    }
+    for (const s of selects) s.addEventListener('change', apply);
+    clearBtn?.addEventListener('click', () => {
+      for (const s of selects) s.value = '';
+      apply();
+    });
+    apply();
+  }
+  document.addEventListener('astro:page-load', initObsFilter);
+</script>
+
+<style>
+  .filter-bar {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    padding: 20px 0 4px; border-top: 1px solid var(--line);
+  }
+  .filter-bar select {
+    font: inherit; font-size: 13px; color: var(--ink);
+    padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px;
+    background: #fff; max-width: 210px;
+  }
+  .filter-bar select:focus { outline: none; border-color: var(--terra); }
+  #f-clear {
+    font: inherit; font-size: 13px; color: var(--muted);
+    background: none; border: none; cursor: pointer;
+    text-decoration: underline; text-underline-offset: 3px;
+  }
+  #f-clear:hover { color: var(--ink); }
+  #f-count { margin-left: auto; font-size: 12.5px; color: var(--faint); letter-spacing: 0.04em; }
+  @media (max-width: 640px) {
+    #f-count { margin-left: 0; width: 100%; }
+  }
+</style>

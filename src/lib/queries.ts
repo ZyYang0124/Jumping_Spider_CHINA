@@ -634,7 +634,14 @@ export function buildSearchIndex() {
     url: o.url,
     title: o.identification?.display ?? '未鉴定的跳蛛',
     meta: `${o.observed_at} · ${shortRegion(o.location)}`,
-    text: [o.location.locality, o.habitat, o.microhabitat, o.behavior, o.field_note]
+    // §108 统一搜索：学名/地点/国家/伙伴/调查/年份/生境 都要能命中
+    text: [
+      o.location.country_name, o.location.admin1, o.location.admin2,
+      o.location.locality, o.location.site_name,
+      o.habitat, o.microhabitat, o.behavior, o.field_note,
+      o.observer_name,
+      o.identification?.identified_by ?? '',
+    ]
       .filter(Boolean)
       .join(' '),
     thumb: o.cover?.thumb ?? null,
