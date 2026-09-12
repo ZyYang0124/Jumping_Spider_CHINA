@@ -210,7 +210,6 @@ export interface Specimen {
 
 export interface SiteConfig {
   site_name: string;
-  site_name_en: string;
   subtitle: string;
   subtitle_en: string;
   owner_profile_id: string;

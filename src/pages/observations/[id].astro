@@ -36,7 +36,7 @@ const shareData = {
   lng: loc.longitude,
   photographer,
   mediaUrl: (obs.cover ?? obs.media[0])?.large ?? null,
-  site: 'Salticid Notes · 跳蛛观察志',
+  site: '跳蛛观察志',
   encounters: idGroup ? `${idGroup.observations.length} 次相遇` : null,
   regionLine: idGroup && idGroup.regions.length ? idGroup.regions.filter(Boolean).slice(0, 2).join(' · ').replace(/^[· ]+/, '') + (idGroup.regions.length > 2 ? ` 等 ${idGroup.regions.length} 地` : '') : null,
   range: idYears.length ? `${Math.min(...idYears)}—${Math.max(...idYears)}` : null,

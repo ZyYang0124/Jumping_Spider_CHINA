@@ -6,7 +6,7 @@ import { renderBody } from './embeds';
 import taxaJson from './taxa-data.json';
 import { workingTaxaRows, type WorkingTaxonRow } from './taxa';
 
-const README = `Salticid Notes · Field Studio 导出包
+const README = `跳蛛观察志 · Field Studio 导出包
 
 内容：
   studio-places.json           → src/data/studio-places.json

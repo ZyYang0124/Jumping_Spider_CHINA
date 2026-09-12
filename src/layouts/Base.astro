@@ -17,7 +17,7 @@ interface Props {
 const { title, description = siteConfig.subtitle, preload, ogImage } = Astro.props;
 const SITE_URL = 'https://salticidnotes.cn';
 const ogImageAbs = ogImage ? SITE_URL + withBase(ogImage) : SITE_URL + withBase('/media/derivatives/SFN-M-000008-1280.jpg');
-const pageTitle = title ? `${title} · ${siteConfig.site_name}` : `${siteConfig.site_name} | ${siteConfig.site_name_en}`;
+const pageTitle = title ? `${title} · ${siteConfig.site_name}` : siteConfig.site_name;
 
 const nav = [
   { href: '/observations/', label: '观察' },
@@ -65,7 +65,6 @@ const nav = [
         <a class="brand" href={withBase('/')}>
           <img class="brand-mark" src={withBase('/logo-mark.png')} alt="" width="30" height="31" />
           <span class="zh">{siteConfig.site_name}</span>
-          <span class="en">{siteConfig.site_name_en}</span>
         </a>
         <nav class="site-nav" aria-label="主导航">
           {nav.map((n) => (
@@ -100,7 +99,6 @@ const nav = [
       <div class="inner">
         <div class="mark"><img src={withBase('/logo-mark.png')} alt="" width="38" height="40" /></div>
         <div class="fn">{siteConfig.site_name}</div>
-        <div class="fen">{siteConfig.site_name_en}</div>
         <p class="motto">每一条记录，都始于一次相遇。</p>
         <p class="legal">
           © {new Date().getFullYear()} {siteConfig.copyright_holder}
