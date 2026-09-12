@@ -514,8 +514,8 @@ async function findOrCreatePlace(
   const name = (p.locality || p.admin2 || p.admin1 || '未命名地点').slice(0, 120);
   const existing = await get<any>(
     env.DB,
-    "SELECT id, name FROM places WHERE merged_into_id IS NULL AND name = ? AND COALESCE(admin1, '') = ? AND COALESCE(admin2, '') = ?",
-    name, p.admin1 ?? '', p.admin2 ?? '',
+    "SELECT id, name FROM places WHERE merged_into_id IS NULL AND name = ? AND COALESCE(admin1, '') = ? AND COALESCE(admin2, '') = ? AND COALESCE(country, '') = ?",
+    name, p.admin1 ?? '', p.admin2 ?? '', p.country ?? '',
   );
   if (existing) return existing;
   await run(

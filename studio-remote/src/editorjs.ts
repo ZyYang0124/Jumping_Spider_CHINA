@@ -304,7 +304,7 @@ const OBS_EDITOR_JS = `
   if (!boot.publicId && !$('[data-field="observed_at"]').value) {
     $('[data-field="observed_at"]').value = new Date().toISOString().slice(0, 10);
   }
-  if (!boot.publicId) $('[data-field="country_name"]').value = '中国';
+  // 国家不预填：由地图选点/EXIF 的逆地理编码按坐标填写（避免非中国记录被静默标成中国）
   window.__chosenSlug = d.species_taxon_slug || '';
   // renderChosen 延迟到物种选择器变量初始化之后调用（见下方 spInput 声明后）
   if (!boot.publicId) {
