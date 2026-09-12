@@ -2,7 +2,7 @@
 export const prerender = true;
 import Base from '../../layouts/Base.astro';
 import ObsCard from '../../components/ObsCard.astro';
-import { getPublicContributor, getPublicContributors, allPublicObservations } from '../../lib/queries';
+import { getPublicContributor, getPublicContributors, allPublicObservations, observationPlaceId } from '../../lib/queries';
 import { withBase } from '../../lib/privacy';
 import { sciNameHtml } from '../../lib/format';
 
@@ -24,9 +24,11 @@ const placeCount = new Set(observed.map((o) => [o.location.country_code, o.locat
 const placeMap = new Map<string, { name: string; url: string | null; count: number }>();
 for (const o of observed) {
   const name = [o.location.admin2, o.location.locality ?? o.location.site_name].filter(Boolean).join('·') || o.location.admin1;
-  const e = placeMap.get(name);
+  const pid = observationPlaceId(o);
+  const key = pid ?? name;
+  const e = placeMap.get(key);
   if (e) e.count += 1;
-  else placeMap.set(name, { name, url: null, count: 1 });
+  else placeMap.set(key, { name, url: pid ? withBase(`/places/${pid}/`) : null, count: 1 });
 }
 const topPlaces = [...placeMap.values()].sort((a, b) => b.count - a.count).slice(0, 6);
 
@@ -68,9 +70,13 @@ const featuredMedias = [...allMedia.filter((m) => m.caption), ...allMedia.filter
     <section class="container cd-section">
       <h2 class="cd-section-title">常去的地方</h2>
       <div class="cd-places">
-        {topPlaces.map((p) => (
-          <span class="cd-place">{p.name}<span class="n">{p.count}</span></span>
-        ))}
+        {topPlaces.map((p) =>
+          p.url ? (
+            <a class="cd-place" href={p.url}>{p.name}<span class="n">{p.count}</span></a>
+          ) : (
+            <span class="cd-place">{p.name}<span class="n">{p.count}</span></span>
+          )
+        )}
       </div>
     </section>
   )}
@@ -149,9 +155,11 @@ const featuredMedias = [...allMedia.filter((m) => m.caption), ...allMedia.filter
 
   .cd-places { display: flex; flex-wrap: wrap; gap: var(--s-3); }
   .cd-place {
+    display: inline-flex; align-items: baseline; gap: 6px;
     border: 1px solid var(--line); border-radius: 999px; padding: 6px 16px;
-    font-size: 14.5px; color: var(--ink); background: none;
+    font-size: 14.5px; color: var(--ink); background: none; text-decoration: none;
   }
+  a.cd-place:hover { border-color: var(--terra); }
   .cd-place .n { color: var(--faint); font-size: 12px; margin-left: 6px; }
 
   .cd-gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-3); }
