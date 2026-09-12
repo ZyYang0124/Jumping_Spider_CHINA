@@ -1048,6 +1048,47 @@ const NOTE_EDITOR_JS = `
     }
   });
 
+  // ---- 格式工具栏：不懂 markdown 也能排版 ----
+  var nbt = $('#nb-toolbar');
+  function surround(before, after, placeholder) {
+    var s = body.selectionStart, e = body.selectionEnd;
+    var sel = body.value.slice(s, e) || placeholder;
+    body.value = body.value.slice(0, s) + before + sel + after + body.value.slice(e);
+    body.focus();
+    body.selectionStart = s + before.length;
+    body.selectionEnd = s + before.length + sel.length;
+    schedule(); schedulePreview();
+  }
+  function prefixLines(prefix) {
+    var s = body.selectionStart, e = body.selectionEnd;
+    var NL = String.fromCharCode(10);
+    var start = body.value.lastIndexOf(NL, s - 1) + 1;
+    var end = body.value.indexOf(NL, e); if (end < 0) end = body.value.length;
+    var lines = body.value.slice(start, end).split(NL);
+    var all = lines.length && lines.every(function (l) { return l.startsWith(prefix); });
+    var out = lines.map(function (l) { return all ? l.slice(prefix.length) : prefix + l; }).join(NL);
+    body.value = body.value.slice(0, start) + out + body.value.slice(end);
+    body.focus();
+    body.selectionStart = start; body.selectionEnd = start + out.length;
+    schedule(); schedulePreview();
+  }
+  if (nbt) {
+    nbt.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-cmd]');
+      if (!b) return;
+      e.preventDefault();
+      var c = b.getAttribute('data-cmd');
+      if (c === 'h2') prefixLines('## ');
+      else if (c === 'h3') prefixLines('### ');
+      else if (c === 'quote') prefixLines('> ');
+      else if (c === 'ul') prefixLines('- ');
+      else if (c === 'bold') surround('**', '**', '加粗文字');
+      else if (c === 'hr') insertBlock('---');
+      else if (c === 'image') insertBlock('__IMAGE__');
+      else if (c === 'obs') insertBlock('__OBS__');
+    });
+  }
+
   // ---- 编辑 ⇄ 预览（宽屏左写右排 · 边写边排版）----
   var paneEdit = $('#pane-edit'), panePrev = $('#pane-preview');
   var pvTitle = panePrev.querySelector('.pv-title'), pvSub = panePrev.querySelector('.pv-sub'), pvBody = panePrev.querySelector('.pv-body');

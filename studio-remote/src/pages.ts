@@ -331,6 +331,19 @@ details.more .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 22px
 .pm-target { font:inherit; font-size:13px; padding:6px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
 
 /* ---- 野外笔记：写作模式 ---- */
+.nb-toolbar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  background: var(--paper); padding: 10px 0; margin-bottom: 6px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.nb-toolbar button {
+  font: inherit; font-size: 13px; color: var(--muted);
+  background: none; border: 1px solid transparent; border-radius: 6px;
+  padding: 4px 10px; cursor: pointer;
+}
+.nb-toolbar button:hover { color: var(--ink); border-color: var(--line); background: var(--paper-soft); }
+.nb-toolbar .sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
 .write-main { max-width:var(--w-note); margin:0 auto; padding:44px 24px 160px; }
 /* ---- 宽屏：左写右排（边写边排版） ---- */
 @media (min-width:1100px) {
@@ -951,6 +964,17 @@ export function noteEditorHtml(slug: string | null, data: Record<string, any>): 
   return page(slug ? `编辑：${data.title ?? slug}` : '写一篇野外笔记', `
   <main class="write-main split">
     <div id="pane-edit">
+      <div class="nb-toolbar" id="nb-toolbar" role="toolbar" aria-label="格式工具栏">
+        <button type="button" data-cmd="h2" title="小节标题">H2</button>
+        <button type="button" data-cmd="h3" title="小标题">H3</button>
+        <button type="button" data-cmd="bold" title="加粗"><b>B</b></button>
+        <button type="button" data-cmd="quote" title="引用">❝</button>
+        <button type="button" data-cmd="ul" title="列表">•≡</button>
+        <button type="button" data-cmd="hr" title="分隔线">—</button>
+        <span class="sep" aria-hidden="true"></span>
+        <button type="button" data-cmd="image" title="插入图片">插图</button>
+        <button type="button" data-cmd="obs" title="插入观察卡片">观察</button>
+      </div>
       <input id="n-title" class="title-line" placeholder="标题" value="${esc(data.title ?? '')}" autocomplete="off" />
       <input id="n-subtitle" class="subtitle-line" placeholder="副标题（可选）" value="${esc(data.subtitle ?? '')}" autocomplete="off" />
       <textarea id="n-body" class="body-line" placeholder="从这里开始写……">${esc(data.body_md ?? '')}</textarea>
