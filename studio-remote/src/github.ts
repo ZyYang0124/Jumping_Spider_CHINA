@@ -36,7 +36,7 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
-/** 把当前已发布内容整体提交到仓库 main：5 个 studio-*.json 全量覆盖 + 新增原图。
+/** 把当前已发布内容整体提交到仓库 main：7 个 studio-*.json 全量覆盖 + 新增原图。
  *  所有人（owner/contributor）的发布都会触发；并发发布时后提交者会撞 ref，
  *  自动重读最新 ref 重试（内容为全量快照，重提交不会丢内容）。 */
 export async function syncToGitHub(env: Env, label = ''): Promise<SyncResult> {
@@ -46,6 +46,7 @@ export async function syncToGitHub(env: Env, label = ''): Promise<SyncResult> {
     const data = await collectExport(env);
     const jsonFiles: { path: string; content: string }[] = [
       { path: 'src/data/studio-places.json', content: data.placesJson },
+      { path: 'src/data/studio-taxa.json', content: data.taxaJson },
       { path: 'src/data/studio-profiles.json', content: data.profilesJson },
       { path: 'src/data/studio-observations.json', content: data.observationsJson },
       { path: 'src/data/studio-locations.json', content: data.locationsJson },

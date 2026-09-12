@@ -14,13 +14,15 @@ import {
   locationById,
   mediaByObservation,
   observations,
+  placeById,
+  placeMergedInto,
   profileById,
   specimenByObservation,
   taxonById,
   tripById,
 } from './store';
 import mediaManifestJson from '../data/generated/media-manifest.json';
-import type { Evidence, LocationVisibility, MediaRecord, MediaViewType, TaxonRank } from './types';
+import type { Evidence, LocationVisibility, MediaRecord, MediaViewType, Observation, TaxonRank } from './types';
 
 // 媒体尺寸清单（scripts/process-media.mjs 与 Studio 上传管线生成，构建期静态导入）
 const MEDIA_MANIFEST = mediaManifestJson as Record<
@@ -81,6 +83,8 @@ export interface PublicObservation {
   observed_at: string;
   observed_at_precision: string;
   location: PublicLocation;
+  /** 挂接的地点实体（Place，§14）；公开地点页按此聚合 */
+  place_id: string | null;
   sex: string;
   life_stage: string;
   habitat: string | null;
@@ -112,6 +116,13 @@ export function withBase(path: string): string {
 }
 
 // ---------- 公开地点：单一坐标模型（全量精确公开，Studio SOP §7） ----------
+
+/** 观察所属地点实体：观察挂接优先，其次地点记录的标注；合并跳转在此一次解析 */
+function resolveObservationPlaceId(obs: Observation): string | null {
+  const raw = obs.place_id ?? locationById.get(obs.location_id)?.place_id ?? null;
+  if (!raw) return null;
+  return placeMergedInto.get(raw) ?? raw;
+}
 
 function publicLocation(locationId: string): PublicLocation {
   const l = locationById.get(locationId);
@@ -207,6 +218,7 @@ export function toPublicObservation(o: Observation): PublicObservation {
     observed_at: o.observed_at,
     observed_at_precision: o.observed_at_precision,
     location: publicLocation(o.location_id),
+    place_id: resolveObservationPlaceId(o),
     sex: o.sex,
     life_stage: o.life_stage,
     habitat: o.habitat,

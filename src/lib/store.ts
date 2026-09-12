@@ -6,6 +6,7 @@ import type {
   LocationRecord,
   MediaRecord,
   Observation,
+  PlaceRecord,
   Post,
   Profile,
   SiteConfig,
@@ -58,7 +59,12 @@ for (const sp of loadStudio<Partial<Profile> & { id: string }>('profiles')) {
     } as Profile);
   }
 }
-export const taxa = taxaJson as unknown as Taxon[];
+// Studio 工作编号（§21-§24，studio-taxa.json）：cf./aff./sp. 等合法鉴定目标，追加到静态类群表
+export const taxa = [
+  ...(taxaJson as unknown as Taxon[]),
+  ...loadStudio<Taxon>('taxa'),
+];
+export const places = loadStudio<PlaceRecord>('places');
 export const locations = [
   ...(locationsJson as unknown as LocationRecord[]),
   ...loadStudio<LocationRecord>('locations'),
@@ -90,6 +96,7 @@ function validate(): void {
   const mediaIds = new Set(media.map((m) => m.id));
   const mediaPublicIds = new Set<string>();
   const tripIds = new Set(trips.map((t) => t.id));
+  const placeIds = new Set(places.map((p) => p.id));
   const publicIds = new Set<string>();
 
   for (const t of taxa) {
@@ -139,10 +146,26 @@ function validate(): void {
   // 地点数据完整性：单一坐标模型，有地名层级即可，坐标可为空（待补），
   // 但一旦提供必须落在合法范围（观察坐标全量精确公开，Studio SOP §7）。
   for (const l of locations) {
+    if (l.place_id && !placeIds.has(l.place_id)) fail(`地点记录 ${l.id} 的 place_id 不存在：${l.place_id}`);
     for (const [k, v] of [['latitude', l.latitude], ['longitude', l.longitude]] as const) {
       if (v == null) continue;
       const ok = k === 'latitude' ? v >= -90 && v <= 90 : v >= -180 && v <= 180;
       if (!ok) fail(`地点 ${l.id} 的 ${k} 超出合法范围：${v}`);
+    }
+  }
+
+  // 地点实体（§14）：合并跳转必须指向存在的地点，且观察挂接的地点必须存在
+  const resolvedPlaceIds = new Set<string>();
+  for (const p of places) {
+    if (p.merged_into_id) {
+      if (!placeIds.has(p.merged_into_id)) fail(`地点 ${p.id} 的 merged_into_id 不存在：${p.merged_into_id}`);
+    } else {
+      resolvedPlaceIds.add(p.id);
+    }
+  }
+  for (const o of observations) {
+    if (o.place_id && !resolvedPlaceIds.has(o.place_id)) {
+      fail(`观察 ${o.public_id} 的 place_id 不存在或已被合并：${o.place_id}`);
     }
   }
 }
@@ -166,6 +189,19 @@ for (const list of mediaByObservation.values()) {
 }
 export const mediaById = new Map(media.map((m) => [m.id, m]));
 export const tripById = new Map(trips.map((t) => [t.id, t]));
+export const placeById = new Map(places.map((p) => [p.id, p]));
+/** 合并跳转：merged 地点 id → 保留地点 id（多级合并一次解析） */
+export const placeMergedInto = new Map<string, string>();
+for (const p of places) {
+  if (!p.merged_into_id) continue;
+  let target = p.merged_into_id;
+  for (let i = 0; i < 8; i++) {
+    const next = places.find((q) => q.id === target)?.merged_into_id;
+    if (!next) break;
+    target = next;
+  }
+  placeMergedInto.set(p.id, target);
+}
 export const specimenByObservation = new Map(specimens.map((s) => [s.observation_id, s]));
 export const currentIdentificationByObservation = new Map<string, Identification>();
 for (const idn of identifications) {

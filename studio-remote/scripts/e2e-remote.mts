@@ -360,6 +360,58 @@ ok(merge.ok === true, `H10 地点合并成功`);
 const mergedRow = d1(`SELECT place_id FROM observations WHERE public_id = '${pidA}'`)[0]?.place_id;
 ok(mergedRow === Number(luofushan.id.replace('place-', '')), `H11 合并后观察迁移到罗浮山`);
 
+// ---------- 场景 T：工作编号（建立 / 复用 / 重名拒绝 / 鉴定引用 / 导出） ----------
+const wtRes = await (await req('/studio/api/taxa', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Rhene cf. flavigera' }),
+})).json();
+ok(wtRes.ok === true && wtRes.taxon?.slug === 'rhene-cf-flavigera', `T1 建立工作编号：${wtRes.taxon?.slug}`);
+
+const wtRe = await (await req('/studio/api/taxa', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Rhene cf. flavigera' }),
+})).json();
+ok(wtRe.ok === true && wtRe.created === false, `T2 重复建立复用既有编号（created=false）`);
+
+const wtDup = await req('/studio/api/taxa', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Siler cupreus' }),
+});
+ok(wtDup.status === 409, `T3 与正式类群重名被拒绝（409）`);
+
+const wtBad = await req('/studio/api/taxa', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: '123 三号' }),
+});
+ok(wtBad.status === 400, `T4 非法名称被拒绝（400）`);
+
+// 鉴定引用工作编号：以编辑器 boot 数据为准（与真实编辑流一致，不依赖 d1 CLI 读取时序）
+async function editorSlug(pid: string): Promise<string> {
+  const html = await (await req(`/studio/observations/${pid}/edit`)).text();
+  return html.match(/"species_taxon_slug":"([^"]*)"/)?.[1] ?? '';
+}
+const idn0 = await editorSlug(pidA);
+const wtIdn = await (await req(`/studio/api/observations/${pidA}`, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ species_taxon_slug: 'rhene-cf-flavigera', explicit: true }),
+})).json();
+const wtDisplay = await editorSlug(pidA);
+ok(wtIdn.ok === true && wtDisplay === 'rhene-cf-flavigera', `T5 鉴定引用工作编号（editor slug=${wtDisplay}）`);
+
+const expT = await req('/studio/export');
+const zipT = unzipSync(new Uint8Array(await expT.arrayBuffer()));
+const taxaJsonT = JSON.parse(new TextDecoder().decode(zipT['studio-taxa.json'] ?? new Uint8Array()));
+ok(files_in(zipT, 'studio-taxa.json') && taxaJsonT.some((t: any) => t.slug === 'rhene-cf-flavigera' && t.status === 'working'), `T6 导出包含 studio-taxa.json 工作编号`);
+
+// 还原 pidA 鉴定，并以编辑器视图确认写回
+if (idn0 && idn0 !== 'rhene-cf-flavigera') {
+  await req(`/studio/api/observations/${pidA}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ species_taxon_slug: idn0, explicit: true }),
+  });
+  ok((await editorSlug(pidA)) === idn0, `T7 鉴定还原为 ${idn0}`);
+}
+
 function files_in(z: Record<string, Uint8Array>, name: string): boolean {
   return name in z;
 }
@@ -388,5 +440,5 @@ const anonApi = await fetchRetry(BASE + '/studio/api/observations', { method: 'P
 ok(anonApi.status === 401, 'S2 未登录 API 返回 401');
 
 writeFileSync(resolve(ROOT, '.e2e-manifest.json'), JSON.stringify({ pidA, pidB, pidC, cids, note: nd.slug }, null, 2));
-console.log(failures.length ? `\nE2E 失败 ${failures.length} 项` : '\nE2E 全部通过（远程版场景 A/B/C/D/F + 安全探测）');
+console.log(failures.length ? `\nE2E 失败 ${failures.length} 项` : '\nE2E 全部通过（远程版场景 A/B/C/D/H/T/F + 安全探测）');
 process.exit(failures.length ? 1 : 0);

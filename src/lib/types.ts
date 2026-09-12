@@ -93,6 +93,24 @@ export interface LocationRecord {
   /** 十进制经度（WGS84） */
   longitude: number | null;
   elevation_m: number | null;
+  /** 挂接的地点实体（Place，§14）；手写数据按同名地点标注 */
+  place_id?: string | null;
+}
+
+/** 地点实体（§14/§19）：Field Studio 维护，经 studio-places.json 同步；merged_into_id 为合并跳转 */
+export interface PlaceRecord {
+  id: string;
+  name: string;
+  country: string;
+  admin1: string;
+  admin2: string;
+  locality: string;
+  site_name: string;
+  latitude: number | null;
+  longitude: number | null;
+  elevation_m: number | null;
+  description: string | null;
+  merged_into_id: string | null;
 }
 
 export interface Observation {
@@ -112,6 +130,8 @@ export interface Observation {
   status: ObservationStatus;
   visibility: Visibility;
   trip_id: string | null;
+  /** 挂接的地点实体（Place，§14）；Studio 记录导出时写入 */
+  place_id?: string | null;
 }
 
 /** 鉴定独立成表：观察记录中绝不存储权威学名（DEVELOPMENT.md 规则 5/6/7）。 */

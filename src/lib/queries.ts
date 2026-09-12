@@ -13,6 +13,7 @@ import {
   media,
   mediaById,
   observations,
+  placeById,
   posts,
   profiles,
   taxa,
@@ -290,6 +291,13 @@ export interface LocalityCard {
   count: number;
   habitats: string[];
   cover: { thumb: string; medium: string; large: string } | null;
+  /** 对应的地点实体（存在时卡片链接到 /places/[id]/） */
+  place_id: string | null;
+}
+
+/** 观察所属的地点实体（toPublicObservation 已解析合并跳转与位置记录标注） */
+export function observationPlaceId(o: PublicObservation): string | null {
+  return o.place_id;
 }
 
 export function getLocalityCards(): LocalityCard[] {
@@ -309,16 +317,150 @@ export function getLocalityCards(): LocalityCard[] {
         count: 0,
         habitats: [],
         cover: null,
+        place_id: null,
       };
       byLocality.set(key, card);
     }
     card.count += 1;
+    const pid = observationPlaceId(o);
+    if (pid && !card.place_id) card.place_id = pid;
     if (o.habitat && !card.habitats.includes(o.habitat)) card.habitats.push(o.habitat);
     if (!card.cover && o.cover) {
       card.cover = { thumb: o.cover.thumb, medium: o.cover.medium, large: o.cover.large };
     }
   }
   return [...byLocality.values()].sort((a, b) => b.count - a.count);
+}
+
+// ---------- 地点实体页面（§14/§19）：以地点为主体聚合观察、物种与札记 ----------
+
+export interface PublicPlace {
+  id: string;
+  name: string;
+  url: string;
+  country: string;
+  admin1: string;
+  admin2: string;
+  locality: string;
+  site_name: string;
+  latitude: number | null;
+  longitude: number | null;
+  elevation_m: number | null;
+  description: string | null;
+}
+
+function publicPlace(id: string): PublicPlace | undefined {
+  const p = placeById.get(id);
+  if (!p || p.merged_into_id) return undefined;
+  return {
+    id: p.id,
+    name: p.name,
+    url: withBase(`/places/${p.id}/`),
+    country: p.country,
+    admin1: p.admin1,
+    admin2: p.admin2,
+    locality: p.locality,
+    site_name: p.site_name,
+    latitude: p.latitude,
+    longitude: p.longitude,
+    elevation_m: p.elevation_m,
+    description: p.description,
+  };
+}
+
+/** merged 地点的跳转目标 URL（供 getStaticPaths 生成重定向页） */
+export function getPlaceRedirect(id: string): string | null {
+  const p = placeById.get(id);
+  if (!p?.merged_into_id) return null;
+  return publicPlace(p.merged_into_id)?.url ?? null;
+}
+
+/** 全部公开地点（按观察数排序），供地点索引页与静态路径生成 */
+export function getPublicPlaces(): (PublicPlace & { count: number; cover: PublicObservation['cover'] })[] {
+  const counts = new Map<string, number>();
+  for (const o of allPublicObservations) {
+    const pid = observationPlaceId(o);
+    if (!pid) continue;
+    counts.set(pid, (counts.get(pid) ?? 0) + 1);
+  }
+  return [...counts.keys()]
+    .map((id) => {
+      const place = publicPlace(id);
+      if (!place) return null;
+      const atPlace = allPublicObservations.filter((o) => observationPlaceId(o) === id);
+      const cover = atPlace.find((o) => o.cover)?.cover ?? null;
+      return { ...place, count: counts.get(id) ?? 0, cover };
+    })
+    .filter((p): p is PublicPlace & { count: number; cover: PublicObservation['cover'] } => p != null)
+    .sort((a, b) => b.count - a.count);
+}
+
+export interface PlacePageData {
+  place: PublicPlace;
+  observations: PublicObservation[];
+  /** 在此记录过的物种（按观察数排序，链接到物种页） */
+  species: { display: string; rank: TaxonRank | null; slug: string | null; count: number }[];
+  /** 相关札记：文中观察落在该地点 */
+  posts: { title: string; url: string }[];
+}
+
+export function getPlacePage(id: string): PlacePageData | undefined {
+  const place = publicPlace(id);
+  if (!place) return undefined;
+  const observations = allPublicObservations
+    .filter((o) => observationPlaceId(o) === id)
+    .sort((a, b) => b.observed_at.localeCompare(a.observed_at));
+  const speciesMap = new Map<string, { display: string; rank: TaxonRank | null; slug: string | null; count: number }>();
+  for (const o of observations) {
+    const idn = o.identification;
+    if (!idn) continue;
+    const key = idn.taxon_slug ?? idn.display;
+    const e = speciesMap.get(key);
+    if (e) e.count += 1;
+    else speciesMap.set(key, { display: idn.display, rank: idn.taxon_rank, slug: idn.taxon_slug, count: 1 });
+  }
+  const obsIds = new Set(observations.map((o) => o.public_id));
+  const posts = getPublishedPosts()
+    .filter((p) => p.relatedObservations.some((ro) => obsIds.has(ro.public_id)))
+    .map((p) => ({ title: p.title, url: withBase(`/posts/${p.slug}/`) }));
+  return {
+    place,
+    observations,
+    species: [...speciesMap.values()].sort((a, b) => b.count - a.count),
+    posts,
+  };
+}
+
+/** 札记关联区块（§札记）：从文中观察自动推导相关物种与地点 */
+export function getPostLinks(
+  post: PublicPost,
+): {
+  species: { display: string; rank: TaxonRank | null; slug: string | null; url: string | null }[];
+  places: { name: string; url: string }[];
+} {
+  const speciesMap = new Map<string, { display: string; rank: TaxonRank | null; slug: string | null; url: string | null }>();
+  const placeMap = new Map<string, { name: string; url: string }>();
+  for (const ro of post.relatedObservations) {
+    const o = getObservation(ro.public_id);
+    if (!o) continue;
+    if (o.identification) {
+      const key = o.identification.taxon_slug ?? o.identification.display;
+      if (!speciesMap.has(key)) {
+        speciesMap.set(key, {
+          display: o.identification.display,
+          rank: o.identification.taxon_rank,
+          slug: o.identification.taxon_slug,
+          url: o.identification.taxon_slug ? withBase(`/species/${o.identification.taxon_slug}/`) : null,
+        });
+      }
+    }
+    const pid = observationPlaceId(o);
+    if (pid && !placeMap.has(pid)) {
+      const p = publicPlace(pid);
+      if (p) placeMap.set(pid, { name: p.name, url: p.url });
+    }
+  }
+  return { species: [...speciesMap.values()], places: [...placeMap.values()] };
 }
 
 // ---------- 贡献者（仅公开主页，人文化呈现） ----------

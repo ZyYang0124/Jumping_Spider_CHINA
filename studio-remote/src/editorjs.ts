@@ -342,7 +342,7 @@ const OBS_EDITOR_JS = `
     if (t) {
       var div = document.createElement('div');
       div.className = 'chosen-taxa';
-      div.innerHTML = '<span class="cn">' + escHtml(t.cn || '') + '</span><span class="sn">' + escHtml(t.name) + '</span><button type="button" id="sp-clear">更改</button>';
+      div.innerHTML = '<span class="cn">' + escHtml(t.cn || (t.working ? '工作编号' : '')) + '</span><span class="sn">' + escHtml(t.name) + '</span><button type="button" id="sp-clear">更改</button>';
       host.insertBefore(div, spInput);
       spInput.style.display = 'none';
       div.querySelector('#sp-clear').addEventListener('click', function () {
@@ -358,11 +358,19 @@ const OBS_EDITOR_JS = `
     }
   }
   function openPop(q) {
+    q = (q || '').trim();
     var list = searchTaxa(q);
-    if (!list.length) { pop.innerHTML = '<div class="none">没有匹配的物种——留空即记为未鉴定</div>'; }
-    else pop.innerHTML = list.map(function (t, i) { return '<div class="opt" data-slug="' + escHtml(t.slug) + '">' + fmtName(t) + '</div>'; }).join('');
+    var qLower = q.toLowerCase();
+    var exact = q && list.some(function (t) { return t.name.toLowerCase() === qLower; });
+    // 与正式类群重名的输入不提供建立入口（服务端也会拒绝）；形如学名的输入才提示
+    var nameLike = /^[A-Za-z][A-Za-z.\- ]{1,79}$/.test(q);
+    var createOpt = q && nameLike && !exact
+      ? '<div class="opt place-new" data-new-taxon="1">＋ 建立工作编号「' + escHtml(q) + '」</div>'
+      : '';
+    if (!list.length && !createOpt) { pop.innerHTML = '<div class="none">没有匹配的物种——留空即记为未鉴定</div>'; }
+    else pop.innerHTML = list.map(function (t, i) { return '<div class="opt" data-slug="' + escHtml(t.slug) + '">' + fmtName(t) + '</div>'; }).join('') + createOpt;
     pop.classList.add('open');
-    Array.prototype.slice.call(pop.querySelectorAll('.opt')).forEach(function (el) {
+    Array.prototype.slice.call(pop.querySelectorAll('.opt[data-slug]')).forEach(function (el) {
       el.addEventListener('mousedown', function (e) {
         e.preventDefault();
         window.__chosenSlug = el.getAttribute('data-slug');
@@ -370,6 +378,29 @@ const OBS_EDITOR_JS = `
         spInput.value = '';
         renderChosen();
         scheduleSave();
+      });
+    });
+    Array.prototype.slice.call(pop.querySelectorAll('[data-new-taxon]')).forEach(function (el) {
+      el.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        var name = spInput.value.trim();
+        if (!name) return;
+        setStatus('正在建立工作编号…');
+        fetch('/studio/api/taxa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ name: name })
+        }).then(readJson).then(function (j) {
+          if (!j || !j.ok) { setStatus((j && j.error) || '无法建立工作编号', true); return; }
+          if (!boot.taxa.some(function (t) { return t.slug === j.taxon.slug; })) boot.taxa.push(j.taxon);
+          window.__chosenSlug = j.taxon.slug;
+          pop.classList.remove('open');
+          spInput.value = '';
+          renderChosen();
+          setStatus(j.created ? '已建立工作编号「' + j.taxon.name + '」——存疑鉴定同样有效，随时可改为正式类群' : '已选择既有工作编号');
+          scheduleSave();
+        }).catch(function () { setStatus('无法建立工作编号（网络错误）', true); });
       });
     });
   }
@@ -460,6 +491,30 @@ const OBS_EDITOR_JS = `
     el.addEventListener('change', updateHemi);
   });
   updateHemi();
+
+  // ---- 未来日期提示（§11）：非阻塞，仅提醒；记录仍会照常保存 ----
+  var dateEl = $('[data-field="observed_at"]');
+  function updateDateWarn() {
+    if (!dateEl) return;
+    var v = String(dateEl.value || '');
+    var now = new Date();
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    var todayStr = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+    var bad = v && v > todayStr;
+    var w = $('#date-warn');
+    if (!w) {
+      w = document.createElement('div');
+      w.id = 'date-warn';
+      w.style.cssText = 'color:#b3541e;font-size:12px;margin-top:4px;letter-spacing:.02em;';
+      dateEl.parentNode.insertBefore(w, dateEl.nextSibling);
+    }
+    w.textContent = bad ? '观察日期在未来——记录仍会保存，请确认日期是否输入有误' : '';
+  }
+  if (dateEl) {
+    dateEl.addEventListener('input', updateDateWarn);
+    dateEl.addEventListener('change', updateDateWarn);
+  }
+  updateDateWarn();
 
   function tryParsePair(text) {
     var m = String(text).match(/(-?\\d+(?:\\.\\d+)?)\\s*[,，\\s]\\s*(-?\\d+(?:\\.\\d+)?)/);

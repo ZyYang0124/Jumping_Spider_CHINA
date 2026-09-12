@@ -27,9 +27,10 @@ import { renderArticle } from './article';
 import { buildResolvers } from './embeds';
 import { buildExportZip } from './export';
 import { syncToGitHub } from './github';
-import { esc, loginPage, mediaPage, noteEditorHtml, obsEditorHtml, page, STYLES, TAXA, homePage, draftsPage, relTime, type FeedItem } from './pages';
+import { esc, loginPage, mediaPage, noteEditorHtml, obsEditorHtml, page, STYLES, homePage, draftsPage, relTime, type FeedItem } from './pages';
 import { invitePage } from './invites';
 import { OBS_EDITOR_SCRIPT, NOTE_EDITOR_SCRIPT, LOGIN_SCRIPT, PROFILE_SCRIPT } from './editorjs';
+import { allTaxonOptions, createWorkingTaxon, findTaxonOptionBySlug } from './taxa';
 
 const app = new Hono<{ Bindings: Env; Variables: { user: StudioUser } }>();
 
@@ -252,11 +253,12 @@ const OBS_FIELDS = new Set([
 ]);
 
 async function upsertIdentification(env: Env, obsRowId: number, obsPublicId: string, slug: string, displayOverride: string | null, evidence: string, author: string): Promise<void> {
-  const taxon = TAXA.find((t) => t.slug === slug);
+  // 类群来源：静态正式类群或工作编号（§21-§24，cf./aff./sp. 均为合法鉴定目标）
+  const taxon = await findTaxonOptionBySlug(env, slug);
   if (!taxon) throw new Error('未知的类群');
   const display =
     (displayOverride && displayOverride.trim()) ||
-    (['species', 'subspecies'].includes(taxon.rank) ? taxon.scientific_name : `${taxon.scientific_name} sp.`);
+    (['species', 'subspecies'].includes(taxon.rank) ? taxon.name : `${taxon.name} sp.`);
   const prev = await get<{ display_identification: string; taxon_slug: string }>(
     env.DB,
     'SELECT display_identification, taxon_slug FROM identifications WHERE observation_id = ? AND is_current = 1',
@@ -741,6 +743,20 @@ app.post('/studio/api/profile', async (c) => {
 
 // ---------- 地点实体（§14-§20）：搜索 / 新建（带去重）/ 合并 ----------
 
+// ---------- 工作编号（§21-§24）：cf./aff./sp. 等未定名类群，鉴定可直接引用 ----------
+
+app.post('/studio/api/taxa', async (c) => {
+  const u = user(c);
+  if (!sameOrigin(c.req.raw)) return c.json({ error: 'Forbidden' }, 403);
+  const b = (await c.req.json().catch(() => ({}))) as { name?: string };
+  const res = await createWorkingTaxon(c.env, String(b.name ?? ''), u.display_name);
+  if (!res.ok) return c.json({ error: res.error }, res.status as 400 | 409);
+  if (res.created) {
+    await audit(c.env, u.display_name, 'taxon', res.taxon.slug, 'working-taxon.created', { name: res.taxon.name });
+  }
+  return c.json({ ok: true, taxon: res.taxon, created: res.created });
+});
+
 app.get('/studio/api/places', async (c) => {
   user(c);
   const q = (c.req.query('q') ?? '').trim();
@@ -1011,7 +1027,7 @@ app.post('/studio/api/notes/preview', async (c) => {
 
 app.get('/studio/observations/new', async (c) => {
   user(c);
-  return c.html(obsEditorHtml(null, {}, [], { status: 'draft', hasUnpublished: false, photoMeta: [] }));
+  return c.html(obsEditorHtml(null, {}, [], { status: 'draft', hasUnpublished: false, photoMeta: [] }, await allTaxonOptions(c.env)));
 });
 
 app.get('/studio/observations/:public_id/edit', async (c) => {
@@ -1041,7 +1057,7 @@ app.get('/studio/observations/:public_id/edit', async (c) => {
     hasUnpublished: obs.status === 'published' && String(obs.updated_at ?? '') > String(obs.published_at ?? ''),
     photoMeta: grid.map((g) => ({ public_id: g.public_id, caption: g.caption, photographer_name: g.photographer_name })),
   };
-  return c.html(obsEditorHtml(obs.public_id, data, grid, bootMeta));
+  return c.html(obsEditorHtml(obs.public_id, data, grid, bootMeta, await allTaxonOptions(c.env)));
 });
 
 // ---------- 札记编辑器页面 ----------

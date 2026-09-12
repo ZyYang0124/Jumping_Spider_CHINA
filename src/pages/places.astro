@@ -2,6 +2,7 @@
 export const prerender = true;
 import Base from '../layouts/Base.astro';
 import { getLocalityCards } from '../lib/queries';
+import { withBase } from '../lib/privacy';
 
 const cards = getLocalityCards();
 // 全球地理：顶层按国家分组，其下按一级行政区（SOP §104）
@@ -33,16 +34,29 @@ for (const c of cards) {
             <div class="kicker on-paper" style="margin-bottom: 12px;">{admin1}</div>
             <div class="place-cards">
             {list.map((c) => (
-              <div class="place-card">
-                <div class="frame">{c.cover && <img src={c.cover.medium} alt={c.name} loading="lazy" />}</div>
-                <div class="name">{c.name}</div>
-                <div class="meta">
-                  {c.admin1}
-                  {c.elevation != null && ` · 海拔约 ${c.elevation} m`}
-                  {` · ${c.count} 次相遇`}
+              c.place_id ? (
+                <a class="place-card" href={withBase(`/places/${c.place_id}/`)}>
+                  <div class="frame">{c.cover && <img src={c.cover.medium} alt={c.name} loading="lazy" />}</div>
+                  <div class="name">{c.name}</div>
+                  <div class="meta">
+                    {c.admin1}
+                    {c.elevation != null && ` · 海拔约 ${c.elevation} m`}
+                    {` · ${c.count} 次相遇`}
+                  </div>
+                  {c.habitats.length > 0 && <div class="habitats">{c.habitats.join(' / ')}</div>}
+                </a>
+              ) : (
+                <div class="place-card">
+                  <div class="frame">{c.cover && <img src={c.cover.medium} alt={c.name} loading="lazy" />}</div>
+                  <div class="name">{c.name}</div>
+                  <div class="meta">
+                    {c.admin1}
+                    {c.elevation != null && ` · 海拔约 ${c.elevation} m`}
+                    {` · ${c.count} 次相遇`}
+                  </div>
+                  {c.habitats.length > 0 && <div class="habitats">{c.habitats.join(' / ')}</div>}
                 </div>
-                {c.habitats.length > 0 && <div class="habitats">{c.habitats.join(' / ')}</div>}
-              </div>
+              )
             ))}
             </div>
           </div>

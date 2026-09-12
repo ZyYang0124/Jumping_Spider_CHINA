@@ -4,10 +4,13 @@ import { zipSync, strToU8 } from 'fflate';
 import { all, get, type Env } from './db';
 import { renderBody } from './embeds';
 import taxaJson from './taxa-data.json';
+import { workingTaxaRows, type WorkingTaxonRow } from './taxa';
 
 const README = `Salticid Notes · Field Studio 导出包
 
 内容：
+  studio-places.json           → src/data/studio-places.json
+  studio-taxa.json             → src/data/studio-taxa.json（工作编号，§21-§24）
   studio-profiles.json          → src/data/studio-profiles.json
   studio-observations.json     → src/data/studio-observations.json
   studio-locations.json        → src/data/studio-locations.json
@@ -33,6 +36,7 @@ export const EMAIL_PROFILE: Record<string, string> = {
 
 export interface ExportData {
   placesJson: string;
+  taxaJson: string;
   profilesJson: string;
   observationsJson: string;
   locationsJson: string;
@@ -45,6 +49,8 @@ export interface ExportData {
 
 export async function collectExport(env: Env): Promise<ExportData> {
   const observations = await all(env.DB, "SELECT * FROM observations WHERE status = 'published' AND visibility = 'public' ORDER BY public_id");
+  const wtBySlug = new Map((await workingTaxaRows(env)).map((t) => [t.slug, t]));
+  const referencedWorking = new Map<string, WorkingTaxonRow>();
 
   const mediaOut: unknown[] = [];
   const identificationsOut: unknown[] = [];
@@ -82,13 +88,21 @@ export async function collectExport(env: Env): Promise<ExportData> {
     }
     const idn = await get<any>(env.DB, 'SELECT * FROM identifications WHERE observation_id = ? AND is_current = 1 LIMIT 1', o.id);
     if (idn && idn.taxon_slug) {
-      // 规则 6：只有引用 taxon 记录的鉴定才是权威鉴定；slug 映射回静态站 taxon 表 id
-      const taxon = (taxaJson as { id: string; slug: string }[]).find((t) => t.slug === idn.taxon_slug);
-      if (!taxon) throw new Error(`未知 taxon slug：${idn.taxon_slug}`);
+      // 规则 6：只有引用 taxon 记录的鉴定才是权威鉴定；slug 先映射静态站类群，工作编号兜底（§21-§24）
+      const staticTaxon = (taxaJson as { id: string; slug: string }[]).find((t) => t.slug === idn.taxon_slug);
+      let taxonId: string;
+      if (staticTaxon) {
+        taxonId = staticTaxon.id;
+      } else {
+        const wt = wtBySlug.get(idn.taxon_slug);
+        if (!wt) throw new Error(`未知 taxon slug：${idn.taxon_slug}`);
+        referencedWorking.set(wt.slug, wt);
+        taxonId = `tax-wt-${wt.slug}`;
+      }
       identificationsOut.push({
         id: `studio-${idn.id}`,
         observation_id: `studio-${o.id}`,
-        taxon_id: taxon.id,
+        taxon_id: taxonId,
         display_identification: idn.display_identification,
         identified_by_profile_id: null,
         identified_by_text: idn.identified_by,
@@ -251,9 +265,23 @@ export async function collectExport(env: Env): Promise<ExportData> {
     });
   }
 
+  // 工作编号（§21-§24）：只导出被已发布鉴定实际引用的记录；parent_id 置空（不进入分类树，物种页照常聚合）
+  const taxaOut = [...referencedWorking.values()].map((t) => ({
+    id: `tax-wt-${t.slug}`,
+    rank: t.rank,
+    scientific_name: t.scientific_name,
+    authorship: t.authorship,
+    chinese_name: t.chinese_name,
+    parent_id: null,
+    status: 'working',
+    slug: t.slug,
+    personal_note: null,
+  }));
+
   const j = (v: unknown) => JSON.stringify(v, null, 2) + '\n';
   return {
     placesJson: j(placesJsonOut),
+    taxaJson: j(taxaOut),
     profilesJson: j(profilesOut),
     observationsJson: j(observationsOut),
     locationsJson: j(locationsOut),
@@ -271,6 +299,7 @@ export async function buildExportZip(env: Env): Promise<Uint8Array> {
   return zipSync({
     'README.txt': strToU8(README),
     'studio-places.json': u8(data.placesJson),
+    'studio-taxa.json': u8(data.taxaJson),
     'studio-profiles.json': u8(data.profilesJson),
     'studio-observations.json': u8(data.observationsJson),
     'studio-locations.json': u8(data.locationsJson),

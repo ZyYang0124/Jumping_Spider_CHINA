@@ -695,11 +695,21 @@ export interface ObsBootMeta {
   photoMeta: { public_id: string; caption: string | null; photographer_name: string | null }[];
 }
 
+/** 物种选择器选项：正式类群 + 工作编号（§21-§24） */
+export interface EditorTaxon {
+  slug: string;
+  name: string;
+  cn: string | null;
+  rank: string;
+  working?: boolean;
+}
+
 export function obsEditorHtml(
   publicId: string | null,
   data: Record<string, any>,
   photos: ObsPhoto[],
   meta: ObsBootMeta,
+  taxaOptions: EditorTaxon[],
 ): string {
   const tripOptions = [
     '<option value="">—— 不关联 ——</option>',
@@ -814,7 +824,7 @@ export function obsEditorHtml(
       status: ${jsonForScript(meta.status)},
       hasUnpublished: ${jsonForScript(meta.hasUnpublished)},
       photoMeta: ${jsonForScript(meta.photoMeta)},
-      taxa: ${jsonForScript(TAXA.map((t) => ({ slug: t.slug, name: t.scientific_name, cn: t.chinese_name, rank: t.rank })))},
+      taxa: ${jsonForScript(taxaOptions)},
       data: ${jsonForScript({
         observed_at: data.observed_at ?? '',
         latitude: data.latitude ?? '',

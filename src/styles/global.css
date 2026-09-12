@@ -430,6 +430,7 @@ a:hover { color: var(--terra); }
 .place-group > h2 .n { color: var(--faint); font-size: 13.5px; margin-left: 12px; font-family: var(--sans); font-weight: 400; letter-spacing: 0.04em; }
 .place-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 30px 24px; }
 .place-card { display: block; }
+a.place-card { color: inherit; text-decoration: none; }
 .place-card .frame { aspect-ratio: 4 / 2.7; overflow: hidden; background: var(--paper-deep); }
 .place-card img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--motion-slow) var(--ease-out); }
 .place-card:hover img { transform: scale(1.035); }
