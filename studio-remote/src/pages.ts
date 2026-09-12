@@ -392,6 +392,70 @@ details.more .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 22px
 }
 .nb-toolbar button:hover { color: var(--ink); border-color: var(--line); background: var(--paper-soft); }
 .nb-toolbar .sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
+.editor-main h1 { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.st-badge { font-size:12px; color:var(--faint); border:1px solid var(--line); border-radius:999px; padding:2px 10px; font-weight:400; }
+.st-badge.pub { color:var(--terra); border-color:var(--terra); }
+.ed-sec { margin-bottom:34px; }
+.ed-sec-title {
+  font-family:var(--sans); font-size:13px; font-weight:600; letter-spacing:.14em;
+  color:var(--faint); margin:0 0 14px; padding-bottom:8px; border-bottom:1px solid var(--line-soft);
+}
+.exif-suggest {
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  border:1px solid var(--line); border-radius:6px; background:var(--paper-soft);
+  padding:8px 12px; margin-bottom:12px; font-size:13px; color:var(--ink);
+}
+.exif-suggest button {
+  font:inherit; font-size:12.5px; padding:3px 12px; border-radius:99px; cursor:pointer;
+  border:1px solid var(--line); background:#fff; color:var(--ink);
+}
+.exif-suggest button.use { border-color:var(--terra); color:var(--terra); }
+/* ---- 桌面右栏（§8） ---- */
+@media (min-width:1100px) {
+  .ed-wrap { display:grid; grid-template-columns:minmax(0,1fr) 230px; gap:40px; max-width:calc(var(--w-note) + 270px); margin:0 auto; padding:44px 24px 160px; }
+  .editor-main { min-width:0; }
+  .ed-rail {
+    position:sticky; top:70px; align-self:start;
+    display:flex; flex-direction:column; gap:22px;
+    border-left:1px solid var(--line-soft); padding-left:26px; min-height:60vh;
+  }
+  .rail-nav { display:flex; flex-direction:column; gap:2px; }
+  .rail-nav a {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    font-size:13.5px; color:var(--muted); text-decoration:none; padding:7px 8px; border-radius:6px;
+  }
+  .rail-nav a:hover { color:var(--ink); background:var(--paper-soft); }
+  .rail-nav a i { font-style:normal; color:var(--terra); font-weight:700; visibility:hidden; }
+  .rail-nav a.done i { visibility:visible; }
+  .rail-actions { display:flex; flex-direction:column; gap:10px; border-top:1px solid var(--line-soft); padding-top:18px; }
+  .rail-actions .publish { width:100%; }
+}
+@media (max-width:1099px) { .ed-rail { display:none; } }
+/* ---- 发布按钮：唯一红色 CTA（§47） ---- */
+button.primary, .pd-actions .primary {
+  background:var(--terra); color:#fff; border:none; border-radius:6px;
+  padding:10px 22px; font:inherit; font-size:14.5px; cursor:pointer;
+}
+button.primary:hover, .pd-actions .primary:hover { opacity:.9; }
+button.ghost { background:none; border:none; color:var(--muted); font:inherit; font-size:13.5px; cursor:pointer; }
+button.ghost:hover { color:var(--ink); }
+/* ---- 发布成功面板（§35） ---- */
+.publish-done { position:fixed; inset:0; z-index:80; background:var(--paper); display:flex; align-items:center; justify-content:center; padding:24px; }
+.pd-box { max-width:440px; width:100%; text-align:center; }
+.pd-check { width:64px; height:64px; margin:0 auto 18px; border-radius:50%; background:var(--terra); color:#fff; font-size:30px; line-height:64px; }
+.pd-box h2 { font-family:var(--serif); font-size:28px; font-weight:700; margin:0 0 6px; }
+.pd-id { font-size:14px; color:var(--faint); letter-spacing:.08em; margin-bottom:10px; }
+.pd-box p { color:var(--ink); font-size:15px; line-height:1.9; margin:0 0 26px; }
+.pd-actions { display:flex; flex-direction:column; gap:12px; }
+.pd-actions a, .pd-actions button { text-decoration:none; text-align:center; padding:11px 18px; border-radius:6px; font-size:14.5px; }
+.pd-actions .ghost, .pd-actions button.ghost { border:1px solid var(--line); color:var(--muted); background:none; }
+.pd-actions .ghost:hover { color:var(--ink); border-color:var(--faint); }
+.pd-warn { margin-top:18px; font-size:13px; color:var(--terra); line-height:1.8; text-align:left; }
+/* ---- 移动端底部操作条（§9） ---- */
+@media (max-width:700px) {
+  .editor-main h1 { font-size:20px; }
+  .ed-sec-title { font-size:12.5px; }
+}
 .write-main { max-width:var(--w-note); margin:0 auto; padding:44px 24px 160px; }
 /* ---- 宽屏：左写右排（边写边排版） ---- */
 @media (min-width:1100px) {
@@ -835,12 +899,15 @@ export function obsEditorHtml(
     .join('\n');
   const published = meta.status === 'published';
   const actions = '';
-  return page(publicId ? `编辑 ${publicId}` : '记录一次相遇', `
+  const speciesNow = data.species_taxon_slug ? (data.display_identification || publicId) : (publicId ? publicId : '记录一次相遇');
+  const statusBadge = meta.status === 'published' ? '<span class="st-badge pub">已发布</span>' : meta.status === 'private' ? '<span class="st-badge">私密</span>' : meta.status === 'archived' ? '<span class="st-badge">已归档</span>' : '';
+  return page(publicId ? `编辑 ${speciesNow}` : '记录一次相遇', `
+  <div class="ed-wrap">
   <main class="editor-main">
-    <h1>${publicId ? esc(publicId) : '记录一次相遇'}</h1>
+    <h1>${publicId ? esc(publicId) : '记录一次相遇'} ${statusBadge}</h1>
 
-    <section class="field">
-      <label>照片</label>
+    <section class="field ed-sec" id="sec-photos">
+      <h2 class="ed-sec-title">照片</h2>
       <div id="drop-big" class="drop-big"${photos.length ? ' hidden' : ''}>
         <span class="plus">＋</span>
         <b>添加照片</b>
@@ -854,22 +921,15 @@ export function obsEditorHtml(
       <input type="file" id="photo-library" accept="image/jpeg,image/png" multiple hidden />
     </section>
 
-    <section class="field">
-      <label>物种</label>
-      <div class="species-wrap" id="species-wrap">
-        <input id="species-search" placeholder="搜索物种（学名 / 中文名），允许留空" autocomplete="off" />
-        <div class="species-pop" id="species-pop"></div>
-      </div>
-      <div class="hint">不确定就留空，发布会记为 Salticidae sp.（跳蛛科未定种）</div>
-    </section>
-
-    <section class="field">
-      <label>时间</label>
+    <section class="field ed-sec" id="sec-time">
+      <h2 class="ed-sec-title">时间与地点</h2>
+      <div class="exif-suggest" id="exif-suggest" hidden></div>
+      <label>观察日期</label>
       <input type="date" data-field="observed_at" />
-      <span class="hint" id="exif-hint">拍摄时间来自照片 EXIF</span>
+      <span class="hint" id="exif-hint">上传照片后可从 EXIF 读取拍摄时间与坐标</span>
     </section>
 
-    <section class="field">
+    <section class="field ed-sec" id="sec-place">
       <label>地点</label>
       <input id="place-search" placeholder="搜索已有地点（名称 / 省市），或直接在下方填写" autocomplete="off" value="${esc(data.placeName ?? '')}" />
       <div class="species-pop" id="place-pop"></div>
@@ -891,14 +951,23 @@ export function obsEditorHtml(
       </div>
     </section>
 
-    <section class="field">
-      <label>观察到……</label>
-      <textarea data-field="field_note" rows="3" placeholder="它在哪里、在做什么、有什么特别——一句话就够，写多了更好。"></textarea>
+    <section class="field ed-sec" id="sec-id">
+      <h2 class="ed-sec-title">鉴定</h2>
+      <div class="species-wrap" id="species-wrap">
+        <input id="species-search" placeholder="搜索物种（学名 / 中文名），允许留空" autocomplete="off" />
+        <div class="species-pop" id="species-pop"></div>
+      </div>
+      <div class="hint">不确定就留空，发布会记为 Salticidae sp.（跳蛛科未定种）；cf. / aff. / 工作编号都是合法状态</div>
+    </section>
+
+    <section class="field ed-sec" id="sec-note">
+      <h2 class="ed-sec-title">野外笔记</h2>
+      <textarea data-field="field_note" rows="3" placeholder="行为、生境、天气、微环境，或任何以后可能值得记住的细节。"></textarea>
       <span class="hint" id="exif-cam"></span>
     </section>
 
-    <details class="more">
-      <summary>添加详细信息</summary>
+    <details class="more ed-sec" id="sec-more">
+      <summary>更多记录信息</summary>
       <div class="grid">
         <div class="field"><label>性别</label><select data-field="sex"><option value="unknown">未知</option><option value="male">雄性</option><option value="female">雌性</option></select></div>
         <div class="field"><label>生命阶段</label><select data-field="life_stage"><option value="unknown">未知</option><option value="adult">成体</option><option value="subadult">亚成体</option><option value="juvenile">幼体</option></select></div>
@@ -911,6 +980,35 @@ export function obsEditorHtml(
       </div>
     </details>
   </main>
+
+  <aside class="ed-rail" aria-label="进度与发布">
+    <nav class="rail-nav" id="rail-nav">
+      <a href="#sec-photos" data-sec="photos">照片<i></i></a>
+      <a href="#sec-time" data-sec="time">时间与地点<i></i></a>
+      <a href="#sec-id" data-sec="id">鉴定<i></i></a>
+      <a href="#sec-note" data-sec="note">野外笔记<i></i></a>
+    </nav>
+    <div class="rail-actions">
+      <button type="button" class="ghost" id="rail-savedraft">保存草稿</button>
+      <button type="button" class="publish" id="rail-publish">${meta.status === 'archived' ? '恢复为草稿' : meta.status === 'published' ? '保存修改' : '发布'}</button>
+    </div>
+  </aside>
+  </div>
+
+  <div class="publish-done" id="publish-done" hidden>
+    <div class="pd-box">
+      <div class="pd-check">✓</div>
+      <h2>已发布</h2>
+      <div class="pd-id">${jsonForScript(publicId || '')}</div>
+      <p>这条观察已经公开在红栏杆跳蛛观察志。</p>
+      <div class="pd-actions">
+        <a class="primary" href="${SITE_URL}/observations/${publicId || ''}/" target="_blank" rel="noopener">查看公开页面 ↗</a>
+        <button type="button" class="ghost" id="pd-continue">继续编辑</button>
+        <a class="ghost" href="/studio/observations/new">新建下一条观察</a>
+      </div>
+      <div class="pd-warn" id="pd-warn" hidden></div>
+    </div>
+  </div>
 
   <div class="bottombar">
     <span id="bar-status" style="font-size:12.5px;color:var(--faint)"></span>

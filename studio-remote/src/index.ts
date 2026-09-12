@@ -1196,12 +1196,12 @@ app.get('/studio/observations/:public_id/edit', async (c) => {
   };
   const grid = photos.map((p) => ({
     public_id: p.public_id, thumb: thumbUrl(p), caption: p.caption,
-    photographer_name: p.photographer_name, is_cover: p.is_cover,
+    photographer_name: p.photographer_name, is_cover: p.is_cover, view_type: p.view_type,
   }));
   const bootMeta = {
     status: obs.status,
     hasUnpublished: obs.status === 'published' && String(obs.updated_at ?? '') > String(obs.published_at ?? ''),
-    photoMeta: grid.map((g) => ({ public_id: g.public_id, caption: g.caption, photographer_name: g.photographer_name })),
+    photoMeta: grid.map((g) => ({ public_id: g.public_id, caption: g.caption, photographer_name: g.photographer_name, view_type: g.view_type })),
   };
   return c.html(obsEditorHtml(obs.public_id, data, grid, bootMeta, await allTaxonOptions(c.env)));
 });
@@ -1255,11 +1255,12 @@ app.patch('/studio/api/media/:public_id', async (c) => {
   if (!m) return c.json({ error: '未找到' }, 404);
   const obs = m.observation_id ? await get<{ created_by: number }>(c.env.DB, 'SELECT created_by FROM observations WHERE id = ?', m.observation_id) : undefined;
   if (u.role !== 'owner' && (!obs || obs.created_by !== u.id)) return c.text('无权操作。', 403);
-  const body = (await c.req.json()) as { caption?: string; photographer_name?: string };
+  const body = (await c.req.json()) as { caption?: string; photographer_name?: string; view_type?: string };
   const sets: string[] = [];
   const vals: unknown[] = [];
   if (typeof body.caption === 'string') { sets.push('caption = ?'); vals.push(body.caption.slice(0, 300)); }
   if (typeof body.photographer_name === 'string') { sets.push('photographer_name = ?'); vals.push(body.photographer_name.slice(0, 80)); }
+  if (typeof body.view_type === 'string' && /^[a-z_]+$/.test(body.view_type)) { sets.push('view_type = ?'); vals.push(body.view_type); }
   if (sets.length) await run(c.env.DB, `UPDATE media SET ${sets.join(', ')} WHERE id = ?`, ...vals, m.id);
   return c.json({ ok: true });
 });

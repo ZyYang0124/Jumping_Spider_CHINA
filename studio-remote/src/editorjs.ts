@@ -672,14 +672,23 @@ const OBS_EDITOR_JS = `
       '<div class="field"><label>图注</label><input id="pp-caption" placeholder="这张照片在说什么" /></div>' +
       '<div class="field"><label>摄影者</label><input id="pp-photographer" placeholder="默认为记录人" /></div>' +
       '<div class="pp-actions">' +
-      '<button type="button" class="ghost" id="pp-cover">' + (idx === 0 ? '★ 已是封面' : '设为封面') + '</button>' +
+      '<button type="button" class="ghost" id="pp-cover">' + (idx === 0 ? '★ 代表图' : '设为代表图') + '</button>' +
       '<button type="button" class="ghost" id="pp-del">删除</button>' +
-      '<button type="button" class="ghost" id="pp-close">收起</button></div>';
+      '<button type="button" class="ghost" id="pp-close">收起</button></div>' +
+      '<div class="pp-type"><label>类型</label><select id="pp-vt">' +
+      [['live_dorsal','活体·背面'],['live_frontal','活体·正面'],['live_lateral','活体·侧面'],['behavior','行为'],['habitat','生境'],['specimen_dorsal','标本·背面'],['specimen_ventral','标本·腹面'],['male_palp','雄性触肢器'],['epigyne','外雌器'],['vulva','阴门'],['microscopy','镜检'],['other','其他']]
+        .map(function (o) { return '<option value="' + o[0] + '"' + (window.__photoMeta[pid] && window.__photoMeta[pid].view_type === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
+      '</select></div>';
     var cap = panel.querySelector('#pp-caption'), ph = panel.querySelector('#pp-photographer');
     cap.value = window.__photoMeta[pid] ? (window.__photoMeta[pid].caption || '') : '';
     ph.value = window.__photoMeta[pid] ? (window.__photoMeta[pid].photographer_name || '') : '';
     cap.addEventListener('change', function () { patchMedia(pid, { caption: cap.value }); });
     ph.addEventListener('change', function () { patchMedia(pid, { photographer_name: ph.value }); });
+    var vt = panel.querySelector('#pp-vt');
+    if (vt) {
+      if (window.__photoMeta[pid] && window.__photoMeta[pid].view_type) vt.value = window.__photoMeta[pid].view_type;
+      vt.addEventListener('change', function () { patchMedia(pid, { view_type: vt.value }); });
+    }
     panel.querySelector('#pp-cover').addEventListener('click', function () {
       var rest = photos.filter(function (x) { return x !== pid; });
       photos = [pid].concat(rest);
@@ -734,18 +743,28 @@ const OBS_EDITOR_JS = `
         .then(function (r) { return r.ok ? r.json() : {}; })
         .then(function (xj) {
           var x = xj.results && xj.results[0];
-          if (x) {
-            var dateEl = document.querySelector('[data-field="observed_at"]');
-            if (x.date && dateEl && !dateEl.dataset.touched) { dateEl.value = x.date; scheduleSave(); }
-            if (x.gps) {
-              var la = latEl, lo = lngEl;
-              if (!la.value) { la.value = x.gps.lat; scheduleSave(); }
-              if (!lo.value) { lo.value = x.gps.lng; scheduleSave(); }
-              if (x.gps.lat != null && x.gps.lng != null) matchAddress(x.gps.lat, x.gps.lng);
-            }
-            var cam = $('#exif-cam');
-            if (cam && x.camera) cam.textContent = '相机：' + x.camera;
-          }
+          if (!x) return;
+          // §14：EXIF 不静默覆盖——给出「使用 / 忽略」建议条
+          var bar = $('#exif-suggest');
+          if (!bar) return;
+          var chips = [];
+          var dateEl = document.querySelector('[data-field="observed_at"]');
+          if (x.date) chips.push({ key: 'date', text: '拍摄时间 ' + x.date, apply: function () { if (dateEl) { dateEl.value = x.date; scheduleSave(); } } });
+          if (x.gps) chips.push({ key: 'gps', text: '坐标 ' + x.gps.lat + ', ' + x.gps.lng, apply: function () { latEl.value = x.gps.lat; lngEl.value = x.gps.lng; scheduleSave(); matchAddress(x.gps.lat, x.gps.lng); } });
+          if (!chips.length) return;
+          bar.hidden = false;
+          bar.innerHTML = '<span>从照片读取到：</span>' + chips.map(function (c, i) {
+            return '<span>' + escHtml(c.text) + '</span><button type="button" class="use" data-i="' + i + '">使用</button>';
+          }).join('') + '<button type="button" data-dismiss="1">忽略</button>';
+          Array.prototype.slice.call(bar.querySelectorAll('button')).forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              var i2 = btn.getAttribute('data-i');
+              if (i2 != null) chips[+i2].apply();
+              bar.hidden = true;
+            });
+          });
+          var cam = $('#exif-cam');
+          if (cam && x.camera) cam.textContent = '相机：' + x.camera;
         })
         .catch(function () {})
         .then(async function () {
@@ -765,7 +784,7 @@ const OBS_EDITOR_JS = `
               (j.added || []).forEach(function (pid2) {
                 added.push(pid2);
                 photos.push(pid2);
-                window.__photoMeta[pid2] = { caption: '', photographer_name: '' };
+                window.__photoMeta[pid2] = { caption: '', photographer_name: '', view_type: 'other' };
                 rerenderGrid();
               });
             } catch (e2) {
@@ -844,9 +863,24 @@ const OBS_EDITOR_JS = `
         status = 'published';
         lastPublishedSnapshot = snapshotNow();
         updateActions();
-        var syncNote = j.sync === 'queued' ? ' · 公开站自动同步中' : '';
-        setStatus('已发布 ✓ <a href="' + escHtml(j.public_url || '') + '" target="_blank" rel="noopener">查看公开页面 →</a>' + syncNote, false, true);
         lsClear();
+        // 发布闭环（§35）：全屏成功面板
+        var done = $('#publish-done');
+        if (done) {
+          var siteBase = location.origin.indexOf('studio.') !== -1 ? 'https://salticidnotes.cn' : '';
+          var pubLink = done.querySelector('.pd-actions a.primary');
+          if (pubLink) pubLink.href = siteBase + (j.public_url || ('/observations/' + publicId + '/'));
+          var warn = $('#pd-warn');
+          if (warn && j.warnings && j.warnings.length) {
+            warn.hidden = false;
+            warn.textContent = 'WSC 提示：' + j.warnings.join(' ');
+          }
+          done.hidden = false;
+          $('#pd-continue').addEventListener('click', function () { done.hidden = true; });
+          window.scrollTo(0, 0);
+        } else {
+          setStatus('已发布 ✓', false, true);
+        }
       } else {
         setStatus('无法发布：' + ((j && j.error) || '请检查照片、时间与坐标'), true);
       }
@@ -1176,6 +1210,48 @@ const NOTE_EDITOR_JS = `
     if (e.key === 'Escape') { document.body.classList.remove('drawer-open'); toggleMenu(false); }
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') $('#btn-publish-note').click();
   });
+
+  // ---- 右栏（§8）：分节状态 ✓ + 按钮联动 + Ctrl+S ----
+  var railNav = $('#rail-nav'), railPub = $('#rail-publish'), railDraft = $('#rail-savedraft');
+  function updateRail() {
+    if (!railNav) return;
+    var done = {
+      photos: photos.length > 0,
+      time: !!$('[data-field="observed_at"]').value && !!latEl.value && !!lngEl.value,
+      id: !!window.__chosenSlug,
+      note: !!$('[data-field="field_note"]').value,
+    };
+    Array.prototype.slice.call(railNav.querySelectorAll('a')).forEach(function (a) {
+      a.classList.toggle('done', !!done[a.getAttribute('data-sec')]);
+    });
+  }
+  // 在既有 scheduleSave 之上挂一个轻量钩子：每次输入后刷新 ✓
+  $all('[data-field]').forEach(function (el) {
+    el.addEventListener('input', function () { setTimeout(updateRail, 0); });
+  });
+  if (railNav) {
+    railNav.addEventListener('click', function (e) {
+      var a = e.target.closest('a');
+      if (!a) return;
+      e.preventDefault();
+      var t = document.querySelector(a.getAttribute('href'));
+      if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+  function railClick(action) {
+    var map = { savedraft: $('#btn-savedraft'), publish: $('#btn-publish') };
+    var target = map[action];
+    if (target) target.click();
+  }
+  // 已发布记录：右栏主按钮文案跟随「保存修改」（§37）
+  if (railPub && status === 'published') railPub.textContent = '保存修改';
+  if (railPub && status === 'archived') railPub.textContent = '恢复为草稿';
+  if (railDraft) railDraft.addEventListener('click', function () { railClick('savedraft'); });
+  if (railPub) railPub.addEventListener('click', function () { railClick('publish'); });
+  document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); $('#btn-savedraft').click(); }
+  });
+  updateRail();
 
   // ---- 发布 ----
   $('#btn-publish-note').addEventListener('click', function () {
