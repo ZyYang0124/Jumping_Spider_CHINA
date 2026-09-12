@@ -35,11 +35,11 @@
     });
   }
 
-  // cover 裁切绘制：等比缩放填满目标框，居中裁掉溢出（不变形）
-  function coverDraw(ctx, img, x, y, w, h) {
-    var s = Math.max(w / img.width, h / img.height);
-    var sw = w / s, sh = h / s;
-    ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, x, y, w, h);
+  // contain 完整绘制：等比缩放整张照片放进目标框，居中，四周露出纸色底（不裁切、不变形）
+  function containDraw(ctx, img, x, y, w, h) {
+    var s = Math.min(w / img.width, h / img.height);
+    var dw = img.width * s, dh = img.height * s;
+    ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
   }
 
   function fitFont(ctx, text, maxW, size, weight) {
@@ -60,7 +60,7 @@
     var c = document.createElement('canvas'); c.width = W; c.height = H;
     var x = c.getContext('2d');
     x.fillStyle = PAPER; x.fillRect(0, 0, W, H);
-    if (img) coverDraw(x, img, 0, 0, W, 700);
+    if (img) containDraw(x, img, 0, 0, W, 700);
     // 红栏杆短线 motif
     x.fillStyle = RED; x.fillRect(90, 776, 110, 5);
     // 物种名
@@ -97,7 +97,7 @@
     x.strokeStyle = INK; x.lineWidth = 2;
     x.strokeRect(36, 36, W - 72, H - 72);
     // 照片
-    if (img) coverDraw(x, img, 76, 76, W - 152, 560);
+    if (img) containDraw(x, img, 76, 76, W - 152, 560);
     // kicker
     x.textAlign = 'center';
     x.fillStyle = RED; x.font = '600 26px ' + SANS;
