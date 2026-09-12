@@ -13,12 +13,16 @@ const { slug } = Astro.params;
 const post = getPublishedPost(slug!);
 if (!post) return Astro.redirect(withBase('/posts/'));
 const links = getPostLinks(post);
+const ordered = getPublishedPosts();
+const idx = ordered.findIndex((p) => p.slug === slug);
+const newer = idx > 0 ? ordered[idx - 1] : null;   // 下一篇（更新）
+const older = idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null; // 上一篇（更旧）
 ---
 
 <Base title={post.title} description={post.bodyHtml.replace(/<[^>]+>/g, ' ').slice(0, 90)}>
   <article class="story">
     <header class="story-hero">
-      <div class="hero-kicker">野外笔记</div>
+      <div class="hero-kicker">札 记</div>
       <h1 class="hero-title">{post.title}</h1>
       {post.subtitle && <p class="hero-dek">{post.subtitle}</p>}
       <div class="hero-meta">
@@ -75,7 +79,21 @@ const links = getPostLinks(post);
       </section>
     )}
 
-    <p class="back-link"><a href={withBase('/posts/')}>← 全部札记</a></p>
+    <nav class="post-pager" aria-label="札记导航">
+      {older && (
+        <a class="pager-item" href={withBase(`/posts/${older.slug}/`)}>
+          <span class="dir">← 上一篇</span>
+          <span class="pt">{older.title}</span>
+        </a>
+      )}
+      {newer && (
+        <a class="pager-item next" href={withBase(`/posts/${newer.slug}/`)}>
+          <span class="dir">下一篇 →</span>
+          <span class="pt">{newer.title}</span>
+        </a>
+      )}
+      <a class="pager-back" href={withBase('/posts/')}>返回札记</a>
+    </nav>
   </article>
 </Base>
 
@@ -91,9 +109,9 @@ const links = getPostLinks(post);
     margin: 0 0 24px;
   }
   .hero-title {
-    font-family: var(--serif); font-size: clamp(2rem, 4.4vw, 2.85rem);
-    font-weight: 700; letter-spacing: 0.1em; text-indent: 0.1em;
-    line-height: 1.35; margin: 0 0 18px;
+    font-family: var(--serif); font-size: clamp(2.4rem, 5vw, 3.4rem); /* 明显大于普通页标题（§4） */
+    font-weight: 700; letter-spacing: 0.06em; text-indent: 0.06em;
+    line-height: 1.32; margin: 0 0 18px;
   }
   .hero-dek {
     letter-spacing: 0.08em; color: var(--muted);
@@ -111,8 +129,8 @@ const links = getPostLinks(post);
 
   /* ---- 正文：740px 衬线阅读栏 ---- */
   .story-body {
-    max-width: 740px; margin: 0 auto;
-    font-family: var(--serif); font-size: 16.5px; line-height: 2.05; color: var(--ink);
+    max-width: 720px; margin: 0 auto; /* §5：正文 680–720 */
+    font-family: var(--serif); font-size: 17.5px; line-height: 1.95; color: var(--ink);
   }
   .story-body :global(p) { margin: 0 0 1.55em; text-align: justify; }
   /* 小节标题 = 居中章节分隔：字距拉开 + 短线（红栏杆 motif 的克制用法） */
@@ -136,11 +154,14 @@ const links = getPostLinks(post);
 
   /* ---- 图片：跳出 740px 文本栏，居中，上限 1080px / 80vh；不裁切 ---- */
   .story-body :global(img) {
-    display: block; margin: 2em auto; max-width: min(100%, 1080px);
+    display: block; margin: 2em auto; max-width: min(100%, 900px); /* 普通图（§6） */
     height: auto; max-height: 80vh;
   }
-  .story-body :global(figure) { margin: 2.4em auto; max-width: min(100%, 1080px); }
+  .story-body :global(figure) { margin: 2.4em auto; max-width: min(100%, 900px); }
   .story-body :global(figure img) { margin: 0 auto; max-height: 80vh; }
+  /* 宽幅图（横构图或标记 wide）：1200px，形成窄文字→宽图片的节奏 */
+  .story-body :global(.article-media.am-panorama),
+  .story-body :global(.am-panorama) { max-width: min(100%, 1200px); margin-left: calc((720px - 100%) / 2); margin-right: calc((720px - 100%) / 2); }
   .story-body :global(figcaption) {
     text-align: left; font-family: var(--sans); font-size: 13px;
     line-height: 1.7; color: var(--muted); margin-top: 10px;
@@ -150,6 +171,7 @@ const links = getPostLinks(post);
   .story-body :global(.article-media-group),
   .story-body :global(.article-media-group figure) { margin: 2.4em auto; }
   .story-body :global(.article-media-group) { display: grid; gap: 12px; max-width: min(100%, 1080px); }
+  .story-body :global(.article-media-group .article-media) { max-width: none; }
   .story-body :global(.amg-pair) { grid-template-columns: 1fr 1fr; }
   .story-body :global(.amg-triptych) { grid-template-columns: 1fr 1fr 1fr; }
   .story-body :global(.amg-grid4), .story-body :global(.amg-grid) { grid-template-columns: 1fr 1fr; }
@@ -159,20 +181,27 @@ const links = getPostLinks(post);
   .story-body :global(.article-media-group figcaption),
   .story-body :global(.am figcaption) { margin-top: 8px; }
   /* 观察嵌入卡：居中、安静 */
+  /* 轻量图文引用（§10）：borderless、无阴影、大量留白 */
   .story-body :global(.article-embed) {
-    border: 1px solid var(--line); background: #fff; border-radius: 12px;
-    padding: 14px 18px; margin: 2.2em auto; max-width: 560px;
+    border: none; background: none; border-radius: 0;
+    padding: 0; margin: 2.2em auto; max-width: 560px;
     font-family: var(--sans); font-size: 14px;
   }
   .story-body :global(.article-embed.is-missing) { color: var(--terra); }
-  .story-body :global(.article-embed a) { display: flex; gap: 14px; align-items: center; text-decoration: none; }
+  .story-body :global(.article-embed a) { display: flex; gap: 18px; align-items: center; text-decoration: none; }
+  .story-body :global(.article-embed a:hover .embed-body strong) { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
   .story-body :global(.article-embed img) {
-    width: 76px; height: 76px; object-fit: cover; border-radius: 8px; margin: 0; flex: none;
+    width: 104px; height: 104px; object-fit: cover; border-radius: 0; margin: 0; flex: none;
   }
-  .story-body :global(.embed-body) { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .story-body :global(.embed-id) { color: var(--faint); font-size: 12px; display: block; letter-spacing: 0.04em; }
-  .story-body :global(.embed-body strong) { font-weight: 600; }
+  .story-body :global(.embed-body) { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .story-body :global(.embed-id) { color: var(--faint); font-size: 12px; display: block; letter-spacing: 0.06em; }
+  .story-body :global(.embed-body strong) { font-weight: 600; font-size: 15.5px; }
   .story-body :global(.embed-body span) { color: var(--muted); font-size: 13px; }
+  .story-body :global(.embed-body)::after {
+    content: '查看观察 →';
+    font-size: 12.5px; color: var(--muted); margin-top: 4px;
+  }
+  .story-body :global(.article-embed a:hover .embed-body)::after { color: var(--terra); }
 
   /* ---- 本篇关联 ---- */
   .story-related { max-width: 740px; margin: 3.5em auto 0; }
@@ -191,12 +220,31 @@ const links = getPostLinks(post);
   }
   a.related-chip:hover { border-color: var(--terra); }
   .side-secondary { font-size: 14.5px; line-height: 2.1; color: var(--ink); }
-  .back-link { max-width: 740px; margin: 3em auto 0; font-size: 14px; color: var(--muted); }
-  .back-link a { color: var(--muted); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
-  .back-link a:hover { color: var(--ink); }
+  /* ---- 页面底部：上一篇 / 下一篇 / 返回札记（§11） ---- */
+  .post-pager {
+    max-width: 720px; margin: var(--s-8) auto 0; padding-top: var(--s-5);
+    border-top: 1px solid var(--line-soft);
+    display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-5);
+  }
+  .pager-item { display: flex; flex-direction: column; gap: 4px; text-decoration: none; min-width: 0; }
+  .pager-item.next { text-align: right; }
+  .pager-item .dir { font-size: 12px; letter-spacing: 0.1em; color: var(--faint); }
+  .pager-item .pt {
+    font-family: var(--serif); font-size: 15.5px; color: var(--ink); line-height: 1.6;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .pager-item:hover .pt { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .pager-back {
+    grid-column: 1 / -1; margin-top: var(--s-2);
+    font-size: 13.5px; color: var(--muted); text-decoration: none;
+  }
+  .pager-back:hover { color: var(--terra); }
 
   @media (max-width: 640px) {
     .story { padding: 4px 18px 56px; }
+    .post-pager { grid-template-columns: 1fr; }
+    .pager-item.next { text-align: left; }
+    .story-body { font-size: 17px; }
     .story-hero { margin: 28px auto 30px; }
     .hero-title { letter-spacing: 0.06em; text-indent: 0.06em; }
     .story-body :global(.amg-triptych) { grid-template-columns: 1fr; }

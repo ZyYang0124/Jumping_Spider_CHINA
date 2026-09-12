@@ -65,8 +65,8 @@ const tripOptions = uniq(obs.map((o) => o.trip?.title ?? ''));
             <option value="">龄期：全部</option>
             {stageOptions.map((s) => <option value={s}>{s}</option>)}
           </select>
-          <select data-f="trip" aria-label="按野外笔记筛选">
-            <option value="">野外笔记</option>
+          <select data-f="trip" aria-label="按札记筛选">
+            <option value="">札记</option>
             {tripOptions.map((s) => <option value={s}>{s}</option>)}
           </select>
         </div>

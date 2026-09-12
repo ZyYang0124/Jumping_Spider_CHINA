@@ -7,40 +7,54 @@ import { formatDate } from '../../lib/format';
 import { withBase } from '../../lib/privacy';
 
 const posts = getPublishedPosts();
+const [featured, ...rest] = posts;
+
+function excerptOf(p: (typeof posts)[number]): string {
+  return p.bodyHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+}
 ---
 
-<Base title="札记" description="关于跳蛛、野外与自然史的记录文字。">
+<Base title="札记" description="比一条观察记录更长一些的东西：野外故事、拍摄方法、物种心得与鉴定经验。">
   <div class="container">
     <div class="page-title">
-      <h1>野外笔记</h1>
-      <p class="lede">野外考察的过程、拍摄的方法、观察的心得——大家在这里记录与分享。</p>
+      <h1>札记</h1>
+      <p class="lede">比一条观察记录更长一些的东西。</p>
     </div>
 
     {posts.length > 0 ? (
-      <div class="post-list" style="padding: 30px 0 70px;">
-        {/* 头版：最新一篇大图呈现（§73） */}
-        <a class="post-featured" href={withBase(`/posts/${posts[0].slug}/`)}>
-          {posts[0].cover && <div class="cover"><PictureImage media={posts[0].cover} sizes="(max-width: 1080px) 100vw, 1080px" alt={posts[0].title} /></div>}
-          <div class="body">
-            <div class="kicker">最新</div>
-            <h2>{posts[0].title}</h2>
-            {posts[0].subtitle && <p class="dek">{posts[0].subtitle}</p>}
-            <div class="meta">{formatDate(posts[0].created_at.slice(0, 10), 'day')} · {posts[0].author}</div>
-            <p class="excerpt" set:html={posts[0].bodyHtml.replace(/<[^>]+>/g, ' ').trim().slice(0, 150) + '…'} />
+      <div class="journal" style="padding: 30px 0 70px;">
+        {featured && (
+          <a class={`journal-featured ${featured.cover ? 'has-cover' : 'text-only'}`} href={withBase(`/posts/${featured.slug}/`)}>
+            {featured.cover && (
+              <div class="cover"><PictureImage media={featured.cover} sizes="(max-width: 1080px) 100vw, 1080px" alt={featured.title} /></div>
+            )}
+            <div class="body">
+              <h2>{featured.title}</h2>
+              {featured.subtitle && <p class="dek">{featured.subtitle}</p>}
+              <div class="meta">{formatDate(featured.created_at.slice(0, 10), 'day')} · {featured.author}</div>
+              <p class="excerpt">{excerptOf(featured)}</p>
+              <span class="read">阅读 →</span>
+            </div>
+          </a>
+        )}
+
+        {rest.length > 0 && (
+          <div class="journal-rows">
+            {rest.map((p) => (
+              <a class={`journal-row ${p.cover ? '' : 'text-only'}`} href={withBase(`/posts/${p.slug}/`)}>
+                {p.cover && (
+                  <div class="thumb"><PictureImage media={p.cover} sizes="(max-width: 700px) 30vw, 200px" alt={p.title} /></div>
+                )}
+                <div class="body">
+                  <h2>{p.title}</h2>
+                  {p.subtitle && <p class="dek">{p.subtitle}</p>}
+                  <div class="meta">{formatDate(p.created_at.slice(0, 10), 'day')} · {p.author}</div>
+                  <p class="excerpt">{excerptOf(p)}</p>
+                </div>
+              </a>
+            ))}
           </div>
-        </a>
-        {posts.length > 1 && <div class="post-rows">
-          {posts.slice(1).map((p) => (
-            <a class="post-card" href={withBase(`/posts/${p.slug}/`)}>
-              {p.cover && <div class="cover"><PictureImage media={p.cover} sizes="(max-width: 700px) 30vw, 240px" alt={p.title} /></div>}
-              <div class="body">
-                <h2>{p.title}</h2>
-                <div class="meta">{formatDate(p.created_at.slice(0, 10), 'day')} · {p.author}</div>
-                <p class="excerpt" set:html={p.bodyHtml.replace(/<[^>]+>/g, ' ').trim().slice(0, 100) + '…'} />
-              </div>
-            </a>
-          ))}
-        </div>}
+        )}
       </div>
     ) : (
       <div class="empty-state" style="margin-bottom: 80px;">还没有已发布的札记。</div>
@@ -49,28 +63,58 @@ const posts = getPublishedPosts();
 </Base>
 
 <style>
-  .post-list { display: flex; flex-direction: column; gap: var(--s-8); }
-  /* 头版（§73）：大图 + 大标题 + 摘要 */
-  .post-featured { display: block; text-decoration: none; color: inherit; }
-  .post-featured .cover { max-width: var(--content); overflow: hidden; background: var(--paper-deep); aspect-ratio: 16 / 8; }
-  .post-featured .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .post-featured .body { max-width: 720px; padding-top: var(--s-5); }
-  .post-featured .kicker { font-size: 12.5px; font-weight: 600; letter-spacing: 0.1em; color: var(--terra); }
-  .post-featured h2 {
-    font-family: var(--serif); font-size: clamp(26px, 3.4vw, 38px); font-weight: 700;
-    letter-spacing: 0.03em; margin: var(--s-2) 0 0; line-height: 1.3;
+  /* ---- 自然史刊物目录：Typography + Whitespace，不用卡片（§13） ---- */
+  .journal { display: flex; flex-direction: column; gap: var(--s-9); }
+
+  /* Featured（§2）：大图可选；无图时纯文字排版同样成立（§7） */
+  .journal-featured { display: block; text-decoration: none; color: inherit; }
+  .journal-featured .cover { overflow: hidden; background: var(--paper-deep); aspect-ratio: 16 / 8; }
+  .journal-featured .cover :global(img) { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.5s var(--ease-out, ease); }
+  .journal-featured:hover .cover :global(img) { transform: scale(1.015); }
+  .journal-featured .body { max-width: 720px; padding-top: var(--s-5); }
+  .journal-featured.text-only .body { padding-top: 0; }
+  .journal-featured h2 {
+    font-family: var(--serif); font-size: clamp(28px, 3.6vw, 40px); font-weight: 700;
+    letter-spacing: 0.03em; line-height: 1.3; margin: var(--s-2) 0 0;
   }
-  .post-featured .dek { color: var(--muted); font-size: 16px; margin: var(--s-2) 0 0; }
-  .post-featured .meta { font-size: 12.5px; color: var(--faint); letter-spacing: 0.06em; margin: var(--s-3) 0; }
-  .post-featured .excerpt { color: var(--ink); font-size: 15.5px; line-height: 1.95; margin: 0; }
-  /* 其余：横向编辑行（§74） */
-  .post-rows { display: flex; flex-direction: column; gap: var(--s-7); padding-top: var(--s-6); border-top: 1px solid var(--line-soft); }
-  .post-card { display: grid; grid-template-columns: 240px 1fr; gap: var(--s-5); align-items: start; }
-  .post-card .cover { aspect-ratio: 3 / 2; overflow: hidden; background: var(--paper-deep); }
-  .post-card .cover img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
-  .post-card:hover .cover img { transform: scale(1.03); }
-  .post-card h2 { font-family: var(--serif); font-size: 22px; font-weight: 700; letter-spacing: 0.02em; margin: 0 0 6px; }
-  .post-card .meta { font-size: 12.5px; color: var(--faint); letter-spacing: 0.06em; margin-bottom: 10px; }
-  .post-card .excerpt { color: var(--muted); font-size: 14.5px; margin: 0; }
-  @media (max-width: 700px) { .post-card { grid-template-columns: 1fr; } .post-featured .cover { aspect-ratio: 4 / 3; } }
+  .journal-featured.text-only h2 { font-size: clamp(32px, 4vw, 46px); }
+  .journal-featured .dek { color: var(--muted); font-size: clamp(15.5px, 1.8vw, 18px); margin: var(--s-2) 0 0; line-height: 1.8; }
+  .journal-featured .meta { font-size: 12.5px; color: var(--faint); letter-spacing: 0.06em; margin: var(--s-3) 0; }
+  .journal-featured .excerpt {
+    color: var(--ink); font-size: 15.5px; line-height: 1.95; margin: 0;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .journal-featured .read {
+    display: inline-block; margin-top: var(--s-3);
+    font-size: 14px; color: var(--muted); text-decoration: none;
+  }
+  .journal-featured:hover .read { color: var(--terra); }
+
+  /* 其余：简洁横向 editorial list；无图行退化为纯文字（§2/§7） */
+  .journal-rows { display: flex; flex-direction: column; gap: var(--s-7); padding-top: var(--s-6); border-top: 1px solid var(--line-soft); }
+  .journal-row { display: grid; grid-template-columns: 200px 1fr; gap: var(--s-5); align-items: start; text-decoration: none; color: inherit; }
+  .journal-row.text-only { grid-template-columns: 1fr; }
+  .journal-row .thumb { overflow: hidden; aspect-ratio: 3 / 2; background: var(--paper-deep); }
+  .journal-row .thumb :global(img) { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.4s ease; }
+  .journal-row:hover .thumb :global(img) { transform: scale(1.02); }
+  .journal-row h2 {
+    font-family: var(--serif); font-size: 21px; font-weight: 700; letter-spacing: 0.02em;
+    margin: 0; line-height: 1.5;
+  }
+  .journal-row:hover h2 { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 4px; }
+  .journal-row .dek { color: var(--muted); font-size: 14.5px; margin: 4px 0 0; }
+  .journal-row .meta { font-size: 12.5px; color: var(--faint); letter-spacing: 0.06em; margin: 6px 0; }
+  .journal-row .excerpt {
+    color: var(--muted); font-size: 14px; line-height: 1.85; margin: 0;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+
+  /* ---- Mobile（§14）---- */
+  @media (max-width: 700px) {
+    .journal { gap: var(--s-8); }
+    .journal-featured .cover { aspect-ratio: 4 / 3; }
+    .journal-row { grid-template-columns: 1fr; gap: var(--s-3); }
+    .journal-row .thumb { aspect-ratio: 16 / 9; }
+    .journal-row .thumb :global(img) { width: 100%; }
+  }
 </style>

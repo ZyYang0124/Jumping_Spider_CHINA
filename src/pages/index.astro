@@ -68,7 +68,7 @@ const places = getLocalityCards().slice(0, 3);
       <p>{siteConfig.subtitle}</p>
       <div class="actions">
         <a class="btn solid" href={withBase('/observations/')}>浏览观察</a>
-        <a class="btn" href={withBase('/posts/')}>阅读野外笔记</a>
+        <a class="btn" href={withBase('/posts/')}>阅读札记</a>
       </div>
     </div>
     {hero && <span class="hero-credit">© <span data-hero-credit>{hero.photographer}</span></span>}
@@ -124,7 +124,7 @@ const places = getLocalityCards().slice(0, 3);
     <section class="section reveal">
       <div class="section-head">
         <h2>来自野外</h2>
-        <a class="more" href={withBase('/posts/')}>全部野外笔记 →</a>
+        <a class="more" href={withBase('/posts/')}>全部札记 →</a>
       </div>
       {leadPost && (
       <div class="story-grid">

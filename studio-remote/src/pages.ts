@@ -483,7 +483,7 @@ export function page(
     : `<a class="brand" href="/studio">Studio<small>跳蛛观察志</small></a>
   <nav>
     <a href="/studio/observations/new">新建</a>
-    <a href="/studio/notes/new">野外笔记</a>
+    <a href="/studio/notes/new">札记</a>
     <a href="/studio/drafts">记录</a>
     <a href="/studio/media">媒体</a>
     <a href="/studio/profile">个人资料</a>
@@ -552,7 +552,7 @@ function feedHtml(items: FeedItem[], emptyHtml: string, showAuthor = false): str
     .map(
       (it) => `<li><a href="${esc(it.href)}">
       <span class="t">${esc(it.title)}</span>
-      <span class="meta">${it.kind === 'obs' ? '观察' : '野外笔记'} · ${showAuthor && it.author ? esc(it.author) + ' · ' : ''}<span class="${it.status === 'draft' ? 'st-draft' : 'st-pub'}">${STATUS_ZH[it.status] ?? it.status}</span> · ${esc(it.timeText)}</span>
+      <span class="meta">${it.kind === 'obs' ? '观察' : '札记'} · ${showAuthor && it.author ? esc(it.author) + ' · ' : ''}<span class="${it.status === 'draft' ? 'st-draft' : 'st-pub'}">${STATUS_ZH[it.status] ?? it.status}</span> · ${esc(it.timeText)}</span>
     </a></li>`,
     )
     .join('')}</ul>`;
@@ -570,7 +570,7 @@ export function homePage(user: StudioUser, recent: FeedItem[]): string {
         <span class="ic">＋</span><b>记录一次相遇</b><span class="sub">照片、地点和观察</span>
       </a>
       <a class="action-card" href="/studio/notes/new">
-        <span class="ic">✎</span><b>写一篇野外笔记</b><span class="sub">调查、故事和思考</span>
+        <span class="ic">✎</span><b>写一篇札记</b><span class="sub">调查、故事和思考</span>
       </a>
     </div>
     <h2 class="kicker">最近</h2>
@@ -606,7 +606,7 @@ export function homePage(user: StudioUser, recent: FeedItem[]): string {
 export function draftsPage(user: StudioUser, items: FeedItem[], showAuthor = false): string {
   const by = (st: FeedItem['status']) => items.filter((i) => i.status === st);
   const sections: { label: string; empty: string; items: FeedItem[] }[] = [
-    { label: '草稿', empty: '还没有草稿。<a href="/studio/observations/new">记录第一次相遇</a> 或 <a href="/studio/notes/new">写一篇野外笔记</a>。', items: by('draft') },
+    { label: '草稿', empty: '还没有草稿。<a href="/studio/observations/new">记录第一次相遇</a> 或 <a href="/studio/notes/new">写一篇札记</a>。', items: by('draft') },
     { label: '已发布', empty: '还没有发布过。', items: by('published') },
     { label: '私密', empty: '没有私密记录。', items: by('private') },
     { label: '已归档', empty: '没有已归档的记录。', items: by('archived') },
@@ -641,7 +641,7 @@ export function draftsPage(user: StudioUser, items: FeedItem[], showAuthor = fal
               (it) => `<li><div class="feed-row">
         <a href="${esc(it.href)}">
           <span class="t">${esc(it.title)}</span>
-          <span class="meta">${it.kind === 'obs' ? '观察' : '野外笔记'} · <span class="${it.status === 'draft' ? 'st-draft' : 'st-pub'}">${STATUS_ZH[it.status]}</span> · ${esc(it.timeText)}</span>
+          <span class="meta">${it.kind === 'obs' ? '观察' : '札记'} · <span class="${it.status === 'draft' ? 'st-draft' : 'st-pub'}">${STATUS_ZH[it.status]}</span> · ${esc(it.timeText)}</span>
         </a>
         <div class="acts">${actions(it)}</div>
       </div></li>`,
@@ -697,7 +697,7 @@ export function mediaPage(
     }
     ${
       owner
-        ? `<div class="home-foot"><a href="/studio/export">导出备份（zip）· 当前观察 ${counts.observations} 条 · 野外笔记 ${counts.posts} 篇</a></div>`
+        ? `<div class="home-foot"><a href="/studio/export">导出备份（zip）· 当前观察 ${counts.observations} 条 · 札记 ${counts.posts} 篇</a></div>`
         : ''
     }
   </div>`, user);
@@ -941,7 +941,7 @@ export function taxaManagePage(
   </script>`, user);
 }
 
-// ---------- 野外笔记编辑器（写作模式） ----------
+// ---------- 札记编辑器（写作模式） ----------
 
 export function noteEditorHtml(slug: string | null, data: Record<string, any>): string {
   const published = data.status === 'published';
