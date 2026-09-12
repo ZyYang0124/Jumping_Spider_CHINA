@@ -426,7 +426,7 @@ a:hover { color: var(--terra); }
 
 .place-groups { padding: 34px 0 40px; }
 .place-group { margin-bottom: 52px; }
-.place-group > h2 { font-family: var(--serif); font-size: 24px; margin: 0 0 20px; }
+.place-group > h2 { font-family: var(--serif); font-size: clamp(26px, 3vw, 36px); margin: 0 0 24px; }
 .place-group > h2 .n { color: var(--faint); font-size: 13.5px; margin-left: 12px; font-family: var(--sans); font-weight: 400; letter-spacing: 0.04em; }
 .place-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 30px 24px; }
 .place-card { display: block; }
